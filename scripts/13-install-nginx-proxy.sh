@@ -17,18 +17,18 @@ trap cleanup EXIT
 
 log "从 GitHub Release ${TAG} 下载 NGINX ${NGINX_VERSION}。"
 curl --fail --location --retry 4 --retry-all-errors --silent --show-error \
-  "${RELEASE_URL}/${ASSET}" -o "$TMP/nginx"
+  "${RELEASE_URL}/${ASSET}" -o "$TMP/$ASSET"
 curl --fail --location --retry 4 --retry-all-errors --silent --show-error \
-  "${RELEASE_URL}/${ASSET}.sha256" -o "$TMP/nginx.sha256"
+  "${RELEASE_URL}/${ASSET}.sha256" -o "$TMP/$ASSET.sha256"
 (
   cd "$TMP"
-  sha256sum --check nginx.sha256
+  sha256sum --check "$ASSET.sha256"
 ) || die "NGINX SHA256 校验失败，拒绝安装。"
-chmod 0755 "$TMP/nginx"
+chmod 0755 "$TMP/$ASSET"
 
 id nginx >/dev/null 2>&1 || useradd --system --no-create-home --home-dir /nonexistent --shell /sbin/nologin nginx
 install -d -m 0755 /usr/local/sbin /etc/nginx /var/log/nginx-k8s-api
-install -m 0755 "$TMP/nginx" /usr/local/sbin/nginx
+install -m 0755 "$TMP/$ASSET" /usr/local/sbin/nginx
 install -m 0644 "$ROOT/systemd/nginx-k8s-api.service" /etc/systemd/system/nginx-k8s-api.service
 sed -e "s/__MASTER1_IP__/${MASTER1_IP}/g" \
     -e "s/__MASTER2_IP__/${MASTER2_IP}/g" \
