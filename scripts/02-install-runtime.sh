@@ -3,11 +3,20 @@ set -Eeuo pipefail
 source "$(dirname "$0")/lib.sh"
 require_root
 OFF="${ROOT}/offline"
-[[ -d "$OFF/rpms" ]] || die "缺少 offline/rpms；请先准备离线资源包"
+[[ -d "$OFF/rpms" ]] || die "缺少 offline/rpms；请先运行 scripts/01-prepare-offline.sh"
+[[ -s /etc/kubernetes/runtime.env ]] || die "缺少部署端分发的 runtime.env；请先运行 scripts/15-distribute-node-configs.sh"
+[[ -s /etc/crictl.yaml ]] || die "缺少部署端生成的 /etc/crictl.yaml"
+# 运行时配置由部署端生成并分发；节点安装脚本只安装二进制和启动服务。
+# shellcheck disable=SC1091
+source /etc/kubernetes/runtime.env
 (cd "$OFF" && sha256sum -c SHA256SUMS)
 log "安装离线系统 RPM 依赖包"
 dnf install -y --disablerepo="*" "$OFF"/rpms/*.rpm
-if [[ "${KUBE_PROXY_MODE:-ipvs}" == nftables ]]; then command -v nft >/dev/null 2>&1 || die "离线 RPM 未安装 nftables/nft"; else command -v ipvsadm >/dev/null 2>&1 || die "离线 RPM 未安装 ipvsadm"; fi
+if [[ "$KUBE_PROXY_MODE" == nftables ]]; then
+  command -v nft >/dev/null 2>&1 || die "离线 RPM 未安装 nftables/nft"
+else
+  command -v ipvsadm >/dev/null 2>&1 || die "离线 RPM 未安装 ipvsadm"
+fi
 
 install -d -m 0755 /usr/local/bin /usr/local/sbin /opt/cni/bin /etc/kubernetes
 tar -xzf "$OFF/src/etcd.tar.gz" -C /tmp
@@ -19,39 +28,18 @@ install -m 0755 "$OFF/bin/runc" /usr/local/sbin/runc
 tar -xzf "$OFF/src/cni-plugins.tgz" -C /opt/cni/bin
 tar -xzf "$OFF/src/crictl.tar.gz" -C /usr/local/bin crictl
 
-case "${RUNTIME_TYPE:-containerd}" in
+case "$RUNTIME_TYPE" in
   containerd)
-    tar -xzf "$OFF/src/containerd.tar.gz" -C /usr/local
+    [[ -s /etc/containerd/config.toml ]] || die "缺少部署端生成的 /etc/containerd/config.toml"
     install -m 0644 "$ROOT/systemd/containerd.service" /etc/systemd/system/containerd.service
-    install -d -m 0755 /etc/containerd
-    containerd config default >/etc/containerd/config.toml
-    # containerd 2.x：启用 systemd cgroup driver。
-    if grep -q "SystemdCgroup = false" /etc/containerd/config.toml; then
-      sed -i 's/SystemdCgroup = false/SystemdCgroup = true/' /etc/containerd/config.toml
-    elif grep -q "SystemdCgroup = true" /etc/containerd/config.toml; then
-      :
-    else
-      OPTIONS_TABLE="[plugins.'io.containerd.cri.v1.runtime'.containerd.runtimes.runc.options]"
-      grep -Fq "$OPTIONS_TABLE" /etc/containerd/config.toml || die "containerd 默认配置缺少 runc options 表"
-      sed -i "/^\\[plugins.'io.containerd.cri.v1.runtime'.containerd.runtimes.runc.options\\]/a SystemdCgroup = true" /etc/containerd/config.toml
-    fi
-    if grep -qE "^[[:space:]]*sandbox[[:space:]]*=" /etc/containerd/config.toml; then
-      # containerd 2.x config v3 使用 pinned_images.sandbox。
-      sed -i -E "s#^([[:space:]]*sandbox[[:space:]]*=[[:space:]]*).*$#\\1'$PAUSE_IMAGE'#" /etc/containerd/config.toml
-    elif grep -qE "^[[:space:]]*sandbox_image[[:space:]]*=" /etc/containerd/config.toml; then
-      # 兼容 containerd 1.x config v2。
-      sed -i -E "s#^([[:space:]]*sandbox_image[[:space:]]*=[[:space:]]*).*$#\\1\"$PAUSE_IMAGE\"#" /etc/containerd/config.toml
-    else
-      die "无法在 containerd 配置中定位 sandbox/pause 镜像字段"
-    fi
     containerd config dump >/dev/null || die "containerd 配置校验失败"
-    CONTAINER_RUNTIME_ENDPOINT="unix:///run/containerd/containerd.sock"
     systemctl daemon-reload
     systemctl enable --now containerd
     ;;
   docker)
-    [[ -f "$OFF/docker/docker.tgz" ]] || die "Docker 模式缺少 offline/docker/docker.tgz（Docker 静态二进制包）"
-    [[ -f "$OFF/docker/cri-dockerd" ]] || die "Docker 模式缺少 offline/docker/cri-dockerd（cri-dockerd 可执行文件）"
+    [[ -f "$OFF/docker/docker.tgz" ]] || die "Docker 模式缺少 offline/docker/docker.tgz"
+    [[ -f "$OFF/docker/cri-dockerd" ]] || die "Docker 模式缺少 offline/docker/cri-dockerd"
+    [[ -s /etc/docker/daemon.json ]] || die "缺少部署端生成的 /etc/docker/daemon.json"
     install -d -m 0755 /tmp/docker-runtime
     tar -xzf "$OFF/docker/docker.tgz" -C /tmp/docker-runtime
     [[ -d /tmp/docker-runtime/docker ]] || die "Docker 静态包目录结构不正确，预期包含 docker/ 子目录"
@@ -61,33 +49,14 @@ case "${RUNTIME_TYPE:-containerd}" in
     install -m 0644 "$ROOT/systemd/docker.service" /etc/systemd/system/docker.service
     install -m 0644 "$ROOT/systemd/cri-docker.socket" /etc/systemd/system/cri-docker.socket
     install -m 0644 "$ROOT/systemd/cri-docker.service" /etc/systemd/system/cri-docker.service
-    install -d -m 0755 /etc/docker
-    cat >/etc/docker/daemon.json <<EOF
-{
-  "exec-opts": ["native.cgroupdriver=systemd"],
-  "data-root": "$DOCKER_DATA_ROOT",
-  "storage-driver": "overlay2",
-  "log-driver": "json-file",
-  "log-opts": {"max-size": "100m", "max-file": "5"}
-}
-EOF
     dockerd --validate --config-file=/etc/docker/daemon.json || die "Docker daemon.json 配置校验失败"
-    CONTAINER_RUNTIME_ENDPOINT="unix:///run/cri-dockerd.sock"
     systemctl daemon-reload
     systemctl enable --now docker
     systemctl enable --now cri-docker.socket
     ;;
-  *)
-    die "RUNTIME_TYPE 仅支持 containerd 或 docker"
-    ;;
+  *) die "RUNTIME_TYPE 仅支持 containerd 或 docker" ;;
 esac
 
-cat >/etc/crictl.yaml <<EOF
-runtime-endpoint: ${CONTAINER_RUNTIME_ENDPOINT}
-image-endpoint: ${CONTAINER_RUNTIME_ENDPOINT}
-timeout: 10
-debug: false
-EOF
-systemctl is-active --quiet "${RUNTIME_TYPE:-containerd}" || die "容器运行时服务未处于 active 状态"
+systemctl is-active --quiet "$RUNTIME_TYPE" || die "容器运行时服务未处于 active 状态：$RUNTIME_TYPE"
 crictl --runtime-endpoint "$CONTAINER_RUNTIME_ENDPOINT" info >/dev/null || die "CRI endpoint 无法连接：$CONTAINER_RUNTIME_ENDPOINT"
-ok "${RUNTIME_TYPE:-containerd} 运行时及 Kubernetes 二进制安装完成。CRI endpoint：${CONTAINER_RUNTIME_ENDPOINT}"
+ok "$RUNTIME_TYPE 运行时及 Kubernetes 二进制安装完成。CRI endpoint：$CONTAINER_RUNTIME_ENDPOINT"
