@@ -17,6 +17,7 @@
 
 ```bash
 sudo bash scripts/01-prepare-offline.sh
+sudo bash scripts/17-install-cli-tools.sh
 # 暂存机与部署机分离时，将 offline/ 目录先复制到部署机项目根目录
 # 部署机需要 rsync、ssh、scp 客户端
 sudo dnf install -y rsync openssh-clients
@@ -76,7 +77,13 @@ sudo bash scripts/16-batch-exec.sh workers 09-start-worker.sh --parallel
 
 NGINX 只做 TCP/TLS 透传，不终止 TLS。检查本机 `127.0.0.1:6443` 可访问 API Server，随后确认 Worker 节点注册为 Ready。
 
-## 阶段 5：CNI、DNS 与验收\n\n```bash\nsudo bash scripts/19-install-calico.sh\nsudo bash scripts/20-install-coredns.sh\nsudo bash scripts/18-verify-cluster.sh\n```
+## 阶段 5：CNI、DNS 与验收
+
+~~~bash
+sudo bash scripts/19-install-calico.sh
+sudo bash scripts/20-install-coredns.sh
+sudo bash scripts/18-verify-cluster.sh
+~~~
 
 1. scripts/19-install-calico.sh 应用 Release 中的 Calico CRD、Operator 和 Installation CR（默认 VXLAN、BGP Disabled）。
 2. 确认全部镜像均已导入内网仓库或节点缓存。
