@@ -28,7 +28,7 @@ WORK="$(mktemp -d)"
 cleanup() { rm -rf "$WORK"; }
 trap cleanup EXIT
 OUT="${WORK}/offline-kubernetes-v${K8S_VERSION}-rocky9-amd64"
-mkdir -p "$OUT"/{bin,src,manifests,checksums}
+mkdir -p "$OUT"/{bin,src,manifests,checksums,tools,docker,rpms}
 
 download() {
   local url="$1" dest="$2"
@@ -57,6 +57,22 @@ download "https://github.com/containernetworking/plugins/releases/download/${CNI
 download "https://github.com/kubernetes-sigs/cri-tools/releases/download/${CRICTL_VERSION}/crictl-${CRICTL_VERSION}-linux-amd64.tar.gz" "$OUT/src/crictl.tar.gz"
 download "https://raw.githubusercontent.com/projectcalico/calico/${CALICO_VERSION}/manifests/tigera-operator.yaml" "$OUT/manifests/tigera-operator.yaml"
 download "https://raw.githubusercontent.com/projectcalico/calico/${CALICO_VERSION}/manifests/v3_projectcalico_org.yaml" "$OUT/manifests/calico-crds.yaml"
+
+# CFSSL、Helm、Calicoctl、Docker Engine 与 Compose 均作为 Release 离线资产。
+download "https://github.com/cloudflare/cfssl/releases/download/v${CFSSL_VERSION}/cfssl_${CFSSL_VERSION}_linux_amd64" "$OUT/bin/cfssl"
+download "https://github.com/cloudflare/cfssl/releases/download/v${CFSSL_VERSION}/cfssljson_${CFSSL_VERSION}_linux_amd64" "$OUT/bin/cfssljson"
+chmod 0755 "$OUT/bin/cfssl" "$OUT/bin/cfssljson"
+download "https://get.helm.sh/helm-v${HELM_VERSION}-linux-amd64.tar.gz" "$OUT/src/helm.tar.gz"
+tar -xzf "$OUT/src/helm.tar.gz" -C "$WORK"
+install -m 0755 "$WORK/linux-amd64/helm" "$OUT/bin/helm"
+download "https://github.com/projectcalico/calico/releases/download/${CALICO_VERSION}/calicoctl-linux-amd64" "$OUT/bin/calicoctl"
+chmod 0755 "$OUT/bin/calicoctl"
+download "https://download.docker.com/linux/static/stable/x86_64/docker-${DOCKER_VERSION}.tgz" "$OUT/docker/docker.tgz"
+download "https://github.com/docker/compose/releases/download/v${DOCKER_COMPOSE_VERSION}/docker-compose-linux-x86_64" "$OUT/docker/docker-compose"
+chmod 0755 "$OUT/docker/docker-compose"
+
+log "在 Rocky Linux 9 容器中解析并下载离线 RPM 及其依赖。"
+docker run --rm -v "$OUT/rpms:/rpms" rockylinux:9 bash -lc 'dnf -y install dnf-plugins-core && dnf -y download --resolve --alldeps --destdir=/rpms chrony curl-minimal wget openssh-clients tar gzip jq socat conntrack-tools ipset ipvsadm iptables ebtables ethtool rsync policycoreutils-python-utils nftables'
 
 log "使用仓库 Dockerfile 构建 NGINX ${NGINX_VERSION}（启用 stream）。"
 docker build --pull \
@@ -89,7 +105,7 @@ NGINX=${NGINX_VERSION}（Rocky Linux 9 源码构建，启用 stream）
 Architecture=amd64
 OS=Rocky Linux 9
 EOF
-(cd "$OUT" && find bin src manifests checksums -type f -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS)
+(cd "$OUT" && find bin src manifests checksums tools docker rpms -type f -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS)
 ARCHIVE="${WORK}/offline-kubernetes-v${K8S_VERSION}-rocky9-amd64.tar.gz"
 tar -C "$WORK" -czf "$ARCHIVE" "$(basename "$OUT")"
 (cd "$WORK" && sha256sum "$(basename "$ARCHIVE")" > "$(basename "$ARCHIVE").sha256")
@@ -101,5 +117,5 @@ log "发布 Release ${TAG}。"
 gh release create "$TAG" "$ARCHIVE" "$ARCHIVE.sha256" \
   "$WORK/$NGINX_ASSET" "$WORK/$NGINX_ASSET.sha256" \
   --title "Kubernetes v${K8S_VERSION} 离线资源包（Rocky Linux 9 amd64）" \
-  --notes "由仓库脚本自动构建。包含 Kubernetes 二进制资源包及独立 NGINX ${NGINX_VERSION} 二进制。使用前请校验 SHA256；RPM 和容器镜像需另行准备。"
+  --notes "由仓库脚本自动构建。包含 Kubernetes、etcd、containerd、runc、CNI、crictl、CFSSL、Helm、Calicoctl、Docker Engine、Docker Compose、Rocky Linux 9 RPM 及 NGINX 二进制。使用前请校验 SHA256；容器镜像需另行准备。"
 log "Release 发布完成：${TAG}"
