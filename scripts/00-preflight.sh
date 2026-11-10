@@ -2,30 +2,22 @@
 set -Eeuo pipefail
 source "$(dirname "$0")/lib.sh"
 require_root
-[[ -f /etc/rocky-release ]] || die "本部署基线仅支持 Rocky Linux 9"
-grep -qE 'Rocky Linux release 9' /etc/rocky-release || die "系统版本必须为 Rocky Linux 9"
-[[ "$(uname -m)" == "x86_64" ]] || die "CPU 架构必须为 x86_64/amd64"
-log "开始应用操作系统基础设置"
-OFF="${ROOT}/offline"
-[[ -d "$OFF/rpms" ]] || die "缺少离线 RPM 包；请先在暂存机执行离线资源准备脚本"
-dnf -y localinstall "$OFF"/rpms/*.rpm
-systemctl enable --now chronyd
-swapoff -a
-sed -ri '/\sswap\s/s/^/#/' /etc/fstab
-cat >/etc/modules-load.d/k8s.conf <<'EOF'
-overlay
-br_netfilter
-EOF
-modprobe overlay
-modprobe br_netfilter
-cat >/etc/sysctl.d/99-kubernetes.conf <<'EOF'
-net.bridge.bridge-nf-call-iptables = 1
-net.bridge.bridge-nf-call-ip6tables = 1
-net.ipv4.ip_forward = 1
-fs.inotify.max_user_instances = 8192
-fs.inotify.max_user_watches = 1048576
-fs.file-max = 2097152
-EOF
-sysctl --system
-timedatectl set-ntp true
-ok "系统预检完成。请人工复核 firewalld、SELinux、NetworkManager 和路由策略。"
+[[ -f /etc/rocky-release ]] || die "当前基线要求 Rocky Linux 9"
+[[ "$(uname -m)" == x86_64 ]] || die "当前项目基线仅支持 amd64/x86_64"
+KERNEL="$(uname -r | sed 's/-.*//')"
+if [[ "\${KUBE_PROXY_MODE:-ipvs}" == nftables ]]; then
+  [[ "$(printf '%s\n5.13 "$KERNEL" | sort -V | head -n1)" == 5.13 ]] || die "nftables 模式要求 Linux kernel >= 5.13，当前为 $(uname -r)"
+  command -v nft >/dev/null 2>&1 || die "nftables 模式需要 nft 命令；请安装 nftables 软件包"
+elif [[ "\${KUBE_PROXY_MODE:-ipvs}" == ipvs ]]; then
+  command -v ipvsadm >/dev/null 2>&1 || warn "尚未安装 ipvsadm；请确保离线 RPM 包含 ipvsadm"
+  for module in ip_vs ip_vs_rr ip_vs_wrr ip_vs_sh nf_conntrack; do
+    modprobe "$module" || die "无法加载 IPVS 内核模块：$module"
+  done
+else
+  die "KUBE_PROXY_MODE 仅支持 ipvs 或 nftables"
+fi
+case "\${RUNTIME_TYPE:-containerd}" in
+  containerd|docker) ;;
+  *) die "RUNTIME_TYPE 仅支持 containerd 或 docker" ;;
+esac
+ok "系统预检通过：kernel=$(uname -r)，runtime=\${RUNTIME_TYPE:-containerd}，proxy=\${KUBE_PROXY_MODE:-ipvs}"
