@@ -41,7 +41,7 @@ fi
 install -m 0644 "$ROOT/systemd/nginx-k8s-api.service" /etc/systemd/system/
 install -m 0644 "$ROOT/systemd/kubelet.service" /etc/systemd/system/
 install -m 0644 "$ROOT/systemd/kube-proxy.service" /etc/systemd/system/
-install -m 0644 "$ROOT/config/kubelet-config.yaml" /var/lib/kubelet/config.yaml
-install -m 0644 "$ROOT/config/kube-proxy-config.yaml" /var/lib/kube-proxy/config.yaml
+[[ -s /var/lib/kubelet/config.yaml ]] || die "缺少已生成的 kubelet 配置；请先运行 scripts/14-render-node-configs.sh 和 scripts/15-distribute-node-configs.sh"
+[[ -s /var/lib/kube-proxy/config.yaml ]] || die "缺少已生成的 kube-proxy 配置；请先运行 scripts/14-render-node-configs.sh 和 scripts/15-distribute-node-configs.sh"
 systemctl daemon-reload
 log "systemd 单元文件已安装；运行时 endpoint：\${CONTAINER_RUNTIME_ENDPOINT:-$DEFAULT_CRI_ENDPOINT}。请先完成证书/kubeconfig/节点配置分发，再启动服务。"
