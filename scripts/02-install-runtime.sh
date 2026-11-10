@@ -31,7 +31,15 @@ case "${RUNTIME_TYPE:-containerd}" in
     else
       die "未在 containerd 默认配置中找到 SystemdCgroup 字段，请检查当前 containerd 版本配置格式"
     fi
-    sed -i -E "s#^([[:space:]]*sandbox_image[[:space:]]*=[[:space:]]*).*$#\1\"$PAUSE_IMAGE\"#" /etc/containerd/config.toml
+    if grep -qE "^[[:space:]]*sandbox[[:space:]]*=" /etc/containerd/config.toml; then
+      # containerd 2.x config v3 使用 pinned_images.sandbox。
+      sed -i -E "s#^([[:space:]]*sandbox[[:space:]]*=[[:space:]]*).*$#\\1'$PAUSE_IMAGE'#" /etc/containerd/config.toml
+    elif grep -qE "^[[:space:]]*sandbox_image[[:space:]]*=" /etc/containerd/config.toml; then
+      # 兼容 containerd 1.x config v2。
+      sed -i -E "s#^([[:space:]]*sandbox_image[[:space:]]*=[[:space:]]*).*$#\\1\"$PAUSE_IMAGE\"#" /etc/containerd/config.toml
+    else
+      die "无法在 containerd 配置中定位 sandbox/pause 镜像字段"
+    fi
     CONTAINER_RUNTIME_ENDPOINT="unix:///run/containerd/containerd.sock"
     systemctl daemon-reload
     systemctl enable --now containerd
