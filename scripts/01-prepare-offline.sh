@@ -8,7 +8,7 @@ require_root
 for cmd in curl tar sha256sum; do command -v "$cmd" >/dev/null 2>&1 || { printf "missing required command: %s\\n" "$cmd" >&2; exit 1; }; done
 
 VERSION="${K8S_VERSION#v}"
-TAG="k8s-v${VERSION}"
+TAG="k8s-v${VERSION}-r${RELEASE_REVISION}"
 ARCHIVE_NAME="offline-kubernetes-v${VERSION}-rocky9-amd64.tar.gz"
 ASSET_BASE="https://github.com/bookgh/kubernetes-binary-ha/releases/download/${TAG}"
 WORK="$(mktemp -d)"
