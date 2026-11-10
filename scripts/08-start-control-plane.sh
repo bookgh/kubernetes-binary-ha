@@ -7,4 +7,5 @@ systemctl enable --now kube-apiserver
 systemctl enable --now kube-controller-manager
 systemctl enable --now kube-scheduler
 systemctl enable --now kubelet
+systemctl enable --now kube-proxy
 ok "本机控制平面组件已启动；请检查 API Server /readyz 和组件日志。"
