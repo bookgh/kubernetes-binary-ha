@@ -59,7 +59,30 @@ NGINX 不再由运维人员在暂存机手动构建。所有二进制资源（�
 
 > 当前离线包不包含完整 Rocky Linux RPM 仓库快照和全部容器镜像。Calico、CoreDNS、pause 及业务镜像需要按目标版本单独同步到私有仓库或制作 OCI 归档。
 
-## 五、节点部署顺序
+## 五、集中式部署与配置分发
+
+项目采用“部署端生成配置、批量分发、节点端安装执行”的模式。先在部署机完成 `config/cluster.env`，配置节点 IP、`RUNTIME_TYPE` 与 `KUBE_PROXY_MODE`，然后执行：
+
+```bash
+sudo bash scripts/14-render-node-configs.sh
+sudo bash scripts/15-distribute-node-configs.sh
+```
+
+第一个脚本在本地 `generated/<node>/` 生成每台节点的 kubelet、kube-proxy 和运行时配置；第二个脚本通过 SSH/SCP 批量分发。请先检查生成目录，再执行分发。节点端不再临时拼接这些配置文件。
+
+### 容器运行时选择
+
+- `RUNTIME_TYPE="containerd"`：使用 containerd CRI socket。
+- `RUNTIME_TYPE="docker"`：使用 Docker Engine + cri-dockerd，kubelet 连接 cri-dockerd 的 CRI socket。Docker Engine 本身不是 Kubernetes CRI 接口；Docker 模式需设置 `DOCKER_VERSION` 和 `CRI_DOCKERD_VERSION`，再运行离线资源准备脚本。
+
+### kube-proxy 模式选择
+
+- `KUBE_PROXY_MODE="ipvs"`：加载 IPVS 内核模块并安装 `ipvsadm`。
+- `KUBE_PROXY_MODE="nftables"`：要求 Linux kernel >= 5.13，并安装 `nftables`；配置会显式写入 `mode: nftables`。
+
+模式应在 kube-proxy 首次启动前确定。集群运行后切换代理模式属于网络变更，应安排维护窗口并验证 ClusterIP、NodePort 和跨节点流量。
+
+## 六、节点部署顺序
 
 1. 六台节点分别运行 `scripts/00-preflight.sh`。
 2. 从对应 Release 下载离线资源包并解压到项目的 `offline/` 目录。
@@ -75,7 +98,7 @@ NGINX 不再由运维人员在暂存机手动构建。所有二进制资源（�
 
 `scripts/12-build-nginx-binary.sh` 已保留为兼容提示入口，不再执行本地构建。NGINX 必须来自对应 Kubernetes Release。
 
-## 六、NGINX Release 下载与安装
+## 七、NGINX Release 下载与安装
 
 NGINX 由 Actions 自动构建并作为独立 Release 资产发布。每台 Worker 只需准备项目脚本和 `config/cluster.env`，确保能访问 GitHub Release：
 
@@ -87,7 +110,7 @@ curl --cacert /etc/kubernetes/pki/k8s-ca.crt https://127.0.0.1:6443/readyz
 
 安装脚本根据 `K8S_VERSION` 和 `NGINX_VERSION` 计算 Release tag 和资产名称，下载 NGINX 及 SHA256 文件，校验成功后才安装。Worker 不需要 Docker/Podman，也不需要在节点上编译源码。
 
-## 七、常用检查
+## 八、常用检查
 
 ```bash
 bash -n scripts/*.sh scripts/ci/*.sh
@@ -97,7 +120,7 @@ kubectl get nodes -o wide
 kubectl get pods -A -o wide
 ```
 
-## 八、安全注意事项
+## 九、安全注意事项
 
 - CA 私钥不得分发到集群节点；节点证书按最小权限分发。
 - 不要通过关闭 SELinux 或防火墙规避配置问题。
