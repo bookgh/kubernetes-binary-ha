@@ -68,7 +68,7 @@ sudo bash scripts/14-render-node-configs.sh
 sudo bash scripts/15-distribute-node-configs.sh
 ```
 
-第一个脚本在本地 `generated/<node>/` 生成每台节点的 kubelet、kube-proxy 和运行时配置；第二个脚本通过 SSH/SCP 批量分发。请先检查生成目录，再执行分发。节点端不再临时拼接这些配置文件。
+第一个脚本在本地 `generated/<node>/` 生成每台节点的 `cluster.env`、kubelet、kube-proxy、NGINX stream 配置，以及 containerd/Docker、crictl 公共配置；第二个脚本通过 rsync/SCP 批量分发项目、离线资源、配置、证书和节点 kubeconfig。请先检查生成目录，再执行分发。远程安装脚本只安装二进制、部署 systemd 单元并校验配置，不再用 heredoc 临时创建服务配置。
 
 ### 容器运行时选择
 
@@ -91,6 +91,7 @@ sudo bash scripts/15-distribute-node-configs.sh
 ```bash
 # 在 Rocky Linux 9 amd64 暂存机准备离线资源
 sudo bash scripts/01-prepare-offline.sh
+# 从 k8s-v${K8S_VERSION#v} Release 下载并校验二进制包，同时补齐 Rocky 9 RPM 依赖
 # 如果暂存机与部署机分离，先将生成的 offline/ 目录复制到部署机项目根目录
 # 部署机需具备 rsync、ssh、scp 客户端（同机运行 01 时已安装）
 sudo dnf install -y rsync openssh-clients
