@@ -20,6 +20,7 @@
 ## 运行时与 kube-proxy 参数
 
 - `RUNTIME_TYPE`：`containerd` 或 `docker`。Docker 模式由 cri-dockerd 提供 CRI 兼容接口。
+- `cluster-signer.key`：独立节点证书签发 CA 私钥，只分发到 Master 控制平面；根 CA 私钥保持离线。
 - `CONTAINER_RUNTIME_ENDPOINT`：CRI socket。containerd 为 `unix:///run/containerd/containerd.sock`；Docker/cri-dockerd 为 `unix:///run/cri-dockerd.sock`。
 - `DOCKER_VERSION`：Docker 静态二进制版本，Docker 模式必填。
 - `CRI_DOCKERD_VERSION`：cri-dockerd 版本，Docker 模式必填。
