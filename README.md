@@ -77,8 +77,8 @@ sudo bash scripts/15-distribute-node-configs.sh
 
 ### kube-proxy 模式选择
 
-- `KUBE_PROXY_MODE="ipvs"`：加载 IPVS 内核模块并安装 `ipvsadm`。
-- `KUBE_PROXY_MODE="nftables"`：要求 Linux kernel >= 5.13，并安装 `nftables`；配置会显式写入 `mode: nftables`。
+- `KUBE_PROXY_MODE="ipvs"`：加载 IPVS 内核模块并安装 `ipvsadm`。注意：IPVS 自 Kubernetes v1.35 起已弃用，v1.40 起默认禁用，v1.43 计划移除。
+- `KUBE_PROXY_MODE="nftables"`：推荐的新部署模式，要求 Linux kernel >= 5.13、`nft` >= 1.0.1，并安装 `nftables`；配置会显式写入 `mode: nftables`。
 
 模式应在 kube-proxy 首次启动前确定。集群运行后切换代理模式属于网络变更，应安排维护窗口并验证 ClusterIP、NodePort 和跨节点流量。
 
