@@ -60,9 +60,9 @@ sudo bash scripts/15-distribute-node-configs.sh
 1. 在仓库创建 Issue，标题或正文填写 Kubernetes 版本，例如 `v1.37.2`。
 2. 为 Issue 添加 `build-offline` 标签。
 3. Actions 自动调用 `scripts/ci/build-offline-release.sh`。
-4. 脚本读取 `config/release-versions.env` 中的组件版本，统一下载 Kubernetes、etcd、containerd、runc、CNI、crictl、Calico 清单。
+4. 脚本读取 `config/release-versions.env` 中的组件版本，统一下载 Kubernetes、etcd、containerd、runc、CNI、crictl、CFSSL、Helm、Calicoctl、Docker Engine、cri-dockerd、Docker Compose，并在 Rocky Linux 9 容器中解析下载 RPM 依赖和 Calico 清单。
 5. 脚本通过 `nginx/Dockerfile` 在 Rocky Linux 9 容器构建环境源码编译 NGINX stream 二进制。
-6. 发布 `k8s-vX.Y.Z` Release，包含离线资源包、NGINX 独立二进制和各自的 SHA256 文件。
+6. 发布 `k8s-vX.Y.Z-rN` Release，包含离线资源包、NGINX 独立二进制和 SHA256 文件；当前修订号为 r2。
 
 ### 手动触发
 
@@ -110,10 +110,10 @@ sudo bash scripts/15-distribute-node-configs.sh
 ```bash
 # 在 Rocky Linux 9 amd64 暂存机准备离线资源
 sudo bash scripts/01-prepare-offline.sh
-# 从 k8s-v${K8S_VERSION#v} Release 下载并校验二进制包，同时补齐 Rocky 9 RPM 依赖
-# 如果暂存机与部署机分离，先将生成的 offline/ 目录复制到部署机项目根目录
-# 部署机需具备 rsync、ssh、scp 客户端（同机运行 01 时已安装）
-sudo dnf install -y rsync openssh-clients
+# 暂存机与部署机分离时，先将 offline/ 目录复制到部署机项目根目录
+sudo dnf install -y --disablerepo="*" offline/rpms/*.rpm
+sudo bash scripts/17-install-cli-tools.sh
+# 部署机需具备 rsync、ssh、scp 客户端
 
 # 在部署机本地生成 PKI、kubeconfig 和各节点配置
 sudo bash scripts/03-generate-pki.sh
