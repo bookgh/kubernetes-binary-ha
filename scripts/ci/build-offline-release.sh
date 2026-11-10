@@ -78,7 +78,7 @@ download "https://github.com/docker/compose/releases/download/v${DOCKER_COMPOSE_
 chmod 0755 "$OUT/docker/docker-compose"
 
 log "在 Rocky Linux 9 容器中解析并下载离线 RPM 及其依赖。"
-docker run --rm -v "$OUT/rpms:/rpms" rockylinux:9 bash -lc 'dnf -y install dnf-plugins-core && dnf -y download --resolve --alldeps --destdir=/rpms chrony curl-minimal wget openssh-clients tar gzip jq socat conntrack-tools ipset ipvsadm iptables ebtables ethtool rsync policycoreutils-python-utils nftables'
+docker run --rm -v "$OUT/rpms:/rpms" rockylinux:9 bash -lc 'dnf -y install dnf-plugins-core && dnf -y download --resolve --alldeps --destdir=/rpms chrony curl-minimal wget openssh-clients tar gzip jq socat conntrack-tools ipset ipvsadm iptables ebtables ethtool rsync policycoreutils-python-utils container-selinux nftables'
 
 log "使用仓库 Dockerfile 构建 NGINX ${NGINX_VERSION}（启用 stream）。"
 docker build --pull \
