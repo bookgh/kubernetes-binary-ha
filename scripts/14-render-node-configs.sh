@@ -18,6 +18,46 @@ esac
 OUT="${ROOT}/generated"
 rm -rf "$OUT"
 mkdir -p "$OUT"
+COMMON="$OUT/common"
+mkdir -p "$COMMON/etc"
+cat > "$COMMON/etc/crictl.yaml" <<EOF
+runtime-endpoint: ${RUNTIME_ENDPOINT}
+image-endpoint: ${RUNTIME_ENDPOINT}
+timeout: 10
+debug: false
+EOF
+if [[ "${RUNTIME_TYPE:-containerd}" == containerd ]]; then
+  [[ -s "$ROOT/offline/src/containerd.tar.gz" ]] || die "缺少 Release 中的 containerd.tar.gz；请先运行 scripts/01-prepare-offline.sh"
+  TMP_CONTAINERD="$(mktemp -d)"
+  tar -xzf "$ROOT/offline/src/containerd.tar.gz" -C "$TMP_CONTAINERD" bin/containerd
+  CONTAINERD_BIN="$TMP_CONTAINERD/bin/containerd"
+  install -d -m 0755 "$COMMON/etc/containerd"
+  "$CONTAINERD_BIN" config default > "$COMMON/etc/containerd/config.toml"
+  if grep -q "SystemdCgroup = false" "$COMMON/etc/containerd/config.toml"; then
+    sed -i 's/SystemdCgroup = false/SystemdCgroup = true/' "$COMMON/etc/containerd/config.toml"
+  elif ! grep -q "SystemdCgroup = true" "$COMMON/etc/containerd/config.toml"; then
+    OPTIONS_TABLE="[plugins.'io.containerd.cri.v1.runtime'.containerd.runtimes.runc.options]"
+    grep -Fq "$OPTIONS_TABLE" "$COMMON/etc/containerd/config.toml" || die "containerd 默认配置缺少 runc options 表"
+    sed -i "/^\\[plugins.'io.containerd.cri.v1.runtime'.containerd.runtimes.runc.options\\]/a SystemdCgroup = true" "$COMMON/etc/containerd/config.toml"
+  fi
+  if grep -qE "^[[:space:]]*sandbox[[:space:]]*=" "$COMMON/etc/containerd/config.toml"; then
+    sed -i -E "s#^([[:space:]]*sandbox[[:space:]]*=[[:space:]]*).*$#\\1'${PAUSE_IMAGE}'#" "$COMMON/etc/containerd/config.toml"
+  else
+    die "containerd 2.x 默认配置中未找到 pinned_images.sandbox 字段"
+  fi
+  rm -rf "$TMP_CONTAINERD"
+elif [[ "${RUNTIME_TYPE:-containerd}" == docker ]]; then
+  install -d -m 0755 "$COMMON/etc/docker"
+  cat > "$COMMON/etc/docker/daemon.json" <<EOF
+{
+  "exec-opts": ["native.cgroupdriver=systemd"],
+  "data-root": "${DOCKER_DATA_ROOT}",
+  "storage-driver": "overlay2",
+  "log-driver": "json-file",
+  "log-opts": {"max-size": "100m", "max-file": "5"}
+}
+EOF
+fi
 NODES=(master-01 master-02 master-03 worker-01 worker-02 worker-03)
 IPS=("$MASTER1_IP" "$MASTER2_IP" "$MASTER3_IP" "$WORKER1_IP" "$WORKER2_IP" "$WORKER3_IP")
 for i in "${!NODES[@]}"; do
