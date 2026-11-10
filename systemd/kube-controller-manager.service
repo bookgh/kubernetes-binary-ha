@@ -3,6 +3,7 @@ Description=Kubernetes Controller Manager
 After=network-online.target kube-apiserver.service
 
 [Service]
+EnvironmentFile=/etc/kubernetes/cluster.env
 ExecStart=/usr/local/bin/kube-controller-manager \
   --kubeconfig=/etc/kubernetes/controller-manager.conf \
   --authentication-kubeconfig=/etc/kubernetes/controller-manager.conf \
