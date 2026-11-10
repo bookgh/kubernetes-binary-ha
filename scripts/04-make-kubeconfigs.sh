@@ -5,9 +5,14 @@ require_root
 PKI="${ROOT}/pki"
 OUT="${ROOT}/kubeconfigs"
 mkdir -p "$OUT"
+if [[ -x "$ROOT/offline/bin/kubectl" ]]; then
+  KUBECTL="$ROOT/offline/bin/kubectl"
+else
+  KUBECTL="$(command -v kubectl)" || die "未找到 kubectl；请先运行 scripts/01-prepare-offline.sh"
+fi
 make_cfg() {
   local name="$1" user="$2" cert="$3" key="$4" endpoint="$5"
-  kubectl config set-cluster "$CLUSTER_NAME" --server="https://${endpoint}:${API_PORT}" \
+  "$KUBECTL" config set-cluster "$CLUSTER_NAME" --server="https://${endpoint}:${API_PORT}" \
     --certificate-authority="$PKI/k8s-ca.crt" --embed-certs=true --kubeconfig="$OUT/${name}.conf"
   kubectl config set-credentials "$user" --client-certificate="$PKI/${cert}.crt" \
     --client-key="$PKI/${key}.key" --embed-certs=true --kubeconfig="$OUT/${name}.conf"
