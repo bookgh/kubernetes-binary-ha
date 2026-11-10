@@ -26,7 +26,7 @@ node_ip() {
   current="$(hostname -s)"
   for i in "${!ALL_NAMES[@]}"; do
     if [[ "${ALL_NAMES[$i]}" == "$current" ]]; then
-      printf '%s\\n' "${ALL_IPS[$i]}"
+      printf '%s\n' "${ALL_IPS[$i]}"
       return 0
     fi
   done
