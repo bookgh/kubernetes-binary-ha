@@ -21,7 +21,7 @@ else
 fi
 [[ "$raw" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+$ ]] || die "未找到有效版本号，格式应为 vX.Y.Z。"
 K8S_VERSION="${raw#v}"
-TAG="k8s-v${K8S_VERSION}"
+TAG="k8s-v${K8S_VERSION}-r${RELEASE_REVISION}"
 : "${GH_TOKEN:?缺少 GH_TOKEN；请检查 Workflow 权限配置。}"
 
 WORK="$(mktemp -d)"
@@ -106,7 +106,7 @@ runc=v${RUNC_VERSION}
 CNI_PLUGINS=${CNI_VERSION}
 crictl=${CRICTL_VERSION}
 Calico=${CALICO_VERSION}
-CoreDNS=${COREDNS_VERSION}（镜像需单独同步）
+CoreDNS=${COREDNS_VERSION}（镜像需单独同步）\nCFSSL=${CFSSL_VERSION}\nHelm=${HELM_VERSION}\nCalicoctl=${CALICOCTL_VERSION}\nDocker=${DOCKER_VERSION}\ncri-dockerd=${CRI_DOCKERD_VERSION}\nDockerCompose=${DOCKER_COMPOSE_VERSION}\nRockyLinux9_RPMs=Included
 NGINX=${NGINX_VERSION}（Rocky Linux 9 源码构建，启用 stream）
 Architecture=amd64
 OS=Rocky Linux 9
