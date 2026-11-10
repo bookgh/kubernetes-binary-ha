@@ -37,7 +37,7 @@ vi config/cluster.env
 
 ## 2. 构建并发布离线 Release
 
-GitHub Actions 的离线 Release workflow 使用 scripts/ci/build-offline-release.sh 构建。为目标 Kubernetes 版本触发 workflow，构建完成后应在 GitHub Releases 中看到 k8s-v1.37.2（实际 tag 按版本而定）。
+GitHub Actions 的离线 Release workflow 使用 scripts/ci/build-offline-release.sh 构建。为目标 Kubernetes 版本触发 workflow，构建完成后应在 GitHub Releases 中看到 k8s-v1.37.2-r2（tag 由 RELEASE_REVISION 控制）。
 
 离线包归档内含：
 - Kubernetes server/client 二进制、etcd、containerd、runc、CNI plugins、crictl；
@@ -76,7 +76,7 @@ sudo bash scripts/03-generate-pki.sh
 - ca-config.json：server/client/peer profile 和有效期；
 - csr/*.json：apiserver、etcd server/peer、kubelet、admin、controller-manager、scheduler、kube-proxy 等服务 CSR 模板。
 
-所有 X.509 证书通过 CFSSL 签发。节点证书和 etcd 成员证书的命令显式使用 -hostname=DNS:节点主机名,IP:节点内网IP，API Server 证书额外包含 API DNS、全部 Master IP、回环地址和 Kubernetes Service DNS/IP。脚本保留 OpenSSL 仅用于生成 ServiceAccount JWT RSA key pair（sa.key/sa.pub），它不是 X.509 证书。
+所有 X.509 证书通过 CFSSL 签发。节点证书和 etcd 成员证书的命令显式使用 -hostname=节点主机名,节点内网IP（CFSSL 根据内容自动识别 DNS 与 IP SAN，不要添加 DNS: 或 IP: 前缀），API Server 证书额外包含 API DNS、全部 Master IP、回环地址和 Kubernetes Service DNS/IP。脚本保留 OpenSSL 仅用于生成 ServiceAccount JWT RSA key pair（sa.key/sa.pub），它不是 X.509 证书。
 
 生成 kubeconfig 和每节点本地配置：
 
