@@ -1,0 +1,19 @@
+user nginx;
+worker_processes auto;
+error_log /var/log/nginx-k8s-api/error.log warn;
+pid /run/nginx-k8s-api.pid;
+events { worker_connections 4096; }
+stream {
+    upstream kube_apiserver_masters {
+        least_conn;
+        server __MASTER1_IP__:6443 max_fails=2 fail_timeout=5s;
+        server __MASTER2_IP__:6443 max_fails=2 fail_timeout=5s;
+        server __MASTER3_IP__:6443 max_fails=2 fail_timeout=5s;
+    }
+    server {
+        listen 127.0.0.1:6443;
+        proxy_connect_timeout 2s;
+        proxy_timeout 1h;
+        proxy_pass kube_apiserver_masters;
+    }
+}
