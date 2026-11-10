@@ -6,8 +6,7 @@ require_root
 [[ "$(uname -m)" == x86_64 ]] || die "当前项目基线仅支持 amd64/x86_64"
 KERNEL="$(uname -r | sed 's/-.*//')"
 if [[ "${KUBE_PROXY_MODE:-ipvs}" == nftables ]]; then
-  [[ "$(printf '%s\\n' 5.13 "$KERNEL" | sort -V | head -n1)" == 5.13 ]] || die "nftables 模式要求 Linux kernel >= 5.13，当前为 $(uname -r)"
-  command -v nft >/dev/null 2>&1 || die "nftables 模式需要 nft 命令；请安装 nftables 软件包"
+  [[ "$(printf '%s\n' 5.13 "$KERNEL" | sort -V | head -n1)" == 5.13 ]] || die "nftables 模式要求 Linux kernel >= 5.13，当前为 $(uname -r)"
 elif [[ "${KUBE_PROXY_MODE:-ipvs}" == ipvs ]]; then
   command -v ipvsadm >/dev/null 2>&1 || warn "尚未安装 ipvsadm；请确保离线 RPM 包含 ipvsadm"
   for module in ip_vs ip_vs_rr ip_vs_wrr ip_vs_sh nf_conntrack; do
