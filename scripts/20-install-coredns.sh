@@ -16,5 +16,7 @@ mkdir -p "$ROOT/generated"
 sed -e "s#__CLUSTER_DOMAIN__#${CLUSTER_DOMAIN}#g" -e "s#__DNS_SERVICE_IP__#${DNS_SERVICE_IP}#g" -e "s#__COREDNS_IMAGE__#${COREDNS_IMAGE}#g" "$TEMPLATE" > "$ROOT/generated/coredns.yaml"
 "$KUBECTL" apply -f "$ROOT/generated/coredns.yaml"
 "$KUBECTL" -n kube-system rollout status deployment/coredns --timeout=300s
-"$KUBECTL" -n kube-system get deployment,service,endpoints coredns kube-dns
+"$KUBECTL" -n kube-system get deployment coredns
+"$KUBECTL" -n kube-system get service kube-dns
+"$KUBECTL" -n kube-system get endpoints kube-dns
 ok "CoreDNS 已部署。请继续执行 DNS 与 Service 连通性验收。"
