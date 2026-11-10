@@ -21,6 +21,7 @@ for i in "${!NODES[@]}"; do
   node="${NODES[$i]}"; ip="${IPS[$i]}"; src="$GEN/$node"
   [[ -d "$src" ]] || die "缺少节点配置目录：$src"
   log "同步项目文件、离线包和节点配置到 $node ($ip)"
+  ssh -o BatchMode=yes "root@$ip" "install -d -m 0755 $REMOTE_ROOT /etc/kubernetes/pki /etc/etcd/pki"
   # 先用 SCP 发送离线 RPM，再在目标节点安装 rsync 等传输依赖。
   scp -r "$ROOT/offline" "root@$ip:$REMOTE_ROOT/"
   ssh -o BatchMode=yes "root@$ip" "dnf install -y --disablerepo='*' $REMOTE_ROOT/offline/rpms/*.rpm"
