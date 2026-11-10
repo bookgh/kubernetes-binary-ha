@@ -106,8 +106,15 @@ runc=v${RUNC_VERSION}
 CNI_PLUGINS=${CNI_VERSION}
 crictl=${CRICTL_VERSION}
 Calico=${CALICO_VERSION}
-CoreDNS=${COREDNS_VERSION}（镜像需单独同步）\nCFSSL=${CFSSL_VERSION}\nHelm=${HELM_VERSION}\nCalicoctl=${CALICOCTL_VERSION}\nDocker=${DOCKER_VERSION}\ncri-dockerd=${CRI_DOCKERD_VERSION}\nDockerCompose=${DOCKER_COMPOSE_VERSION}\nRockyLinux9_RPMs=Included
-NGINX=${NGINX_VERSION}（Rocky Linux 9 源码构建，启用 stream）
+CoreDNS=${COREDNS_VERSION} (container image must be mirrored separately)
+CFSSL=${CFSSL_VERSION}
+Helm=${HELM_VERSION}
+Calicoctl=${CALICOCTL_VERSION}
+Docker=${DOCKER_VERSION}
+cri-dockerd=${CRI_DOCKERD_VERSION}
+DockerCompose=${DOCKER_COMPOSE_VERSION}
+RockyLinux9_RPMs=Included
+NGINX=${NGINX_VERSION} (Rocky Linux 9 source build with stream)
 Architecture=amd64
 OS=Rocky Linux 9
 EOF
