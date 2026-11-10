@@ -24,7 +24,7 @@ for i in "${!NODES[@]}"; do
   node="${NODES[$i]}"; ip="${IPS[$i]}"
   dir="$OUT/$node"
   install -d -m 0700 "$dir/etc/kubernetes" "$dir/var/lib/kubelet" "$dir/var/lib/kube-proxy"
-  sed -e "s#clusterDNS:#clusterDNS:#" \
+  sed -e "s#clusterDomain: .*#clusterDomain: ${CLUSTER_DOMAIN}#" \
       -e "s#  - 10.96.0.10#  - ${DNS_SERVICE_IP}#" \
       "$ROOT/config/kubelet-config.yaml" > "$dir/var/lib/kubelet/config.yaml"
   sed -e "s#clusterCIDR: .*#clusterCIDR: ${POD_CIDR}#" \
