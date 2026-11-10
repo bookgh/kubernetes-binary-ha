@@ -52,6 +52,7 @@ GitHub Actions 的离线 Release workflow 使用 scripts/ci/build-offline-releas
 
 ~~~bash
 sudo bash scripts/01-prepare-offline.sh
+sudo dnf install -y --disablerepo="*" offline/rpms/*.rpm
 sudo bash scripts/17-install-cli-tools.sh
 ~~~
 
