@@ -131,7 +131,13 @@ sysctl net.ipv4.ip_forward
 sudo bash scripts/16-batch-exec.sh masters 07-bootstrap-etcd.sh --parallel
 ~~~
 
-确认 etcd endpoint health、成员列表和 quorum 后，再启动控制平面。推荐使用第 10 节的一键验收脚本完成 etcd endpoint health/member/status 检查。若需手动检查，可从 Release 的 etcd tarball 解压 etcdctl，并指定部署机 PKI 中的 etcd-ca.crt、apiserver-etcd-client.crt/key。三个 endpoint 均应返回 healthy，成员应为 3 个且有且仅有 1 个 Leader。未达到 quorum 时不得继续启动控制平面。
+在启动控制平面前，必须先执行部署机上的 etcd 专项检查：
+
+~~~bash
+sudo bash scripts/21-verify-etcd.sh
+~~~
+
+该脚本检查三个 endpoint health、member 数量为 3、Leader 唯一性和 Raft 状态。三个 endpoint 均应返回 healthy，成员应为 3 个且有且仅有 1 个 Leader。未达到 quorum 时不得继续启动控制平面。完整集群就绪后再运行 scripts/18-verify-cluster.sh。
 
 ## 8. 启动 Kubernetes 控制平面与 Worker
 
