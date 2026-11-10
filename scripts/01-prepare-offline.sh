@@ -47,10 +47,21 @@ rm -f "$OUT/SHA256SUMS"
 (cd "$OUT" && find bin src manifests checksums tools docker rpms -type f -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS)
 cat >"$OUT/ARTIFACTS.txt" <<EOF
 Kubernetes=${K8S_VERSION}
+etcd=${ETCD_VERSION}
+containerd=${CONTAINERD_VERSION}
+runc=${RUNC_VERSION}
+CNI=${CNI_VERSION}
+crictl=${CRICTL_VERSION}
+CFSSL=${CFSSL_VERSION}
+Helm=${HELM_VERSION}
+Calico=${CALICO_VERSION}
+Calicoctl=${CALICOCTL_VERSION}
+Docker=${DOCKER_VERSION}
+cri-dockerd=${CRI_DOCKERD_VERSION}
+DockerCompose=${DOCKER_COMPOSE_VERSION}
 Runtime=${RUNTIME_TYPE:-containerd}
-Docker=${DOCKER_VERSION:-not-used}
-cri-dockerd=${CRI_DOCKERD_VERSION:-not-used}
 KubeProxyMode=${KUBE_PROXY_MODE:-nftables}
+RockyLinux9_RPMs=Included
 Architecture=amd64
 OS=Rocky Linux 9
 Source=GitHub Release ${TAG}
