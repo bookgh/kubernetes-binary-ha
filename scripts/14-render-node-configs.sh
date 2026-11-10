@@ -73,6 +73,13 @@ for i in "${!NODES[@]}"; do
       -e "s#masqueradeBit: .*#masqueradeBit: ${NFTABLES_MASQUERADE_BIT}#" \
       -e "s#hostnameOverride: .*#hostnameOverride: ${node}#" \
       "$ROOT/config/kube-proxy-config.yaml" > "$dir/var/lib/kube-proxy/config.yaml"
+  if [[ "$node" == worker-* ]]; then
+    install -d -m 0700 "$dir/etc/nginx"
+    sed -e "s/__MASTER1_IP__/${MASTER1_IP}/g" \
+        -e "s/__MASTER2_IP__/${MASTER2_IP}/g" \
+        -e "s/__MASTER3_IP__/${MASTER3_IP}/g" \
+        "$ROOT/config/nginx-stream.conf.template" > "$dir/etc/nginx/nginx.conf"
+  fi
   cat > "$dir/etc/kubernetes/cluster.env" <<EOF
 NODE_NAME=${node}
 NODE_IP=${ip}
