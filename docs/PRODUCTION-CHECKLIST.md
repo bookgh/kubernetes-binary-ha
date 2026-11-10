@@ -6,8 +6,9 @@
 - [ ] CPU 架构为 x86_64；时间同步正常；主机名和静态 IP 正确。
 - [ ] Pod/Service CIDR 与所有已路由网络无重叠。
 - [ ] 防火墙按最小权限配置；VXLAN 节点间 UDP/4789 可达。
-- [ ] containerd CRI v1 正常；`SystemdCgroup=true`；pause 镜像可离线获取。
+- [ ] `RUNTIME_TYPE` 与实际运行时一致：containerd CRI v1 / Docker + cri-dockerd 至少选其一；CRI endpoint 可由 `crictl info` 正常访问；cgroup driver 为 systemd；pause 镜像可离线获取。
 - [ ] 所有软件包已验证 SHA256/签名，并记录来源和构建信息；NGINX 从对应 GitHub Release 下载并校验。
+- [ ] `KUBE_PROXY_MODE` 与实际 kube-proxy 配置一致；IPVS 模式确认模块和 `ipvsadm -Ln`，nftables 模式确认内核 >= 5.13、nft >= 1.0.1 且 `nft list ruleset` 可检查。
 - [ ] 所有镜像均固定 digest，并已存在于私有仓库或离线归档。
 - [ ] API Server 证书 SAN 覆盖 `127.0.0.1`、`API_DNS`、全部 Master IP 和 Kubernetes Service DNS/IP。
 - [ ] 每个 kubelet 证书 CN 为 `system:node:<node>`，O 为 `system:nodes`。
