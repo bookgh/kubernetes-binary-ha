@@ -33,21 +33,10 @@ cp -a "$PACKAGE_DIR/." "$OUT/"
 
 case "${RUNTIME_TYPE:-containerd}" in
   containerd)
-    log "使用 Release 中的 containerd ${CONTAINERD_VERSION} 资源"
+    [[ -s "$OUT/src/containerd.tar.gz" ]] || die "Release 中缺少 containerd.tar.gz"
     ;;
   docker)
-    : "${DOCKER_VERSION:?Docker 模式必须在 cluster.env 中设置 DOCKER_VERSION}"
-    : "${CRI_DOCKERD_VERSION:?Docker 模式必须设置 CRI_DOCKERD_VERSION}"
-    mkdir -p "$OUT/docker"
-    log "下载 Docker Engine ${DOCKER_VERSION} 与 cri-dockerd ${CRI_DOCKERD_VERSION}"
-    curl -fL --retry 4 --retry-all-errors "https://download.docker.com/linux/static/stable/x86_64/docker-${DOCKER_VERSION}.tgz" -o "$OUT/docker/docker.tgz"
-    curl -fL --retry 4 --retry-all-errors "https://github.com/Mirantis/cri-dockerd/releases/download/v${CRI_DOCKERD_VERSION}/cri-dockerd-${CRI_DOCKERD_VERSION}.amd64.tgz" -o "$OUT/docker/cri-dockerd.tgz"
-    mkdir -p "$OUT/docker/unpack"
-    tar -xzf "$OUT/docker/cri-dockerd.tgz" -C "$OUT/docker/unpack"
-    CRI_BIN="$(find "$OUT/docker/unpack" -type f -name cri-dockerd -print -quit)"
-    [[ -n "$CRI_BIN" ]] || die "cri-dockerd 压缩包中未找到 cri-dockerd 二进制"
-    install -m 0755 "$CRI_BIN" "$OUT/docker/cri-dockerd"
-    rm -rf "$OUT/docker/unpack"
+    [[ -s "$OUT/docker/docker.tgz" && -s "$OUT/docker/cri-dockerd" ]] || die "Release 中缺少 Docker Engine/cri-dockerd 离线资产"
     ;;
   *) die "RUNTIME_TYPE 仅支持 containerd 或 docker" ;;
 esac
