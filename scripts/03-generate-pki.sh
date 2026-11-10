@@ -22,10 +22,10 @@ create_ca() {
   chmod 0600 "$PKI/$name.key"
 }
 issue() {
-  local ca="$1" cn="$2" org="$3" hosts="$4" name="$5" profile="$6"
+  local ca="$1" cn="$2" org="$3" hosts="$4" name="$5" profile="$6" template="${7:-generic}"
   local csr
   csr="$(mktemp "$PKI/${name}.csr.XXXXXX.json")"
-  jq --arg cn "$cn" --arg org "$org" '.CN=$cn | .names[0].O=$org' "$CFSSL_DIR/csr/generic.json" > "$csr"
+  jq --arg cn "$cn" --arg org "$org" 'if $org == "" then .CN=$cn else .CN=$cn | .names[0].O=$org end' "$CFSSL_DIR/csr/$template.json" > "$csr"
   "$CFSSL" gencert -ca="$PKI/$ca.crt" -ca-key="$PKI/$ca.key" -config="$CFSSL_DIR/ca-config.json" -profile="$profile" -hostname="$hosts" "$csr" | "$CFSSLJSON" -bare "$PKI/$name"
   rm -f "$csr" "$PKI/$name.csr"
   mv "$PKI/$name.pem" "$PKI/$name.crt"
@@ -38,23 +38,23 @@ create_ca front-proxy-ca front-proxy-ca-csr.json
 create_ca cluster-signer cluster-signer-ca-csr.json
 API_HOSTS="DNS:kubernetes,DNS:kubernetes.default,DNS:kubernetes.default.svc,DNS:kubernetes.default.svc.${CLUSTER_DOMAIN},DNS:${API_DNS},IP:10.96.0.1,IP:127.0.0.1"
 for ip in "${MASTER_IPS[@]}"; do API_HOSTS+=",IP:$ip"; done
-issue k8s-ca kube-apiserver "" "$API_HOSTS" apiserver server
-issue k8s-ca system:kube-apiserver system:masters "IP:127.0.0.1" apiserver-kubelet-client client
-issue front-proxy-ca front-proxy-client "" "IP:127.0.0.1" front-proxy-client client
-issue k8s-ca kubernetes-admin system:masters "DNS:localhost,IP:127.0.0.1" admin client
-issue k8s-ca system:kube-controller-manager system:kube-controller-manager "DNS:localhost,IP:127.0.0.1" controller-manager client
-issue k8s-ca system:kube-scheduler system:kube-scheduler "DNS:localhost,IP:127.0.0.1" scheduler client
-issue k8s-ca system:kube-proxy system:kube-proxy "DNS:localhost,IP:127.0.0.1" kube-proxy client
-issue etcd-ca kube-apiserver-etcd-client "" "DNS:localhost,IP:127.0.0.1" apiserver-etcd-client client
+issue k8s-ca kube-apiserver "" "$API_HOSTS" apiserver server apiserver
+issue k8s-ca system:kube-apiserver system:masters "IP:127.0.0.1" apiserver-kubelet-client client apiserver-kubelet-client
+issue front-proxy-ca front-proxy-client "" "IP:127.0.0.1" front-proxy-client client front-proxy-client
+issue k8s-ca kubernetes-admin system:masters "DNS:localhost,IP:127.0.0.1" admin client admin
+issue k8s-ca system:kube-controller-manager system:kube-controller-manager "DNS:localhost,IP:127.0.0.1" controller-manager client controller-manager
+issue k8s-ca system:kube-scheduler system:kube-scheduler "DNS:localhost,IP:127.0.0.1" scheduler client scheduler
+issue k8s-ca system:kube-proxy system:kube-proxy "DNS:localhost,IP:127.0.0.1" kube-proxy client kube-proxy
+issue etcd-ca kube-apiserver-etcd-client "" "DNS:localhost,IP:127.0.0.1" apiserver-etcd-client client apiserver-etcd-client
 for i in "${!MASTER_NAMES[@]}"; do
   n="${MASTER_NAMES[$i]}"; ip="${MASTER_IPS[$i]}"
   hosts="DNS:$n,IP:$ip,IP:127.0.0.1"
-  issue etcd-ca "etcd-$n" "" "$hosts" "etcd-$n-server" peer
-  issue etcd-ca "etcd-$n" "" "$hosts" "etcd-$n-peer" peer
+  issue etcd-ca "etcd-$n" "" "$hosts" "etcd-$n-server" peer etcd-server
+  issue etcd-ca "etcd-$n" "" "$hosts" "etcd-$n-peer" peer etcd-peer
 done
 for i in "${!ALL_NAMES[@]}"; do
   n="${ALL_NAMES[$i]}"; ip="${ALL_IPS[$i]}"
-  issue cluster-signer "system:node:$n" system:nodes "DNS:$n,IP:$ip" "kubelet-$n" client
+  issue cluster-signer "system:node:$n" system:nodes "DNS:$n,IP:$ip" "kubelet-$n" client kubelet-node
 done
 cat "$PKI/k8s-ca.crt" "$PKI/cluster-signer.crt" > "$PKI/k8s-ca-bundle.crt"
 # Service-account JWT signing keys are not X.509 certificates.
