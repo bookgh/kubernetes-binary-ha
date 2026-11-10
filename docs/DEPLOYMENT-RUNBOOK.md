@@ -60,6 +60,10 @@ sudo bash scripts/16-batch-exec.sh masters 07-bootstrap-etcd.sh --parallel
 
 确认 etcd endpoint health、成员列表和 quorum 后，再启动控制平面：
 
+~~~bash
+sudo bash scripts/21-verify-etcd.sh
+~~~
+
 ```bash
 sudo bash scripts/16-batch-exec.sh masters 08-start-control-plane.sh --parallel
 ```
