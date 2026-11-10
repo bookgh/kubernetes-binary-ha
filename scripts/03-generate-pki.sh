@@ -63,4 +63,4 @@ cat k8s-ca.crt cluster-signer.crt > k8s-ca-bundle.crt
 openssl genrsa -out sa.key 2048
 openssl rsa -in sa.key -pubout -out sa.pub
 chmod 0600 *.key
-log "PKI generated. Keep CA private keys offline; distribute only node-specific credentials."
+log "PKI generated. Keep root CA private keys offline; cluster-signer.key is the only delegated signer key sent to Master nodes."
