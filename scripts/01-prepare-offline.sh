@@ -7,7 +7,7 @@ require_root
 [[ "$(uname -m)" == x86_64 ]] || die "暂存机 CPU 架构必须为 x86_64"
 OUT="${ROOT}/offline"
 mkdir -p "$OUT"/{bin,src,rpms,manifests,images,checksums,docker}
-dnf -y install dnf-plugins-core wget tar gzip jq rsync openssh-clients
+dnf -y install dnf-plugins-core wget tar gzip jq openssl rsync openssh-clients
 command -v curl >/dev/null 2>&1 || dnf -y install curl-minimal
 
 log "正在下载 Kubernetes ${K8S_VERSION}"
