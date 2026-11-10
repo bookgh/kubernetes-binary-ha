@@ -35,8 +35,8 @@ EOF
 new_ca k8s-ca kubernetes
 new_ca etcd-ca etcd
 new_ca front-proxy-ca front-proxy-ca
-# NGINX is TCP passthrough. Clients validate the selected API server certificate,
-# so the API serving cert must contain loopback as well as all master IPs and API DNS.
+# NGINX 使用 TCP 透传。客户端直接验证被选中的 API Server 证书，
+# 因此 API 服务端证书必须同时包含回环地址、全部 Master IP 和 API DNS。
 issue k8s-ca kube-apiserver "" \
   "DNS:kubernetes,DNS:kubernetes.default,DNS:kubernetes.default.svc,DNS:kubernetes.default.svc.${CLUSTER_DOMAIN},DNS:${API_DNS},IP:10.96.0.1,IP:127.0.0.1,IP:${MASTER1_IP},IP:${MASTER2_IP},IP:${MASTER3_IP}" \
   apiserver "serverAuth,clientAuth"
