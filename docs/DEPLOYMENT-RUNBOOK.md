@@ -18,6 +18,8 @@
 ```bash
 sudo bash scripts/01-prepare-offline.sh
 # 暂存机与部署机分离时，将 offline/ 目录先复制到部署机项目根目录
+# 部署机需要 rsync、ssh、scp 客户端
+sudo dnf install -y rsync openssh-clients
 sudo bash scripts/03-generate-pki.sh
 sudo bash scripts/04-make-kubeconfigs.sh
 sudo bash scripts/14-render-node-configs.sh
