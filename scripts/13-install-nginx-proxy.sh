@@ -2,9 +2,9 @@
 set -Eeuo pipefail
 source "$(dirname "$0")/lib.sh"
 require_root
-[[ "$(hostname -s)" == worker-* ]] || die "Run only on worker nodes"
+[[ "$(hostname -s)" == worker-* ]] || die "此脚本只能在 Worker 节点运行"
 BIN="$ROOT/offline/bin/nginx"
-[[ -x "$BIN" ]] || die "Missing built NGINX binary: $BIN (build on staging host first)"
+[[ -x "$BIN" ]] || die "缺少已编译的 NGINX 二进制文件： $BIN (build on staging host first)"
 id nginx >/dev/null 2>&1 || useradd --system --no-create-home --home-dir /nonexistent --shell /sbin/nologin nginx
 install -d -m 0755 /usr/local/sbin /etc/nginx /var/log/nginx-k8s-api
 install -m 0755 "$BIN" /usr/local/sbin/nginx
@@ -17,5 +17,5 @@ chmod 0644 /etc/nginx/nginx.conf
 /usr/local/sbin/nginx -t -c /etc/nginx/nginx.conf
 systemctl daemon-reload
 systemctl enable --now nginx-k8s-api
-systemctl is-active --quiet nginx-k8s-api || die "nginx-k8s-api failed to start"
+systemctl is-active --quiet nginx-k8s-api || die "nginx-k8s-api 服务启动失败"
 log "NGINX local API proxy installed on 127.0.0.1:${API_PORT}"
