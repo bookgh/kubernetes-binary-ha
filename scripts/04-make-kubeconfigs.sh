@@ -27,7 +27,7 @@ make_cfg admin kubernetes-admin admin admin "$API_DNS"
 make_cfg controller-manager system:kube-controller-manager controller-manager controller-manager 127.0.0.1
 make_cfg scheduler system:kube-scheduler scheduler scheduler 127.0.0.1
 make_cfg kube-proxy system:kube-proxy kube-proxy kube-proxy 127.0.0.1
-for n in master-01 master-02 master-03 worker-01 worker-02 worker-03; do
+for n in "${ALL_NAMES[@]}"; do
   make_cfg "kubelet-${n}" "system:node:${n}" "kubelet-${n}" "kubelet-${n}" 127.0.0.1
 done
 install -d -m 0700 "$HOME/.kube"
