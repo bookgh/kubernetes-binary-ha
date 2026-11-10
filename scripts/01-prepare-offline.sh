@@ -6,7 +6,7 @@ require_root
 [[ -f /etc/rocky-release ]] || die "请在 Rocky Linux 9 暂存机运行"
 [[ "$(uname -m)" == "x86_64" ]] || die "暂存机 CPU 架构必须为 x86_64"
 OUT="${ROOT}/offline"
-mkdir -p "$OUT"/{bin,src,rpms,manifests,images,checksums}
+mkdir -p "$OUT"/{bin,src,rpms,manifests,images,checksums,docker}
 dnf -y install dnf-plugins-core curl wget tar gzip jq
 log "正在下载 Kubernetes ${K8S_VERSION}"
 for b in kube-apiserver kube-controller-manager kube-scheduler kubelet kube-proxy kubectl; do
