@@ -21,6 +21,13 @@ warn() { printf '%s[%s 警告]%s %s\n' "$C_WARN" "$(date '+%F %T')" "$C_RESET" "
 die()  { printf '%s[%s 错误]%s %s\n' "$C_ERROR" "$(date '+%F %T')" "$C_RESET" "$*" >&2; exit 1; }
 require_root() { [[ ${EUID} -eq 0 ]] || die '请使用 root 用户运行此脚本。'; }
 require_cmd() { command -v "$1" >/dev/null 2>&1 || die "缺少必要命令：$1"; }
+validate_inventory() {
+  [[ ${#MASTER_NAMES[@]} -eq ${#MASTER_IPS[@]} ]] || die "MASTER_NAMES 与 MASTER_IPS 数量不一致"
+  [[ ${#WORKER_NAMES[@]} -eq ${#WORKER_IPS[@]} ]] || die "WORKER_NAMES 与 WORKER_IPS 数量不一致"
+  [[ ${#MASTER_NAMES[@]} -eq 3 && ${#WORKER_NAMES[@]} -eq 3 ]] || die "当前项目仅支持三 Master + 三 Worker 拓扑"
+  [[ ${#ALL_NAMES[@]} -eq ${#ALL_IPS[@]} ]] || die "ALL_NAMES 与 ALL_IPS 数量不一致"
+}
+validate_inventory
 node_ip() {
   local current
   current="$(hostname -s)"
