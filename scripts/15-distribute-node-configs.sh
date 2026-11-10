@@ -45,9 +45,10 @@ for i in "${!NODES[@]}"; do
       [[ -s "$PKI/$file" ]] || die "缺少 etcd 凭据：$PKI/$file"
       scp "$PKI/$file" "root@$ip:/etc/etcd/pki/$file"
     done
+    ssh -o BatchMode=yes "root@$ip" "id etcd >/dev/null 2>&1 || useradd --system --home-dir /var/lib/etcd --shell /sbin/nologin etcd"
     ssh -o BatchMode=yes "root@$ip" "chown -R etcd:etcd /etc/etcd/pki && chmod 0750 /etc/etcd/pki && chmod 0640 /etc/etcd/pki/*.key"
   fi
-  ssh -o BatchMode=yes "root@$ip" "chmod 0600 /etc/kubernetes/runtime.env /etc/kubernetes/*.conf /etc/kubernetes/pki/*.key"
+  ssh -o BatchMode=yes "root@$ip" "chmod 0600 /etc/kubernetes/runtime.env /etc/kubernetes/*.conf && find /etc/kubernetes/pki -type f -name '*.key' -exec chmod 0600 {} +"
   ok "$node 项目、节点配置和所需凭据分发完成"
 done
 install -d -m 0700 "$HOME/.kube"
