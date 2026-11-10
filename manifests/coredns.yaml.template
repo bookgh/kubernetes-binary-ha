@@ -91,6 +91,7 @@ spec:
         k8s-app: kube-dns
     spec:
       serviceAccountName: coredns
+      dnsPolicy: Default
       priorityClassName: system-cluster-critical
       tolerations:
       - key: "CriticalAddonsOnly"
