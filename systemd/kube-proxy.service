@@ -1,0 +1,11 @@
+[Unit]
+Description=Kubernetes Kube Proxy
+After=network-online.target nginx-k8s-api.service
+
+[Service]
+ExecStart=/usr/local/bin/kube-proxy --config=/var/lib/kube-proxy/config.yaml --v=2
+Restart=always
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target
