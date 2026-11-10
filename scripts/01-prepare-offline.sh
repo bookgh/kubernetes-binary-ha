@@ -41,15 +41,8 @@ case "${RUNTIME_TYPE:-containerd}" in
   *) die "RUNTIME_TYPE 仅支持 containerd 或 docker" ;;
 esac
 
-RPM_PACKAGES=(chrony curl-minimal wget openssh-clients tar gzip jq openssl socat conntrack-tools ipset ipvsadm iptables ebtables ethtool rsync policycoreutils-python-utils)
-if [[ "${KUBE_PROXY_MODE:-nftables}" == nftables ]]; then
-  RPM_PACKAGES+=(nftables)
-elif [[ "${KUBE_PROXY_MODE:-nftables}" != ipvs ]]; then
-  die "KUBE_PROXY_MODE 仅支持 ipvs 或 nftables"
-fi
-log "下载 Rocky Linux 9 离线系统 RPM 及依赖"
-mkdir -p "$OUT/rpms"
-dnf -y download --resolve --alldeps --destdir "$OUT/rpms" "${RPM_PACKAGES[@]}"
+[[ -d "$OUT/rpms" ]] && compgen -G "$OUT/rpms/*.rpm" >/dev/null || die "Release 中缺少 Rocky Linux 9 离线 RPM 包"
+log "使用 Release 内置 Rocky Linux 9 RPM 依赖包"
 
 rm -f "$OUT/SHA256SUMS"
 (cd "$OUT" && find bin src manifests checksums docker rpms -type f -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS)
