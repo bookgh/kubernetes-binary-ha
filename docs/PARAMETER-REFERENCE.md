@@ -14,7 +14,7 @@
 - `DNS_SERVICE_IP`：CoreDNS ClusterIP，必须与 kubelet `clusterDNS` 一致。
 - `MASTER1_IP`～`MASTER3_IP`：三台 Master 的可路由地址。
 - `WORKER1_IP`～`WORKER3_IP`：三台 Worker 的可路由地址。
-- `MASTER_NAMES`/`MASTER_IPS`、`WORKER_NAMES`/`WORKER_IPS`、`ALL_NAMES`/`ALL_IPS`：部署脚本使用的节点清单；增删节点时同步维护数组及对应的地址变量。证书、配置渲染、分发和批量执行均从这些数组读取节点，不在脚本中重复写节点列表。
+- `MASTER_NAMES`/`MASTER_IPS`、`WORKER_NAMES`/`WORKER_IPS`、`ALL_NAMES`/`ALL_IPS`：部署脚本使用的节点清单；本项目当前拓扑固定为三 Master + 三 Worker，修改节点 IP 时更新对应标量地址，证书、配置渲染、分发和批量执行从这些数组读取节点，避免在多个脚本重复维护节点列表。
 - `PRIVATE_REGISTRY`：隔离环境或内网镜像仓库地址。
 - `PAUSE_IMAGE`：容器 sandbox/pause 镜像，containerd 和 Docker/cri-dockerd 均需可访问。
 
