@@ -1,25 +1,25 @@
-# Production acceptance checklist
+# 生产环境验收清单
 
-- [ ] Rocky Linux 9 minor release and kernel approved; all nodes same baseline.
-- [ ] CPU architecture x86_64; time synchronized; hostnames and static IPs correct.
-- [ ] Pod/Service CIDRs do not overlap any routed network.
-- [ ] Firewall is least-privilege; UDP/4789 allowed node-to-node for VXLAN.
-- [ ] containerd CRI v1 works; SystemdCgroup=true; pause image available offline.
-- [ ] All artifacts have verified SHA256/signature and provenance recorded.
-- [ ] All image references pinned to digest and available in private registry/offline archives.
-- [ ] API server certificate SAN covers VIP, DNS and all master IPs.
-- [ ] Each kubelet cert has CN=system:node:<node> and O=system:nodes.
-- [ ] etcd member certificates and peer TLS work; exactly one leader.
-- [ ] etcd data on reliable local SSD; latency and fsync monitored.
-- [ ] API Server /readyz passes on all three masters.
-- [ ] Controller-manager and scheduler leader election works.
-- [ ] All six Kubernetes nodes Ready.
-- [ ] Calico VXLAN and cross-node Pod traffic pass.
-- [ ] CoreDNS has at least two replicas and resolves cluster Services.
-- [ ] etcd snapshots stored off-node and restore rehearsal passes.
-- [ ] VIP failover and API backend failover pass.
-- [ ] Certificate expiry, audit logs, etcd alarms, node pressure and API latency monitored.
-- [ ] Upgrade rehearsal performed against a staging copy.
+以下项目必须逐项验证并留存结果。任何关键项未通过，都不应进入生产切换。
 
-- [ ] Each Worker NGINX service listens only on 127.0.0.1:6443 and passes TLS through to the three master API servers.
-- [ ] Stop one master API server at a time and verify worker-local NGINX retries another healthy master.
+- [ ] Rocky Linux 9 次版本、内核版本已批准，六台节点基线一致。
+- [ ] CPU 架构为 x86_64；时间同步正常；主机名和静态 IP 正确。
+- [ ] Pod/Service CIDR 与所有已路由网络无重叠。
+- [ ] 防火墙按最小权限配置；VXLAN 节点间 UDP/4789 可达。
+- [ ] containerd CRI v1 正常；`SystemdCgroup=true`；pause 镜像可离线获取。
+- [ ] 所有软件包已验证 SHA256/签名，并记录来源和构建信息。
+- [ ] 所有镜像均固定 digest，并已存在于私有仓库或离线归档。
+- [ ] API Server 证书 SAN 覆盖 `127.0.0.1`、`API_DNS`、全部 Master IP 和 Kubernetes Service DNS/IP。
+- [ ] 每个 kubelet 证书 CN 为 `system:node:<node>`，O 为 `system:nodes`。
+- [ ] etcd 成员证书和 peer 双向 TLS 正常；集群恰有一个 Leader。
+- [ ] etcd 数据位于可靠本地 SSD；磁盘延迟和 fsync 已纳入监控。
+- [ ] 三台 Master 的 API Server `/readyz` 均通过。
+- [ ] controller-manager 和 scheduler Leader Election 正常。
+- [ ] 六台 Kubernetes 节点全部 Ready。
+- [ ] Calico VXLAN 和跨节点 Pod 网络通信通过。
+- [ ] CoreDNS 至少两个副本，集群 Service 域名解析正常。
+- [ ] etcd 快照异机保存，恢复演练通过。
+- [ ] 逐台停止 API Server，验证 Worker 本机 NGINX 上游故障切换。
+- [ ] 证书过期、审计日志、etcd 告警、节点压力和 API 延迟均有监控。
+- [ ] 已在预演环境完成升级演练。
+- [ ] 管理员 API DNS 的单点风险已被接受，或已规划后续外部 LB 方案。
