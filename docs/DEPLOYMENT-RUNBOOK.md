@@ -20,7 +20,7 @@ sudo bash scripts/01-prepare-offline.sh
 # 暂存机与部署机分离时，将 offline/ 目录先复制到部署机项目根目录
 # 部署机需要 rsync、ssh、scp 客户端
 sudo dnf install -y rsync openssh-clients
-sudo bash scripts/03-generate-pki.sh
+sudo bash scripts/03-generate-pki.sh  # CFSSL 按仓库 CSR/profile 签发，-hostname 使用裸 DNS 名和 IP
 sudo bash scripts/04-make-kubeconfigs.sh
 sudo bash scripts/14-render-node-configs.sh
 sudo bash scripts/15-distribute-node-configs.sh
@@ -76,13 +76,13 @@ sudo bash scripts/16-batch-exec.sh workers 09-start-worker.sh --parallel
 
 NGINX 只做 TCP/TLS 透传，不终止 TLS。检查本机 `127.0.0.1:6443` 可访问 API Server，随后确认 Worker 节点注册为 Ready。
 
-## 阶段 5：CNI、DNS 与验收
+## 阶段 5：CNI、DNS 与验收\n\n```bash\nsudo bash scripts/19-install-calico.sh\nsudo bash scripts/20-install-coredns.sh\nsudo bash scripts/18-verify-cluster.sh\n```
 
-1. 应用 Calico CRD、Operator 和自定义资源。
+1. scripts/19-install-calico.sh 应用 Release 中的 Calico CRD、Operator 和 Installation CR（默认 VXLAN、BGP Disabled）。
 2. 确认全部镜像均已导入内网仓库或节点缓存。
 3. 检查 Calico VXLAN、跨节点 Pod 通信。
-4. 部署 CoreDNS 并验证集群域名解析。
-5. 验证 ClusterIP、NodePort 和跨节点 Service 流量。
+4. scripts/20-install-coredns.sh 部署 CoreDNS 并验证集群域名解析。
+5. scripts/18-verify-cluster.sh 检查 etcd endpoint health/member/quorum、API /readyz、Node Ready、Calico DaemonSet/TigeraStatus/IPPools、CoreDNS；然后验证 ClusterIP、NodePort 和跨节点 Service 流量。
 6. 逐台停止 API Server，验证 Worker NGINX 能切换到其他健康 Master。
 7. 完成 etcd 快照异机保存和恢复演练。
 
