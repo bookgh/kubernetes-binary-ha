@@ -36,6 +36,25 @@ Worker 本机 NGINX 只做 TCP 转发，不解密 TLS。Master 上的 kube-apise
 
 NGINX 不再由运维人员在暂存机手动构建。所有二进制资源（包括 NGINX）由 GitHub Actions 统一构建、校验并发布。
 
+### 新版 Release 内容与证书方式
+
+当前离线发布修订号由 config/release-versions.env 的 RELEASE_REVISION 控制，当前版本使用 tag k8s-v1.37.2-r2。离线归档包含 CFSSL/cfssljson、Helm、Calicoctl、crictl、etcd、containerd、CNI plugins、Docker Engine、cri-dockerd、Docker Compose、Rocky Linux 9 RPM 及依赖；完整清单见归档内 ARTIFACTS.txt 和 SHA256SUMS。
+
+证书配置模板统一存放在 config/cfssl/，scripts/03-generate-pki.sh 使用 CFSSL 签发 X.509 证书，并为节点证书通过 -hostname 传入节点主机名和内网 IP。实际私钥与签发证书保留在部署机 pki/，不得提交到仓库。
+
+从零部署及验收步骤见 [docs/INSTALL-FROM-SCRATCH.md](docs/INSTALL-FROM-SCRATCH.md)。核心脚本顺序为：
+
+~~~bash
+sudo bash scripts/01-prepare-offline.sh
+sudo bash scripts/17-install-cli-tools.sh
+sudo bash scripts/03-generate-pki.sh
+sudo bash scripts/04-make-kubeconfigs.sh
+sudo bash scripts/14-render-node-configs.sh
+sudo bash scripts/15-distribute-node-configs.sh
+~~~
+
+集群安装完成后，执行 scripts/19-install-calico.sh、scripts/20-install-coredns.sh 和 scripts/18-verify-cluster.sh 验证网络与组件健康。
+
 ### Issue 触发
 
 1. 在仓库创建 Issue，标题或正文填写 Kubernetes 版本，例如 `v1.37.2`。
