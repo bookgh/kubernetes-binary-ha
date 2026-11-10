@@ -1,30 +1,40 @@
 # Kubernetes Binary HA
 
-Rocky Linux 9 / amd64, Kubernetes v1.37.2 binary high-availability deployment baseline. No kubeadm.
+Rocky Linux 9 / amd64 Kubernetes v1.37.2 binary HA deployment baseline. No kubeadm.
 
-## Repository contents
+## API endpoint design (current)
 
-- `.github/workflows/issue-offline-release.yml`: Issue-driven offline artifact Release workflow.
-- `config/cluster.env.example`: sample topology and component versions.
-- `scripts/lib.sh`, `scripts/01-prepare-offline.sh`: shared helpers and online staging artifact downloader.
-- `docs/`: offline image guidance, production acceptance checklist, and Release workflow instructions.
+- Master local kubelet, controller-manager and scheduler: `https://127.0.0.1:6443`.
+- Every Worker runs a local NGINX TCP stream proxy on `127.0.0.1:6443`, forwarding to all three master IPs on TCP/6443.
+- kube-apiserver on each Master still binds `0.0.0.0:6443` so Workers can connect to its node IP. Master-local clients use loopback.
+- NGINX does **not** terminate TLS; TLS passes through to kube-apiserver.
+- No external HAProxy/Keepalived, LB nodes, or VIP are used for now.
+- Admin kubeconfig uses `API_DNS`, which must resolve to a reachable Master. Without an external LB, the admin endpoint is not HA.
 
-**Deployment source completeness:** the full generated project archive contains additional node installation scripts, manifests, systemd units, HAProxy/Keepalived configuration, PKI and kubeconfig helpers. Those remaining files have not yet been committed to this repository. The local generated archive is not a GitHub-hosted download.
+## Build and install NGINX
 
-## Build offline assets from an Issue
+On a connected Rocky Linux 9 amd64 build host, with Docker or Podman:
 
-1. Create a repository label named `build-offline` (GitHub → Issues → Labels).
-2. Open an Issue whose title or body contains a Kubernetes version such as `v1.37.2`.
-3. Add the `build-offline` label.
-4. GitHub Actions extracts a strict semantic version token, checks that the Kubernetes binary exists upstream, downloads the pinned supporting artifacts, verifies Kubernetes SHA256 files, and creates a Release named `k8s-vVERSION`.
-5. The Release includes an amd64 archive and SHA256 checksum.
+```bash
+sudo bash scripts/12-build-nginx-binary.sh
+```
 
-You can also start the workflow manually from **Actions → Issue-driven offline bundle release → Run workflow**.
+The Dockerfile builds NGINX 1.30.6 from source with the stream module and verifies the source tarball SHA256. It exports the compiled binary to `offline/bin/nginx`.
 
-The workflow does not execute Issue text. Existing Release tags are never overwritten.
+Transfer the binary and project to each Worker, then run:
 
-## Scope and safety
+```bash
+sudo bash scripts/13-install-nginx-proxy.sh
+```
 
-The automated Release includes Kubernetes control-plane/node/client binaries, etcd, containerd, runc, CNI plugins, crictl, and Calico operator/CRD manifests. It does not include Rocky Linux RPM dependencies or all container images. Mirror images to an internal registry or OCI archive separately; see `docs/OFFLINE-IMAGES.md`.
+Docker/Podman is not required on cluster nodes.
 
-This is a deployment baseline, not a production-certified installer. Review network values, image dependencies, PKI/RBAC, firewall rules, and the acceptance checklist before use.
+## TLS requirements
+
+The kube-apiserver serving certificate SAN must include IP `127.0.0.1`, all three Master IPs, `API_DNS`, and Kubernetes service DNS/IP. Since NGINX is TCP passthrough, clients validate the selected kube-apiserver certificate directly.
+
+See [local API proxy design](docs/API-LOCAL-PROXY.md) and [automated offline Release](docs/AUTOMATED-RELEASE.md).
+
+## Scope
+
+This repository currently contains the endpoint-proxy integration and selected deployment scaffolding; it is not yet the complete deployment source tree. Container images and some Rocky Linux RPM dependencies must be mirrored separately. See [offline image guidance](docs/OFFLINE-IMAGES.md). Validate all generated configs in a Rocky Linux 9 staging cluster before production.
