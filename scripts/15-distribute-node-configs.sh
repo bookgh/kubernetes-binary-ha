@@ -39,6 +39,9 @@ for i in "${!NODES[@]}"; do
     scp "$src/etc/nginx/nginx.conf" "root@$ip:/etc/nginx/nginx.conf"
   fi
   scp "$GEN/common/etc/crictl.yaml" "root@$ip:/etc/crictl.yaml"
+  ssh -o BatchMode=yes "root@$ip" "install -d -m 0755 /etc/modules-load.d /etc/sysctl.d"
+  scp "$GEN/common/etc/modules-load.d/10-kubernetes.conf" "root@$ip:/etc/modules-load.d/10-kubernetes.conf"
+  scp "$GEN/common/etc/sysctl.d/95-kubernetes.conf" "root@$ip:/etc/sysctl.d/95-kubernetes.conf"
   if [[ "${RUNTIME_TYPE:-containerd}" == containerd ]]; then
     ssh -o BatchMode=yes "root@$ip" "install -d -m 0755 /etc/containerd"
     scp "$GEN/common/etc/containerd/config.toml" "root@$ip:/etc/containerd/config.toml"
