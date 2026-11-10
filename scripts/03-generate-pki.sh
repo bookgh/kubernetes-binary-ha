@@ -43,13 +43,13 @@ issue k8s-ca kube-apiserver "" "$API_HOSTS" apiserver server apiserver
 openssl x509 -in "$PKI/apiserver.crt" -noout -checkhost "$API_DNS" >/dev/null
 openssl x509 -in "$PKI/apiserver.crt" -noout -checkip 127.0.0.1 >/dev/null
 for ip in "${MASTER_IPS[@]}"; do openssl x509 -in "$PKI/apiserver.crt" -noout -checkip "$ip" >/dev/null; done
-issue k8s-ca system:kube-apiserver system:masters "IP:127.0.0.1" apiserver-kubelet-client client apiserver-kubelet-client
-issue front-proxy-ca front-proxy-client "" "IP:127.0.0.1" front-proxy-client client front-proxy-client
+issue k8s-ca system:kube-apiserver system:masters "127.0.0.1" apiserver-kubelet-client client apiserver-kubelet-client
+issue front-proxy-ca front-proxy-client "" "127.0.0.1" front-proxy-client client front-proxy-client
 issue k8s-ca kubernetes-admin system:masters "localhost,127.0.0.1" admin client admin
-issue k8s-ca system:kube-controller-manager system:kube-controller-manager "DNS:localhost,IP:127.0.0.1" controller-manager client controller-manager
-issue k8s-ca system:kube-scheduler system:kube-scheduler "DNS:localhost,IP:127.0.0.1" scheduler client scheduler
-issue k8s-ca system:kube-proxy system:kube-proxy "DNS:localhost,IP:127.0.0.1" kube-proxy client kube-proxy
-issue etcd-ca kube-apiserver-etcd-client "" "DNS:localhost,IP:127.0.0.1" apiserver-etcd-client client apiserver-etcd-client
+issue k8s-ca system:kube-controller-manager system:kube-controller-manager "localhost,127.0.0.1" controller-manager client controller-manager
+issue k8s-ca system:kube-scheduler system:kube-scheduler "localhost,127.0.0.1" scheduler client scheduler
+issue k8s-ca system:kube-proxy system:kube-proxy "localhost,127.0.0.1" kube-proxy client kube-proxy
+issue etcd-ca kube-apiserver-etcd-client "" "localhost,127.0.0.1" apiserver-etcd-client client apiserver-etcd-client
 for i in "${!MASTER_NAMES[@]}"; do
   n="${MASTER_NAMES[$i]}"; ip="${MASTER_IPS[$i]}"
   hosts="$n,$ip,127.0.0.1"
