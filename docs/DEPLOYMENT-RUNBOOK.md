@@ -7,7 +7,7 @@
 - 核对六台主机名、静态 IP、DNS、MTU、路由、NTP、磁盘和时间同步。
 - 确认 Pod CIDR/Service CIDR 不与现有网络重叠。
 - 确认 Worker 到所有 Master 的 TCP/6443 可达；Master 间 TCP/2379、2380 可达。
-- 在 GitHub Actions 中创建 NGINX Release，确认独立 NGINX 资产及 SHA256 已上传。
+- 在 GitHub Actions 中构建 k8s-vX.Y.Z-rN Release，确认完整离线包、RPM、CFSSL/Helm/Calicoctl/Docker/Compose 和独立 NGINX 资产及 SHA256 已上传。
 - 准备 pause、Calico、CoreDNS 和业务容器镜像。
 - 配置部署机到六台节点的 root SSH 免密登录。
 
@@ -17,10 +17,10 @@
 
 ```bash
 sudo bash scripts/01-prepare-offline.sh
-sudo bash scripts/17-install-cli-tools.sh
 # 暂存机与部署机分离时，将 offline/ 目录先复制到部署机项目根目录
+sudo dnf install -y --disablerepo="*" offline/rpms/*.rpm
+sudo bash scripts/17-install-cli-tools.sh
 # 部署机需要 rsync、ssh、scp 客户端
-sudo dnf install -y rsync openssh-clients
 sudo bash scripts/03-generate-pki.sh  # CFSSL 按仓库 CSR/profile 签发，-hostname 使用裸 DNS 名和 IP
 sudo bash scripts/04-make-kubeconfigs.sh
 sudo bash scripts/14-render-node-configs.sh
