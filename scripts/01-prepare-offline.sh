@@ -3,6 +3,8 @@
 set -Eeuo pipefail
 source "$(dirname "$0")/lib.sh"
 require_root
+# shellcheck disable=SC1090
+source "$ROOT/config/release-versions.env"
 [[ -f /etc/rocky-release ]] || die "请在 Rocky Linux 9 暂存机运行"
 [[ "$(uname -m)" == x86_64 ]] || die "暂存机 CPU 架构必须为 x86_64"
 for cmd in curl tar sha256sum; do command -v "$cmd" >/dev/null 2>&1 || { printf "missing required command: %s\\n" "$cmd" >&2; exit 1; }; done
