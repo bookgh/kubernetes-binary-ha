@@ -2,6 +2,8 @@
 set -Eeuo pipefail
 source "$(dirname "$0")/lib.sh"
 require_root
+# shellcheck disable=SC1090
+source "$ROOT/config/release-versions.env"
 [[ "$(hostname -s)" == worker-* ]] || die "此脚本只能在 Worker 节点运行"
 require_cmd curl
 require_cmd sha256sum
