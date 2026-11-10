@@ -1,0 +1,17 @@
+[Unit]
+Description=CRI Interface for Docker Engine
+Documentation=https://github.com/Mirantis/cri-dockerd
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=notify
+ExecStart=/usr/local/bin/cri-dockerd --container-runtime-endpoint unix:///var/run/docker.sock --network-plugin=cni --pod-infra-container-image=${PAUSE_IMAGE} --cni-bin-dir=/opt/cni/bin --cni-conf-dir=/etc/cni/net.d --listen=fd://
+ExecReload=/bin/kill -s HUP $MAINPID
+Restart=always
+RestartSec=5
+StartLimitInterval=0
+LimitNOFILE=1048576
+
+[Install]
+WantedBy=multi-user.target
