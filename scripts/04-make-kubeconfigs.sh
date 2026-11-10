@@ -16,9 +16,9 @@ make_cfg() {
   kubectl config use-context "${user}@${CLUSTER_NAME}" --kubeconfig="$OUT/${name}.conf"
   chmod 0600 "$OUT/${name}.conf"
 }
-# Admin DNS must resolve to a reachable master address; this design has no LB/VIP.
+# 管理员使用的 DNS 必须解析到可访问的 Master 地址；当前设计不部署 LB/VIP。
 make_cfg admin kubernetes-admin admin admin "$API_DNS"
-# Local components use loopback: direct API on Masters, local NGINX proxy on Workers.
+# 集群内组件统一使用回环地址：Master 直连本机 API，Worker 通过本机 NGINX 代理访问 API。
 make_cfg controller-manager system:kube-controller-manager controller-manager controller-manager 127.0.0.1
 make_cfg scheduler system:kube-scheduler scheduler scheduler 127.0.0.1
 make_cfg kube-proxy system:kube-proxy kube-proxy kube-proxy 127.0.0.1
