@@ -19,6 +19,10 @@ sed "s#quay.io/tigera#${PRIVATE_REGISTRY}/tigera#g" "$ROOT/offline/manifests/tig
 "$KUBECTL" wait --for=condition=Available deployment/tigera-operator -n tigera-operator --timeout=300s
 sed -e "s#__POD_CIDR__#${POD_CIDR}#g" -e "s#__PRIVATE_REGISTRY__#${PRIVATE_REGISTRY}#g" "$ROOT/manifests/calico-installation.yaml.template" > "$ROOT/generated/calico-installation.yaml"
 "$KUBECTL" apply -f "$ROOT/generated/calico-installation.yaml"
-"$KUBECTL" -n calico-system wait --for=condition=Ready pod -l k8s-app=calico-node --timeout=600s
+for attempt in {1..60}; do
+  "$KUBECTL" -n calico-system get ds calico-node >/dev/null 2>&1 && break
+  sleep 5
+done
+"$KUBECTL" -n calico-system rollout status ds/calico-node --timeout=600s
 "$KUBECTL" get pods -n calico-system -o wide
 ok "Calico Installation CR 已提交；继续运行 scripts/18-verify-cluster.sh 检查 Calico 状态。"
