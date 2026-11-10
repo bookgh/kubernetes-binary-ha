@@ -14,8 +14,8 @@ KCFG="${ROOT}/kubeconfigs"
 [[ -s "$PKI/k8s-ca.crt" && -s "$PKI/k8s-ca-bundle.crt" ]] || die "缺少 PKI；请先运行 scripts/03-generate-pki.sh"
 [[ -s "$KCFG/admin.conf" && -s "$KCFG/kube-proxy.conf" ]] || die "缺少 kubeconfig；请先运行 scripts/04-make-kubeconfigs.sh"
 
-NODES=(master-01 master-02 master-03 worker-01 worker-02 worker-03)
-IPS=("$MASTER1_IP" "$MASTER2_IP" "$MASTER3_IP" "$WORKER1_IP" "$WORKER2_IP" "$WORKER3_IP")
+NODES=("${ALL_NAMES[@]}")
+IPS=("${ALL_IPS[@]}")
 REMOTE_ROOT="/opt/kubernetes-binary-ha"
 for i in "${!NODES[@]}"; do
   node="${NODES[$i]}"; ip="${IPS[$i]}"; src="$GEN/$node"
