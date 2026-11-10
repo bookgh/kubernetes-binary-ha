@@ -1,0 +1,20 @@
+[Unit]
+Description=Kubernetes Kubelet
+After=network-online.target containerd.service nginx-k8s-api.service
+Requires=containerd.service
+
+[Service]
+EnvironmentFile=/etc/kubernetes/cluster.env
+ExecStart=/usr/local/bin/kubelet \
+  --config=/var/lib/kubelet/config.yaml \
+  --kubeconfig=/etc/kubernetes/kubelet.conf \
+  --hostname-override=${NODE_NAME} \
+  --container-runtime-endpoint=unix:///run/containerd/containerd.sock \
+  --node-ip=${NODE_IP} \
+  --v=2
+Restart=always
+RestartSec=5s
+LimitNOFILE=1048576
+
+[Install]
+WantedBy=multi-user.target
