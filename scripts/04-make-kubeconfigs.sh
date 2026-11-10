@@ -14,11 +14,11 @@ make_cfg() {
   local name="$1" user="$2" cert="$3" key="$4" endpoint="$5"
   "$KUBECTL" config set-cluster "$CLUSTER_NAME" --server="https://${endpoint}:${API_PORT}" \
     --certificate-authority="$PKI/k8s-ca.crt" --embed-certs=true --kubeconfig="$OUT/${name}.conf"
-  kubectl config set-credentials "$user" --client-certificate="$PKI/${cert}.crt" \
+  "$KUBECTL" config set-credentials "$user" --client-certificate="$PKI/${cert}.crt" \
     --client-key="$PKI/${key}.key" --embed-certs=true --kubeconfig="$OUT/${name}.conf"
-  kubectl config set-context "${user}@${CLUSTER_NAME}" --cluster="$CLUSTER_NAME" \
+  "$KUBECTL" config set-context "${user}@${CLUSTER_NAME}" --cluster="$CLUSTER_NAME" \
     --user="$user" --kubeconfig="$OUT/${name}.conf"
-  kubectl config use-context "${user}@${CLUSTER_NAME}" --kubeconfig="$OUT/${name}.conf"
+  "$KUBECTL" config use-context "${user}@${CLUSTER_NAME}" --kubeconfig="$OUT/${name}.conf"
   chmod 0600 "$OUT/${name}.conf"
 }
 # 管理员使用的 DNS 必须解析到可访问的 Master 地址；当前设计不部署 LB/VIP。
