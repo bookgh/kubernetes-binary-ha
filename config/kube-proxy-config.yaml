@@ -9,7 +9,7 @@ clientConnection:
 hostnameOverride: ""
 bindAddress: 0.0.0.0
 clusterCIDR: 10.244.0.0/16
-mode: ipvs
+mode: nftables
 ipvs:
   strictARP: false
 nftables:
