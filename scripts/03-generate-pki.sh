@@ -37,7 +37,7 @@ create_ca k8s-ca k8s-ca-csr.json
 create_ca etcd-ca etcd-ca-csr.json
 create_ca front-proxy-ca front-proxy-ca-csr.json
 create_ca cluster-signer cluster-signer-ca-csr.json
-API_HOSTS="kubernetes,kubernetes.default,kubernetes.default.svc,kubernetes.default.svc.${CLUSTER_DOMAIN},${API_DNS},10.96.0.1,127.0.0.1"
+API_HOSTS="kubernetes,kubernetes.default,kubernetes.default.svc,kubernetes.default.svc.${CLUSTER_DOMAIN},${API_DNS},${KUBERNETES_SERVICE_IP},127.0.0.1"
 for ip in "${MASTER_IPS[@]}"; do API_HOSTS+=",$ip"; done
 issue k8s-ca kube-apiserver "" "$API_HOSTS" apiserver server apiserver
 openssl x509 -in "$PKI/apiserver.crt" -noout -checkhost "$API_DNS" -checkip 127.0.0.1 >/dev/null
