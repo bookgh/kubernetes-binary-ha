@@ -15,4 +15,4 @@ The workflow uses the repository-scoped `GITHUB_TOKEN` with `contents: write` an
 
 ## Scope and limitations
 
-This release currently contains Kubernetes control-plane/node/client binaries, etcd, containerd, runc, CNI plugins, crictl, and Calico operator/CRD manifests for amd64. It does **not** include Rocky Linux RPM dependencies or all container images. Mirror images to an internal registry or OCI archive separately; see the deployment project's `docs/OFFLINE-IMAGES.md`. Supporting component versions are pinned in the workflow and should be reviewed before changing them.
+This release currently contains Kubernetes control-plane/node/client binaries, etcd, containerd, runc, CNI plugins, crictl, a source-built NGINX stream binary (Rocky Linux 9 builder), and Calico operator/CRD manifests for amd64. It does **not** include Rocky Linux RPM dependencies or all container images. Mirror images to an internal registry or OCI archive separately; see the deployment project's `docs/OFFLINE-IMAGES.md`. Supporting component versions are pinned in the workflow and should be reviewed before changing them.
