@@ -12,10 +12,12 @@
 - `POD_CIDR`：必须与 controller-manager `--cluster-cidr` 和 Calico IPPool 一致。
 - `SERVICE_CIDR`：必须与 API Server `--service-cluster-ip-range` 一致。
 - `DNS_SERVICE_IP`：CoreDNS ClusterIP，必须与 kubelet `clusterDNS` 一致。
+- `KUBERNETES_SERVICE_IP`：Kubernetes API Service 的 ClusterIP，必须是 SERVICE_CIDR 中的首个 Service IP，并进入 API Server 证书 SAN。
 - `MASTER1_IP`～`MASTER3_IP`：三台 Master 的可路由地址。
 - `WORKER1_IP`～`WORKER3_IP`：三台 Worker 的可路由地址。
 - `MASTER_NAMES`/`MASTER_IPS`、`WORKER_NAMES`/`WORKER_IPS`、`ALL_NAMES`/`ALL_IPS`：部署脚本使用的节点清单；本项目当前拓扑固定为三 Master + 三 Worker，修改节点 IP 时更新对应标量地址，证书、配置渲染、分发和批量执行从这些数组读取节点，避免在多个脚本重复维护节点列表。
 - `PRIVATE_REGISTRY`：隔离环境或内网镜像仓库地址。
+- `COREDNS_IMAGE`：CoreDNS 已同步至私有仓库的完整镜像引用。
 - `PAUSE_IMAGE`：容器 sandbox/pause 镜像，containerd 和 Docker/cri-dockerd 均需可访问。
 
 ## 运行时与 kube-proxy 参数
@@ -28,11 +30,17 @@
 - `KUBE_PROXY_MODE`：`ipvs` 或 `nftables`，配置文件显式指定，不依赖 kube-proxy 默认值。Kubernetes v1.37 中 IPVS 已弃用，建议新部署选择 nftables。
 - `IPVS_STRICT_ARP`：IPVS 模式的 strictARP 设置。
 - `NFTABLES_MASQUERADE_BIT`：nftables 模式 masquerade fwmark bit，范围 0–31。
+- `scripts/17-install-cli-tools.sh` 从离线 Release 安装 Helm、Calicoctl、crictl、CFSSL 和 cfssljson。
 - `scripts/14-render-node-configs.sh` 会根据模式生成 `/etc/modules-load.d/10-kubernetes.conf` 和 `/etc/sysctl.d/95-kubernetes.conf`；`scripts/15-distribute-node-configs.sh` 批量分发，`scripts/06-install-systemd.sh` 在节点加载模块并应用 sysctl。
 
 ## 组件版本参数
 
 - `ETCD_VERSION`：etcd 发布版本；升级前核对 Kubernetes 与 etcd 兼容性。
+- `CFSSL_VERSION`：CFSSL/cfssljson 版本；证书签发模板位于 config/cfssl/。
+- `HELM_VERSION`：部署端 Helm CLI 版本。
+- `CALICOCTL_VERSION`：Calicoctl CLI 版本，应与 CALICO_VERSION 匹配。
+- `DOCKER_COMPOSE_VERSION`：Docker Compose CLI plugin 版本。
+- `RELEASE_REVISION`：位于 config/release-versions.env，用于生成不可变 Release tag 后缀。
 - `CONTAINERD_VERSION`：containerd 版本；核对 Kubernetes 1.37 所需 CRI 兼容性。
 - `RUNC_VERSION`：OCI runtime 版本；应验证上游校验和/签名。
 - `CNI_PLUGINS_VERSION`：标准 CNI 辅助二进制版本。
