@@ -5,6 +5,9 @@ require_root
 OFF="${ROOT}/offline"
 [[ -d "$OFF/rpms" ]] || die "缺少 offline/rpms；请先准备离线资源包"
 (cd "$OFF" && sha256sum -c SHA256SUMS)
+log "安装离线系统 RPM 依赖包"
+dnf install -y --disablerepo="*" "$OFF"/rpms/*.rpm
+if [[ "${KUBE_PROXY_MODE:-ipvs}" == nftables ]]; then command -v nft >/dev/null 2>&1 || die "离线 RPM 未安装 nftables/nft"; else command -v ipvsadm >/dev/null 2>&1 || die "离线 RPM 未安装 ipvsadm"; fi
 
 install -d -m 0755 /usr/local/bin /usr/local/sbin /opt/cni/bin /etc/kubernetes
 tar -xzf "$OFF/src/etcd.tar.gz" -C /tmp
