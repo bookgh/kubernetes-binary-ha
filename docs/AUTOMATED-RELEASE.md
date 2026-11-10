@@ -1,33 +1,51 @@
 # 自动构建离线资源包并发布 GitHub Release
 
-## 一、通过 Issue 触发
+## 1. 设计原则
 
-1. 在 Issue 标题或正文中填写 Kubernetes 版本号，例如 `v1.37.2`。
-2. 为 Issue 添加 `build-offline` 标签。
-3. 工作流仅提取符合 `X.Y.Z` 格式的版本号，不会解析或执行 Issue 正文中的其他内容。
-4. 工作流先检查 Kubernetes 上游二进制文件是否存在，再下载固定版本的配套组件。
-5. 对 Kubernetes 官方提供 SHA256 文件的二进制执行校验。
-6. 构建成功后创建 `k8s-vX.Y.Z` Release，并上传离线资源压缩包及其 SHA256 文件。
-7. 如果同名 Release/tag 已存在，工作流会拒绝覆盖，保证已发布资源不可被静默替换。
+GitHub Actions 负责触发，仓库脚本负责实现。构建逻辑、下载 URL、版本号、校验和不重复写在 Workflow YAML 中。
 
-## 二、手动触发
+- Workflow：只做 Issue/手动触发过滤、checkout、传入事件上下文并调用构建脚本。
+- `config/release-versions.env`：统一维护 etcd、containerd、runc、CNI、crictl、Calico、CoreDNS、NGINX 版本及 NGINX 源码 SHA256。
+- `scripts/ci/build-offline-release.sh`：唯一构建入口，完成版本提取、下载、校验、NGINX 源码构建、归档和 Release 发布。
+- `nginx/Dockerfile`：唯一 NGINX 编译定义。
+- `scripts/13-install-nginx-proxy.sh`：Worker 下载对应 Release 中的 NGINX 二进制和校验文件，验证后安装。
 
-进入 GitHub 仓库的 **Actions → Issue-driven offline bundle release → Run workflow**，输入版本号（例如 `v1.37.2`），然后运行工作流。
+## 2. Issue 触发
 
-## 三、权限要求
+1. 创建 Issue，在标题或正文填写 Kubernetes 版本，例如 `v1.37.2`。
+2. 添加 `build-offline` 标签。
+3. Actions 提取第一个符合 `X.Y.Z` 或 `vX.Y.Z` 的版本号。
+4. 构建脚本下载 Kubernetes 和配套组件，并对 Kubernetes 官方 SHA256 文件执行校验。
+5. Docker 构建 NGINX 源码，导出独立的 `nginx-<版本>-linux-amd64` 二进制及 SHA256。
+6. 发布 `k8s-vX.Y.Z` Release。
 
-工作流使用仓库范围的 `GITHUB_TOKEN`，声明权限为 `contents: write` 和 `issues: read`。请在仓库 Settings → Actions → General 中确认工作流令牌允许创建 Release（需要 Contents 写权限）。不需要授予创建或批准 Pull Request 的权限。
+## 3. 手动触发
 
-## 四、资源范围与限制
+进入仓库 **Actions → Issue 驱动的离线资源包构建与 Release 发布 → Run workflow**，填写版本号。
 
-当前 Release 资源包包含 Kubernetes 控制平面/节点/客户端二进制文件、etcd、containerd、runc、CNI 插件、crictl、在 Rocky Linux 9 构建环境源码编译的 NGINX stream 二进制文件，以及 amd64 架构的 Calico Operator/CRD 清单。
+## 4. Release 资产
 
-当前**不包含** Rocky Linux RPM 依赖包，也不包含全部容器镜像。请单独将镜像同步到内网仓库或制作 OCI 归档，详见 `docs/OFFLINE-IMAGES.md`。配套组件版本固定在工作流环境变量中；调整版本前必须检查上游兼容性和下载地址。
+- `offline-kubernetes-vX.Y.Z-rocky9-amd64.tar.gz`：Kubernetes、etcd、containerd、runc、CNI、crictl、Calico 清单和 NGINX 副本。
+- 对应 `.tar.gz.sha256`：归档校验文件。
+- `nginx-<NGINX_VERSION>-linux-amd64`：NGINX 独立二进制。
+- 对应 `.sha256`：NGINX 独立二进制校验文件。
 
-## 五、故障排查
+Worker 安装脚本使用 Kubernetes 版本构造 Release tag，并使用 `NGINX_VERSION` 构造资产名称。下载后执行 SHA256 校验，校验失败立即退出，不安装不可信二进制。
 
-- 工作流没有启动：确认 Issue 已添加 `build-offline` 标签，并确认 Issue 事件触发器启用。
-- 版本校验失败：标题或正文必须包含有效的 `vX.Y.Z` 或 `X.Y.Z`。
-- 下载失败：检查上游发布资源是否存在，以及 GitHub-hosted runner 的网络连通性。
-- Release 创建失败：检查仓库 Actions 的 Contents 写权限，并确认目标 tag 尚未存在。
-- NGINX 构建失败：检查 `nginx/Dockerfile`、源码校验和以及 Docker 构建日志。
+## 5. 如何修改版本或构建逻辑
+
+- 修改配套组件版本：编辑 `config/release-versions.env`。
+- 修改 NGINX 编译参数：编辑 `nginx/Dockerfile`。
+- 修改下载、校验、打包、发布步骤：编辑 `scripts/ci/build-offline-release.sh`。
+- 修改触发条件或 runner：编辑 `.github/workflows/issue-offline-release.yml`。
+- 修改 Worker 下载/安装行为：编辑 `scripts/13-install-nginx-proxy.sh`。
+
+不要在 Workflow YAML 中复制脚本中的 URL、版本或 shell 构建命令。
+
+## 6. Runner 与兼容性
+
+当前使用固定的 `ubuntu-24.04` runner，并使用支持 Node.js 24 的 `actions/checkout@v5`，避免 `ubuntu-latest` 自动迁移造成不可控变化。
+
+## 7. 资源范围
+
+当前 Release 不包含完整 Rocky Linux RPM 仓库快照，也不包含所有容器镜像。容器镜像应按目标版本独立同步到内网仓库或 OCI 归档。生产使用前必须验证离线节点能访问所有镜像。
