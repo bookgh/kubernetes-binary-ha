@@ -17,8 +17,6 @@ node_ip(){
     worker-01) echo "$WORKER1_IP";;
     worker-02) echo "$WORKER2_IP";;
     worker-03) echo "$WORKER3_IP";;
-    lb-01) echo "$LB1_IP";;
-    lb-02) echo "$LB2_IP";;
     *) die "Unknown hostname $(hostname -s); set hostname to the planned node name";;
   esac
 }
