@@ -8,7 +8,7 @@ case "${RUNTIME_TYPE:-containerd}" in
   docker)     RUNTIME_ENDPOINT="unix:///var/run/cri-dockerd.sock" ;;
   *) die "RUNTIME_TYPE 仅支持 containerd 或 docker" ;;
 esac
-case "${KUBE_PROXY_MODE:-ipvs}" in
+case "${KUBE_PROXY_MODE:-nftables}" in
   ipvs|nftables) ;;
   *) die "KUBE_PROXY_MODE 仅支持 ipvs 或 nftables" ;;
 esac
