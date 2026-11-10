@@ -5,7 +5,11 @@ source "$(dirname "$0")/lib.sh"
 require_root
 case "${RUNTIME_TYPE:-containerd}" in
   containerd) RUNTIME_ENDPOINT="unix:///run/containerd/containerd.sock" ;;
-  docker)     RUNTIME_ENDPOINT="unix:///var/run/cri-dockerd.sock" ;;
+  docker)
+    : "${DOCKER_VERSION:?Docker 模式必须在 config/cluster.env 中设置 DOCKER_VERSION}"
+    : "${CRI_DOCKERD_VERSION:?Docker 模式必须设置 CRI_DOCKERD_VERSION}"
+    RUNTIME_ENDPOINT="unix:///run/cri-dockerd.sock"
+    ;;
   *) die "RUNTIME_TYPE 仅支持 containerd 或 docker" ;;
 esac
 case "${KUBE_PROXY_MODE:-nftables}" in
