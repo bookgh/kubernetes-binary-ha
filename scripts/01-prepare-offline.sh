@@ -1,12 +1,11 @@
 #!/usr/bin/env bash
-# 在部署机/暂存机执行：从 GitHub Release 获取已构建资源，并补齐 Rocky Linux 9 RPM。
+# 在部署机/暂存机执行：下载并校验包含 Rocky Linux 9 RPM 的完整 GitHub Release 离线包。
 set -Eeuo pipefail
 source "$(dirname "$0")/lib.sh"
 require_root
 [[ -f /etc/rocky-release ]] || die "请在 Rocky Linux 9 暂存机运行"
 [[ "$(uname -m)" == x86_64 ]] || die "暂存机 CPU 架构必须为 x86_64"
-dnf -y install dnf-plugins-core wget tar gzip jq openssl rsync openssh-clients
-command -v curl >/dev/null 2>&1 || dnf -y install curl-minimal
+for cmd in curl tar sha256sum; do command -v "$cmd" >/dev/null 2>&1 || { printf "missing required command: %s\\n" "$cmd" >&2; exit 1; }; done
 
 VERSION="${K8S_VERSION#v}"
 TAG="k8s-v${VERSION}"
@@ -45,7 +44,7 @@ esac
 log "使用 Release 内置 Rocky Linux 9 RPM 依赖包"
 
 rm -f "$OUT/SHA256SUMS"
-(cd "$OUT" && find bin src manifests checksums docker rpms -type f -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS)
+(cd "$OUT" && find bin src manifests checksums tools docker rpms -type f -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS)
 cat >"$OUT/ARTIFACTS.txt" <<EOF
 Kubernetes=${K8S_VERSION}
 Runtime=${RUNTIME_TYPE:-containerd}
@@ -57,4 +56,4 @@ OS=Rocky Linux 9
 Source=GitHub Release ${TAG}
 EOF
 log "离线资源准备完成：$OUT"
-log "Release 二进制资源已校验；RPM 依赖已补齐。容器镜像需单独准备。"
+log "Release 二进制资源与 RPM 依赖已校验。容器镜像需单独准备。"
