@@ -32,6 +32,7 @@ vi config/cluster.env
 - RUNTIME_TYPE=containerd 或 RUNTIME_TYPE=docker。Docker 模式必须使用 cri-dockerd。
 - KUBE_PROXY_MODE=nftables 或 ipvs。Kubernetes 1.37 新部署推荐 nftables；IPVS 已弃用，使用前应确认内核模块和 kube-proxy 支持。
 - PRIVATE_REGISTRY、COREDNS_IMAGE、PAUSE_IMAGE 必须指向真实可达、已准备镜像的仓库。
+- KUBERNETES_SERVICE_IP 必须是 SERVICE_CIDR 中 Kubernetes API Service 使用的 IP，默认 10.96.0.1，并进入 apiserver 证书 SAN。
 
 版本清单集中在 config/release-versions.env，集群参数集中在 config/cluster.env。修改版本后必须重新构建一个新的、不可覆盖的 Release tag。
 
