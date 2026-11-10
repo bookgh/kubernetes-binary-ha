@@ -26,7 +26,7 @@ sudo bash scripts/14-render-node-configs.sh
 sudo bash scripts/15-distribute-node-configs.sh
 ```
 
-- `14` 在本地生成 `generated/<node>/` 下的 kubelet、kube-proxy 和运行时配置。
+- `14` 在本地生成 `generated/<node>/` 下的 kubelet、kube-proxy 和运行时配置，并在 `generated/common/etc/` 生成内核模块清单与 sysctl 文件。
 - `15` 通过 rsync/SCP 同步项目文件、离线资源、节点配置和节点专属凭据。
 - 根 CA 私钥、etcd CA 私钥和管理员 kubeconfig 不分发到节点；专用 `cluster-signer.key` 仅分发到 Master 控制平面。
 - 分发后先检查各节点的 `/opt/kubernetes-binary-ha`、`/etc/kubernetes` 和 `/etc/etcd/pki` 文件权限。
@@ -45,6 +45,8 @@ sudo bash scripts/16-batch-exec.sh all 06-install-systemd.sh --parallel
 - `RUNTIME_TYPE=docker`：安装 Docker Engine + cri-dockerd，kubelet 使用 `unix:///run/cri-dockerd.sock`。Docker Engine socket 不是 CRI socket。
 - `KUBE_PROXY_MODE=ipvs`：安装 `ipvsadm` 并加载 IPVS 内核模块；该模式自 Kubernetes v1.35 起已弃用，v1.40 起默认禁用。
 - `KUBE_PROXY_MODE=nftables`：推荐新部署使用；要求 Linux kernel >= 5.13、`nft` >= 1.0.1，并安装 `nftables`。
+- `02-install-runtime.sh` 会从离线包安装 etcd/Kubernetes/CNI/runc；containerd 模式还会安装 containerd、ctr 和 shim 二进制，Docker 模式安装 Docker Engine + cri-dockerd。
+- `06-install-systemd.sh` 应用部署端生成的内核模块和 sysctl 配置，再安装 systemd 单元。
 - 检查运行时状态、`crictl info`、CNI 二进制和 pause 镜像配置。
 
 ## 阶段 3：etcd 与控制平面
