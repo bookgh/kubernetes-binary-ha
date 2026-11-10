@@ -23,5 +23,13 @@ install -m 0644 "$ROOT/systemd/kubelet.service" /etc/systemd/system/
 install -m 0644 "$ROOT/systemd/kube-proxy.service" /etc/systemd/system/
 [[ -s /var/lib/kubelet/config.yaml ]] || die "缺少已生成的 kubelet 配置；请先运行 scripts/14-render-node-configs.sh 和 scripts/15-distribute-node-configs.sh"
 [[ -s /var/lib/kube-proxy/config.yaml ]] || die "缺少已生成的 kube-proxy 配置；请先运行 scripts/14-render-node-configs.sh 和 scripts/15-distribute-node-configs.sh"
+[[ -s /etc/modules-load.d/10-kubernetes.conf ]] || die "缺少已分发的内核模块清单"
+[[ -s /etc/sysctl.d/95-kubernetes.conf ]] || die "缺少已分发的 Kubernetes sysctl 配置"
+# 按部署端生成的模式加载模块：IPVS 与 nftables 不混装、不混配。
+while IFS= read -r module; do
+  [[ -n "$module" ]] || continue
+  modprobe "$module" || die "内核模块加载失败：$module"
+done < /etc/modules-load.d/10-kubernetes.conf
+sysctl -p /etc/sysctl.d/95-kubernetes.conf
 systemctl daemon-reload
-log "systemd 单元文件安装完成：node=$NODE_NAME，runtime=$RUNTIME_TYPE，CRI=$CONTAINER_RUNTIME_ENDPOINT，proxy=$KUBE_PROXY_MODE"
+log "systemd 与节点内核配置安装完成：node=$NODE_NAME，runtime=$RUNTIME_TYPE，CRI=$CONTAINER_RUNTIME_ENDPOINT，proxy=$KUBE_PROXY_MODE"
