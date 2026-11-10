@@ -1,9 +1,12 @@
 FROM rockylinux:9 AS nginx-builder
 ARG NGINX_VERSION=1.30.6
 ARG NGINX_SHA256=3cf46f5ed7504d460125866b7bea99fb357f31d887e2e63b35503310e9b8b6c8
-RUN dnf -y install gcc make curl tar gzip glibc-devel && dnf clean all
+# Rocky Linux 9 基础镜像预装 curl-minimal；不要安装与其冲突的 curl 软件包。
+RUN dnf -y install gcc make glibc-devel \
+ && dnf clean all \
+ && rm -rf /var/cache/dnf
 WORKDIR /usr/local/src
-RUN curl -fL --retry 3 "https://nginx.org/download/nginx-${NGINX_VERSION}.tar.gz" -o nginx.tar.gz \
+RUN curl -fL --retry 4 --retry-all-errors "https://nginx.org/download/nginx-${NGINX_VERSION}.tar.gz" -o nginx.tar.gz \
  && echo "${NGINX_SHA256}  nginx.tar.gz" | sha256sum -c - \
  && tar -xzf nginx.tar.gz \
  && cd "nginx-${NGINX_VERSION}" \
