@@ -30,8 +30,19 @@ tar -xzf "$OFF/src/crictl.tar.gz" -C /usr/local/bin crictl
 
 case "$RUNTIME_TYPE" in
   containerd)
+    [[ -s "$OFF/src/containerd.tar.gz" ]] || die "containerd 模式缺少 offline/src/containerd.tar.gz"
     [[ -s /etc/containerd/config.toml ]] || die "缺少部署端生成的 /etc/containerd/config.toml"
+    TMP_CONTAINERD="$(mktemp -d)"
+    tar -xzf "$OFF/src/containerd.tar.gz" -C "$TMP_CONTAINERD"
+    [[ -x "$TMP_CONTAINERD/bin/containerd" ]] || die "containerd 归档中未找到 bin/containerd"
+    # 安装 containerd、ctr 和 containerd-shim-runc-v2 等配套二进制。
+    for binary in "$TMP_CONTAINERD"/bin/*; do
+      [[ -f "$binary" && -x "$binary" ]] || continue
+      install -m 0755 "$binary" /usr/local/bin/
+    done
+    rm -rf "$TMP_CONTAINERD"
     install -m 0644 "$ROOT/systemd/containerd.service" /etc/systemd/system/containerd.service
+    containerd --version
     containerd config dump >/dev/null || die "containerd 配置校验失败"
     systemctl daemon-reload
     systemctl enable --now containerd
