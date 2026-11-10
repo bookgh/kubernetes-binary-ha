@@ -99,6 +99,7 @@ jobs:
           crictl=${CRICTL_VERSION}
           Calico=${CALICO_VERSION}
           CoreDNS=${COREDNS_VERSION} (manifest/image mirroring must be completed for the target cluster)
+          NGINX=${NGINX_VERSION} (source-built with stream module)
           Architecture=amd64
           OS=Rocky Linux 9
           EOF
