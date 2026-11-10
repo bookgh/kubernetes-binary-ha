@@ -28,8 +28,12 @@ case "${RUNTIME_TYPE:-containerd}" in
     # containerd 2.x：启用 systemd cgroup driver。
     if grep -q "SystemdCgroup = false" /etc/containerd/config.toml; then
       sed -i 's/SystemdCgroup = false/SystemdCgroup = true/' /etc/containerd/config.toml
+    elif grep -q "SystemdCgroup = true" /etc/containerd/config.toml; then
+      :
     else
-      die "未在 containerd 默认配置中找到 SystemdCgroup 字段，请检查当前 containerd 版本配置格式"
+      OPTIONS_TABLE="[plugins.'io.containerd.cri.v1.runtime'.containerd.runtimes.runc.options]"
+      grep -Fq "$OPTIONS_TABLE" /etc/containerd/config.toml || die "containerd 默认配置缺少 runc options 表"
+      sed -i "/^\\[plugins.'io.containerd.cri.v1.runtime'.containerd.runtimes.runc.options\\]/a SystemdCgroup = true" /etc/containerd/config.toml
     fi
     if grep -qE "^[[:space:]]*sandbox[[:space:]]*=" /etc/containerd/config.toml; then
       # containerd 2.x config v3 使用 pinned_images.sandbox。
