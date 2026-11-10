@@ -1,5 +1,6 @@
 [Unit]
 Description=Local NGINX TCP proxy for Kubernetes API
+ConditionHost=worker-*
 After=network-online.target
 Wants=network-online.target
 
