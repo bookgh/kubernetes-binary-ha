@@ -53,7 +53,7 @@ curl -fL --retry 4 --retry-all-errors "https://raw.githubusercontent.com/project
 cp "$ROOT/manifests/calico-custom-resources.yaml" "$OUT/manifests/custom-resources.yaml"
 curl -fL --retry 4 --retry-all-errors "https://raw.githubusercontent.com/projectcalico/calico/${CALICO_VERSION}/manifests/v3_projectcalico_org.yaml" -o "$OUT/manifests/calico-crds.yaml"
 
-RPM_PACKAGES=(chrony curl wget tar gzip jq openssl socat conntrack-tools ipset ipvsadm ebtables ethtool rsync policycoreutils-python-utils)
+RPM_PACKAGES=(chrony curl wget tar gzip jq openssl socat conntrack-tools ipset ipvsadm iptables ebtables ethtool rsync policycoreutils-python-utils)
 if [[ "${KUBE_PROXY_MODE:-ipvs}" == nftables ]]; then
   RPM_PACKAGES+=(nftables)
 fi
