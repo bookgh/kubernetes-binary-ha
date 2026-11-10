@@ -147,7 +147,8 @@ curl --cacert /etc/kubernetes/pki/k8s-ca.crt https://127.0.0.1:6443/readyz
 
 ```bash
 bash -n scripts/*.sh scripts/ci/*.sh
-systemctl status containerd docker cri-docker.socket etcd kube-apiserver kubelet kube-proxy nginx-k8s-api
+systemctl status etcd kube-apiserver kubelet kube-proxy nginx-k8s-api
+# Runtime: containerd 模式使用 systemctl status containerd；Docker 模式使用 systemctl status docker cri-docker.socket
 curl --cacert /etc/kubernetes/pki/k8s-ca.crt https://127.0.0.1:6443/readyz
 kubectl get nodes -o wide
 kubectl get pods -A -o wide
