@@ -41,8 +41,8 @@ sudo bash scripts/16-batch-exec.sh all 06-install-systemd.sh --parallel
 
 - `RUNTIME_TYPE=containerd`：安装 containerd 并使用 `unix:///run/containerd/containerd.sock`。
 - `RUNTIME_TYPE=docker`：安装 Docker Engine + cri-dockerd，kubelet 使用 `unix:///run/cri-dockerd.sock`。Docker Engine socket 不是 CRI socket。
-- `KUBE_PROXY_MODE=ipvs`：安装 `ipvsadm` 并加载 IPVS 内核模块。
-- `KUBE_PROXY_MODE=nftables`：要求 Linux kernel >= 5.13，并安装 `nftables`。
+- `KUBE_PROXY_MODE=ipvs`：安装 `ipvsadm` 并加载 IPVS 内核模块；该模式自 Kubernetes v1.35 起已弃用，v1.40 起默认禁用。
+- `KUBE_PROXY_MODE=nftables`：推荐新部署使用；要求 Linux kernel >= 5.13、`nft` >= 1.0.1，并安装 `nftables`。
 - 检查运行时状态、`crictl info`、CNI 二进制和 pause 镜像配置。
 
 ## 阶段 3：etcd 与控制平面
