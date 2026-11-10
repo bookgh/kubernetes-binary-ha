@@ -11,16 +11,40 @@
 - 将项目脚本和配置传入隔离环境；离线资源包按 Release 校验和验证后解压。
 - 单独准备 pause、Calico、CoreDNS 和业务容器镜像。
 
-## 阶段 1：部署端生成配置与批量分发
+## 阶段 1：部署机本地生成与分发
 
-在部署机配置 `config/cluster.env`，确认六个节点 IP、`RUNTIME_TYPE` 和 `KUBE_PROXY_MODE`。生成所有节点配置并批量分发：
+先在部署机配置 `config/cluster.env`。在 Rocky Linux 9 amd64 暂存机准备离线资源，然后在部署机本地生成 PKI、kubeconfig 和每节点配置：
 
 ```bash
+sudo bash scripts/01-prepare-offline.sh
+sudo bash scripts/03-generate-pki.sh
+sudo bash scripts/04-make-kubeconfigs.sh
 sudo bash scripts/14-render-node-configs.sh
 sudo bash scripts/15-distribute-node-configs.sh
 ```
 
-配置先写入本地 `generated/<node>/`，确认内容无误后再分发。远程节点不使用 SSH heredoc 临时生成配置。
+`14` 在本地生成 `generated/<node>/`；`15` 通过 rsync/SCP 同步项目文件、离线资源、配置和节点专属凭据。根 CA 私钥、etcd CA 私钥和管理员 kubeconfig 不分发到节点。
+
+## 阶段 2：操作系统与运行时
+
+在部署机通过统一入口批量执行：
+
+```bash
+sudo bash scripts/16-batch-exec.sh all 00-preflight.sh --parallel
+sudo bash scripts/16-batch-exec.sh all 02-install-runtime.sh --parallel
+sudo bash scripts/16-batch-exec.sh all 06-install-systemd.sh --parallel
+```
+
+`RUNTIME_TYPE=containerd` 安装 containerd；`RUNTIME_TYPE=docker` 安装 Docker Engine + cri-dockerd。后者由 cri-dockerd 提供 CRI socket，不将 Docker Engine socket 直接交给 kubelet。
+
+## 阶段 3：etcd 与控制平面
+
+```bash
+sudo bash scripts/16-batch-exec.sh masters 07-bootstrap-etcd.sh --parallel
+sudo bash scripts/16-batch-exec.sh masters 08-start-control-plane.sh --parallel
+```
+
+并发启动三台 etcd 成员，确认 quorum 和 endpoint health 后，再启动控制平面。分别检查 API Server `/livez` 和 `/readyz`。
 
 ## 阶段 2：操作系统与运行时
 
