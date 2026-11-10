@@ -28,7 +28,7 @@ PACKAGE_DIR="$WORK/offline-kubernetes-v${VERSION}-rocky9-amd64"
 
 OUT="${ROOT}/offline"
 rm -rf "$OUT"
-mkdir -p "$OUT"
+mkdir -p "$OUT" "$OUT/docker"
 cp -a "$PACKAGE_DIR/." "$OUT/"
 
 case "${RUNTIME_TYPE:-containerd}" in
