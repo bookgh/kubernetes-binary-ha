@@ -147,7 +147,7 @@ curl --cacert /etc/kubernetes/pki/k8s-ca.crt https://127.0.0.1:6443/readyz
 
 ```bash
 bash -n scripts/*.sh scripts/ci/*.sh
-systemctl status containerd etcd kube-apiserver kubelet nginx-k8s-api
+systemctl status containerd docker cri-docker.socket etcd kube-apiserver kubelet kube-proxy nginx-k8s-api
 curl --cacert /etc/kubernetes/pki/k8s-ca.crt https://127.0.0.1:6443/readyz
 kubectl get nodes -o wide
 kubectl get pods -A -o wide
@@ -155,7 +155,7 @@ kubectl get pods -A -o wide
 
 ## 九、安全注意事项
 
-- CA 私钥不得分发到集群节点；节点证书按最小权限分发。
+- `k8s-ca.key`、`etcd-ca.key` 和 `front-proxy-ca.key` 等根 CA 私钥不得分发；专用 `cluster-signer.key` 仅分发到 Master 控制平面。节点证书和 kubeconfig 按最小权限分发。
 - 不要通过关闭 SELinux 或防火墙规避配置问题。
 - etcd 必须有异机备份，禁止同时停止两个成员。
 - 当前无外部 LB，管理员 `API_DNS` 不是高可用入口；Master 故障时需调整 DNS 或 kubeconfig。
