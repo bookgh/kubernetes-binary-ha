@@ -81,6 +81,15 @@ jobs:
           curl -fL --retry 3 "https://github.com/kubernetes-sigs/cri-tools/releases/download/${CRICTL_VERSION}/crictl-${CRICTL_VERSION}-linux-amd64.tar.gz" -o "${root}/src/crictl.tar.gz"
           curl -fL --retry 3 "https://raw.githubusercontent.com/projectcalico/calico/${CALICO_VERSION}/manifests/tigera-operator.yaml" -o "${root}/manifests/tigera-operator.yaml"
           curl -fL --retry 3 "https://raw.githubusercontent.com/projectcalico/calico/${CALICO_VERSION}/manifests/v3_projectcalico_org.yaml" -o "${root}/manifests/calico-crds.yaml"
+          # Build NGINX from source using the repository Dockerfile; export only the binary.
+          docker build --pull -t local/k8s-nginx-builder:"${NGINX_VERSION}" -f nginx/Dockerfile nginx
+          cid="$(docker create local/k8s-nginx-builder:"${NGINX_VERSION}")"
+          trap 'docker rm -f "$cid" >/dev/null 2>&1 || true' EXIT
+          docker cp "$cid:/nginx" "${root}/bin/nginx"
+          docker rm "$cid" >/dev/null
+          trap - EXIT
+          chmod 0755 "${root}/bin/nginx"
+          "${root}/bin/nginx" -V 2>&1 | tee "${root}/NGINX-BUILD-INFO.txt"
           cat > "${root}/ARTIFACTS.txt" <<EOF
           Kubernetes=v${K8S_VERSION}
           etcd=v${ETCD_VERSION}
