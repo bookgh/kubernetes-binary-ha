@@ -57,7 +57,7 @@ NGINX 不再由运维人员在暂存机手动构建。所有二进制资源（�
 - Workflow YAML 只负责事件过滤、checkout 和调用仓库脚本，不重复维护 URL、版本矩阵或构建命令。
 - 修改构建流程时优先修改脚本和配置，不要在 Workflow 中复制构建实现。
 
-> 当前离线包不包含完整 Rocky Linux RPM 仓库快照和全部容器镜像。Calico、CoreDNS、pause 及业务镜像需要按目标版本单独同步到私有仓库或制作 OCI 归档。
+> Release 已包含本项目所需的 Rocky Linux 9 RPM 包及其依赖，但不包含完整系统仓库快照和 OCI 容器镜像。Calico、CoreDNS、pause 及业务镜像需要按目标版本单独同步到私有仓库或制作 OCI 归档。
 
 ## 五、集中式部署与配置分发
 
@@ -129,7 +129,7 @@ sudo bash scripts/16-batch-exec.sh workers 09-start-worker.sh --parallel
 
 ### 6.3 后续集群组件
 
-1. 按部署手册部署 Calico、CoreDNS 和 RBAC。
+1. 按 docs/INSTALL-FROM-SCRATCH.md 执行 scripts/19-install-calico.sh 和 scripts/20-install-coredns.sh。
 2. 确认全部镜像已同步到私有仓库或导入节点。
 3. 执行网络、Service、NodePort、DNS 和故障切换验收。
 4. 使用 `kubectl get nodes -o wide` 检查节点状态。
@@ -148,7 +148,7 @@ curl --cacert /etc/kubernetes/pki/k8s-ca.crt https://127.0.0.1:6443/readyz
 
 安装脚本根据 `K8S_VERSION` 和 `NGINX_VERSION` 计算 Release tag 和资产名称，下载 NGINX 及 SHA256 文件，校验成功后才安装。Worker 不需要 Docker/Podman，也不需要在节点上编译源码。
 
-## 八、常用检查
+## 八、常用检查\n\n完整从零部署、证书检查、etcd 健康检查、Calico 状态和 CoreDNS/网络验收请参阅 [docs/INSTALL-FROM-SCRATCH.md](docs/INSTALL-FROM-SCRATCH.md)。部署完成后可运行：\n\n```bash\nsudo bash scripts/18-verify-cluster.sh\n```\n
 
 ```bash
 bash -n scripts/*.sh scripts/ci/*.sh
