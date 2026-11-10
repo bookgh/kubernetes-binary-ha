@@ -48,15 +48,14 @@ issue k8s-ca kubernetes-admin system:masters "IP:127.0.0.1" admin clientAuth
 issue k8s-ca system:kube-controller-manager "" "IP:127.0.0.1" controller-manager clientAuth
 issue k8s-ca system:kube-scheduler "" "IP:127.0.0.1" scheduler clientAuth
 issue k8s-ca system:kube-proxy "" "IP:127.0.0.1" kube-proxy clientAuth
-for spec in "master-01:${MASTER1_IP}" "master-02:${MASTER2_IP}" "master-03:${MASTER3_IP}"; do
-  n="${spec%%:*}"; ip="${spec##*:}"
+for i in "${!MASTER_NAMES[@]}"; do
+  n="${MASTER_NAMES[$i]}"; ip="${MASTER_IPS[$i]}"
   issue etcd-ca "etcd-${n}" "" "DNS:${n},IP:${ip},IP:127.0.0.1" "etcd-${n}-server" "serverAuth,clientAuth"
   issue etcd-ca "etcd-${n}" "" "DNS:${n},IP:${ip},IP:127.0.0.1" "etcd-${n}-peer" "serverAuth,clientAuth"
 done
 issue etcd-ca kube-apiserver-etcd-client "" "IP:127.0.0.1" apiserver-etcd-client clientAuth
-for spec in "master-01:${MASTER1_IP}" "master-02:${MASTER2_IP}" "master-03:${MASTER3_IP}" \
-            "worker-01:${WORKER1_IP}" "worker-02:${WORKER2_IP}" "worker-03:${WORKER3_IP}"; do
-  n="${spec%%:*}"; ip="${spec##*:}"
+for i in "${!ALL_NAMES[@]}"; do
+  n="${ALL_NAMES[$i]}"; ip="${ALL_IPS[$i]}"
   issue cluster-signer "system:node:${n}" "system:nodes" "DNS:${n},IP:${ip}" "kubelet-${n}" clientAuth
 done
 cat k8s-ca.crt cluster-signer.crt > k8s-ca-bundle.crt
