@@ -15,7 +15,7 @@ authentication:
   webhook:
     enabled: true
   x509:
-    clientCAFile: /etc/kubernetes/pki/ca.crt
+    clientCAFile: /etc/kubernetes/pki/k8s-ca-bundle.crt
 authorization:
   mode: Webhook
   webhook:
