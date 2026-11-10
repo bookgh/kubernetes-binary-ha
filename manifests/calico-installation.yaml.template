@@ -3,6 +3,7 @@ kind: Installation
 metadata:
   name: default
 spec:
+  registry: __PRIVATE_REGISTRY__
   calicoNetwork:
     bgp: Disabled
     ipPools:
