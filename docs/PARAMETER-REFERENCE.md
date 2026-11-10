@@ -14,6 +14,7 @@
 - `DNS_SERVICE_IP`：CoreDNS ClusterIP，必须与 kubelet `clusterDNS` 一致。
 - `MASTER1_IP`～`MASTER3_IP`：三台 Master 的可路由地址。
 - `WORKER1_IP`～`WORKER3_IP`：三台 Worker 的可路由地址。
+- `MASTER_NAMES`/`MASTER_IPS`、`WORKER_NAMES`/`WORKER_IPS`、`ALL_NAMES`/`ALL_IPS`：部署脚本使用的节点清单；增删节点时同步维护数组及对应的地址变量。证书、配置渲染、分发和批量执行均从这些数组读取节点，不在脚本中重复写节点列表。
 - `PRIVATE_REGISTRY`：隔离环境或内网镜像仓库地址。
 - `PAUSE_IMAGE`：容器 sandbox/pause 镜像，containerd 和 Docker/cri-dockerd 均需可访问。
 
@@ -21,12 +22,13 @@
 
 - `RUNTIME_TYPE`：`containerd` 或 `docker`。Docker 模式由 cri-dockerd 提供 CRI 兼容接口。
 - `cluster-signer.key`：独立节点证书签发 CA 私钥，只分发到 Master 控制平面；根 CA 私钥保持离线。
-- `CONTAINER_RUNTIME_ENDPOINT`：CRI socket。containerd 为 `unix:///run/containerd/containerd.sock`；Docker/cri-dockerd 为 `unix:///run/cri-dockerd.sock`。
+- `CONTAINER_RUNTIME_ENDPOINT`：由 `RUNTIME_TYPE` 在本地配置生成阶段自动派生，不在 `cluster.env` 中单独维护。containerd 为 `unix:///run/containerd/containerd.sock`；Docker/cri-dockerd 为 `unix:///run/cri-dockerd.sock`。
 - `DOCKER_VERSION`：Docker 静态二进制版本，Docker 模式必填。
 - `CRI_DOCKERD_VERSION`：cri-dockerd 版本，Docker 模式必填。
 - `KUBE_PROXY_MODE`：`ipvs` 或 `nftables`，配置文件显式指定，不依赖 kube-proxy 默认值。Kubernetes v1.37 中 IPVS 已弃用，建议新部署选择 nftables。
 - `IPVS_STRICT_ARP`：IPVS 模式的 strictARP 设置。
 - `NFTABLES_MASQUERADE_BIT`：nftables 模式 masquerade fwmark bit，范围 0–31。
+- `scripts/14-render-node-configs.sh` 会根据模式生成 `/etc/modules-load.d/10-kubernetes.conf` 和 `/etc/sysctl.d/95-kubernetes.conf`；`scripts/15-distribute-node-configs.sh` 批量分发，`scripts/06-install-systemd.sh` 在节点加载模块并应用 sysctl。
 
 ## 组件版本参数
 
