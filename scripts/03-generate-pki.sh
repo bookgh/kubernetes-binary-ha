@@ -3,6 +3,7 @@ set -Eeuo pipefail
 source "$(dirname "$0")/lib.sh"
 require_root
 require_cmd jq
+require_cmd openssl
 CFSSL_DIR="$ROOT/config/cfssl"
 PKI="$ROOT/pki"
 mkdir -p "$PKI"
@@ -39,6 +40,8 @@ create_ca cluster-signer cluster-signer-ca-csr.json
 API_HOSTS="kubernetes,kubernetes.default,kubernetes.default.svc,kubernetes.default.svc.${CLUSTER_DOMAIN},${API_DNS},10.96.0.1,127.0.0.1"
 for ip in "${MASTER_IPS[@]}"; do API_HOSTS+=",$ip"; done
 issue k8s-ca kube-apiserver "" "$API_HOSTS" apiserver server apiserver
+openssl x509 -in "$PKI/apiserver.crt" -noout -checkhost "$API_DNS" -checkip 127.0.0.1 >/dev/null
+for ip in "${MASTER_IPS[@]}"; do openssl x509 -in "$PKI/apiserver.crt" -noout -checkip "$ip" >/dev/null; done
 issue k8s-ca system:kube-apiserver system:masters "IP:127.0.0.1" apiserver-kubelet-client client apiserver-kubelet-client
 issue front-proxy-ca front-proxy-client "" "IP:127.0.0.1" front-proxy-client client front-proxy-client
 issue k8s-ca kubernetes-admin system:masters "localhost,127.0.0.1" admin client admin
@@ -51,10 +54,12 @@ for i in "${!MASTER_NAMES[@]}"; do
   hosts="$n,$ip,127.0.0.1"
   issue etcd-ca "etcd-$n" "" "$hosts" "etcd-$n-server" peer etcd-server
   issue etcd-ca "etcd-$n" "" "$hosts" "etcd-$n-peer" peer etcd-peer
+  openssl x509 -in "$PKI/etcd-$n-server.crt" -noout -checkhost "$n" -checkip "$ip" >/dev/null
 done
 for i in "${!ALL_NAMES[@]}"; do
   n="${ALL_NAMES[$i]}"; ip="${ALL_IPS[$i]}"
   issue cluster-signer "system:node:$n" system:nodes "$n,$ip" "kubelet-$n" client kubelet-node
+  openssl x509 -in "$PKI/kubelet-$n.crt" -noout -checkhost "$n" -checkip "$ip" >/dev/null
 done
 cat "$PKI/k8s-ca.crt" "$PKI/cluster-signer.crt" > "$PKI/k8s-ca-bundle.crt"
 # Service-account JWT signing keys are not X.509 certificates.
