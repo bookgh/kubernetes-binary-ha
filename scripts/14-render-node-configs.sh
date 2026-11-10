@@ -90,8 +90,8 @@ net.ipv4.conf.all.rp_filter = 0
 net.ipv4.conf.default.rp_filter = 0
 EOF
 
-NODES=(master-01 master-02 master-03 worker-01 worker-02 worker-03)
-IPS=("$MASTER1_IP" "$MASTER2_IP" "$MASTER3_IP" "$WORKER1_IP" "$WORKER2_IP" "$WORKER3_IP")
+NODES=("${ALL_NAMES[@]}")
+IPS=("${ALL_IPS[@]}")
 for i in "${!NODES[@]}"; do
   node="${NODES[$i]}"; ip="${IPS[$i]}"
   dir="$OUT/$node"
