@@ -1,0 +1,31 @@
+name: Shell syntax validation
+
+on:
+  push:
+    paths:
+      - "scripts/**/*.sh"
+      - "scripts/*.sh"
+      - ".github/workflows/shell-syntax.yml"
+  pull_request:
+    paths:
+      - "scripts/**/*.sh"
+      - "scripts/*.sh"
+      - ".github/workflows/shell-syntax.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  bash-syntax:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v5
+      - name: Validate Bash syntax
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          while IFS= read -r -d '' script; do
+            echo "Checking $script"
+            bash -n "$script"
+          done < <(find scripts -type f -name '*.sh' -print0 | sort -z)
