@@ -35,6 +35,8 @@ EOF
 new_ca k8s-ca kubernetes
 new_ca etcd-ca etcd
 new_ca front-proxy-ca front-proxy-ca
+# 专用节点证书签发 CA；其私钥仅分发到 Master 控制平面，不分发根 CA 私钥。
+new_ca cluster-signer kubernetes-cluster-signer
 # NGINX 使用 TCP 透传。客户端直接验证被选中的 API Server 证书，
 # 因此 API 服务端证书必须同时包含回环地址、全部 Master IP 和 API DNS。
 issue k8s-ca kube-apiserver "" \
@@ -49,14 +51,15 @@ issue k8s-ca system:kube-proxy "" "IP:127.0.0.1" kube-proxy clientAuth
 for spec in "master-01:${MASTER1_IP}" "master-02:${MASTER2_IP}" "master-03:${MASTER3_IP}"; do
   n="${spec%%:*}"; ip="${spec##*:}"
   issue etcd-ca "etcd-${n}" "" "DNS:${n},IP:${ip},IP:127.0.0.1" "etcd-${n}-server" "serverAuth,clientAuth"
-  issue etcd-ca "etcd-${n}" "" "DNS:${n},IP:${ip}" "etcd-${n}-peer" "serverAuth,clientAuth"
+  issue etcd-ca "etcd-${n}" "" "DNS:${n},IP:${ip},IP:127.0.0.1" "etcd-${n}-peer" "serverAuth,clientAuth"
 done
 issue etcd-ca kube-apiserver-etcd-client "" "IP:127.0.0.1" apiserver-etcd-client clientAuth
 for spec in "master-01:${MASTER1_IP}" "master-02:${MASTER2_IP}" "master-03:${MASTER3_IP}" \
             "worker-01:${WORKER1_IP}" "worker-02:${WORKER2_IP}" "worker-03:${WORKER3_IP}"; do
   n="${spec%%:*}"; ip="${spec##*:}"
-  issue k8s-ca "system:node:${n}" "system:nodes" "DNS:${n},IP:${ip}" "kubelet-${n}" clientAuth
+  issue cluster-signer "system:node:${n}" "system:nodes" "DNS:${n},IP:${ip}" "kubelet-${n}" clientAuth
 done
+cat k8s-ca.crt cluster-signer.crt > k8s-ca-bundle.crt
 openssl genrsa -out sa.key 2048
 openssl rsa -in sa.key -pubout -out sa.pub
 chmod 0600 *.key
