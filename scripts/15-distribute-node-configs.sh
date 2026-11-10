@@ -10,6 +10,7 @@ GEN="${ROOT}/generated"
 PKI="${ROOT}/pki"
 KCFG="${ROOT}/kubeconfigs"
 [[ -d "$GEN" ]] || die "缺少 generated/；请先运行 scripts/14-render-node-configs.sh"
+[[ -d "$ROOT/offline/rpms" && -s "$ROOT/offline/SHA256SUMS" ]] || die "缺少 offline/ 离线资源；请先运行 scripts/01-prepare-offline.sh"
 [[ -s "$PKI/k8s-ca.crt" && -s "$PKI/k8s-ca-bundle.crt" ]] || die "缺少 PKI；请先运行 scripts/03-generate-pki.sh"
 [[ -s "$KCFG/admin.conf" && -s "$KCFG/kube-proxy.conf" ]] || die "缺少 kubeconfig；请先运行 scripts/04-make-kubeconfigs.sh"
 
@@ -20,10 +21,12 @@ for i in "${!NODES[@]}"; do
   node="${NODES[$i]}"; ip="${IPS[$i]}"; src="$GEN/$node"
   [[ -d "$src" ]] || die "缺少节点配置目录：$src"
   log "同步项目文件、离线包和节点配置到 $node ($ip)"
-  ssh -o BatchMode=yes "root@$ip" "install -d -m 0755 $REMOTE_ROOT /etc/kubernetes/pki /etc/etcd/pki"
+  # 先用 SCP 发送离线 RPM，再在目标节点安装 rsync 等传输依赖。
+  scp -r "$ROOT/offline" "root@$ip:$REMOTE_ROOT/"
+  ssh -o BatchMode=yes "root@$ip" "dnf install -y --disablerepo='*' $REMOTE_ROOT/offline/rpms/*.rpm"
   # 根 CA 私钥、etcd CA 私钥和管理员 kubeconfig 不会分发到节点。
   rsync -az --delete \
-    --exclude='.git/' --exclude='generated/' --exclude='pki/' --exclude='kubeconfigs/' \
+    --exclude='.git/' --exclude='generated/' --exclude='pki/' --exclude='kubeconfigs/' --exclude='offline/' \
     "$ROOT/" "root@$ip:$REMOTE_ROOT/"
   ssh -o BatchMode=yes "root@$ip" "install -d -m 0755 /etc/kubernetes /var/lib/kubelet /var/lib/kube-proxy"
   scp "$src/var/lib/kubelet/config.yaml" "root@$ip:/var/lib/kubelet/config.yaml"
