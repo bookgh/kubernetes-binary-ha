@@ -24,7 +24,7 @@ for i in "${!NODES[@]}"; do
   ssh -o BatchMode=yes "root@$ip" "install -d -m 0755 $REMOTE_ROOT /etc/kubernetes/pki /etc/etcd/pki"
   # 先用 SCP 发送离线 RPM，再在目标节点安装 rsync 等传输依赖。
   scp -r "$ROOT/offline" "root@$ip:$REMOTE_ROOT/"
-  ssh -o BatchMode=yes "root@$ip" "dnf install -y --disablerepo='*' $REMOTE_ROOT/offline/rpms/*.rpm"
+  ssh -o BatchMode=yes "root@$ip" "cd $REMOTE_ROOT/offline && sha256sum -c SHA256SUMS && dnf install -y --disablerepo='*' $REMOTE_ROOT/offline/rpms/*.rpm"
   # 根 CA 私钥、etcd CA 私钥和管理员 kubeconfig 不会分发到节点。
   rsync -az --delete \
     --exclude='.git/' --exclude='generated/' --exclude='pki/' --exclude='kubeconfigs/' --exclude='offline/' \
