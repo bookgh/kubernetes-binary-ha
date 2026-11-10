@@ -6,7 +6,7 @@ Wants=network-online.target
 
 [Service]
 Type=notify
-ExecStart=/usr/local/bin/dockerd --host=fd:// --containerd=/run/containerd/containerd.sock
+ExecStart=/usr/local/bin/dockerd --host=unix:///var/run/docker.sock
 ExecReload=/bin/kill -s HUP $MAINPID
 TimeoutStartSec=0
 Restart=always
