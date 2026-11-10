@@ -4,9 +4,11 @@ set -Eeuo pipefail
 source "$(dirname "$0")/lib.sh"
 require_root
 require_cmd ssh
-[[ $# -eq 2 ]] || die "用法：$0 <all|masters|workers> <script-name>"
+[[ $# -ge 2 && $# -le 3 ]] || die "用法：$0 <all|masters|workers> <script-name> [--parallel]"
 GROUP="$1"
 SCRIPT="$2"
+PARALLEL="${3:-}"
+[[ -z "$PARALLEL" || "$PARALLEL" == --parallel ]] || die "第三个参数仅支持 --parallel"
 [[ "$SCRIPT" == "$(basename "$SCRIPT")" && "$SCRIPT" == *.sh ]] || die "脚本参数必须是 scripts/ 下的 .sh 文件名"
 [[ -f "$ROOT/scripts/$SCRIPT" ]] || die "本地不存在脚本：$ROOT/scripts/$SCRIPT"
 case "$GROUP" in
@@ -25,9 +27,24 @@ case "$GROUP" in
   *) die "节点组仅支持 all、masters、workers" ;;
 esac
 REMOTE_ROOT="/opt/kubernetes-binary-ha"
-for i in "${!NODES[@]}"; do
-  node="${NODES[$i]}"; ip="${IPS[$i]}"
-  log "执行 $SCRIPT -> $node ($ip)"
-  ssh -o BatchMode=yes "root@$ip" "bash '$REMOTE_ROOT/scripts/$SCRIPT'"
-  ok "$node 执行完成"
-done
+if [[ "$PARALLEL" == --parallel ]]; then
+  PIDS=()
+  FAILED=0
+  for i in "${!NODES[@]}"; do
+    node="${NODES[$i]}"; ip="${IPS[$i]}"
+    log "并行执行 $SCRIPT -> $node ($ip)"
+    ssh -o BatchMode=yes "root@$ip" "bash '$REMOTE_ROOT/scripts/$SCRIPT'" &
+    PIDS+=("$!")
+  done
+  for i in "${!PIDS[@]}"; do
+    if wait "${PIDS[$i]}"; then ok "${NODES[$i]} 执行完成"; else warn "${NODES[$i]} 执行失败"; FAILED=1; fi
+  done
+  [[ "$FAILED" -eq 0 ]] || die "批量执行存在失败节点，请检查对应节点日志。"
+else
+  for i in "${!NODES[@]}"; do
+    node="${NODES[$i]}"; ip="${IPS[$i]}"
+    log "执行 $SCRIPT -> $node ($ip)"
+    ssh -o BatchMode=yes "root@$ip" "bash '$REMOTE_ROOT/scripts/$SCRIPT'"
+    ok "$node 执行完成"
+  done
+fi
