@@ -25,4 +25,6 @@ make_cfg kube-proxy system:kube-proxy kube-proxy kube-proxy 127.0.0.1
 for n in master-01 master-02 master-03 worker-01 worker-02 worker-03; do
   make_cfg "kubelet-${n}" "system:node:${n}" "kubelet-${n}" "kubelet-${n}" 127.0.0.1
 done
-log "Kubeconfigs created. Distribute only the matching node kubelet config."
+install -d -m 0700 "$HOME/.kube"
+install -m 0600 "$OUT/admin.conf" "$HOME/.kube/config"
+log "Kubeconfigs created locally. Run scripts/15-distribute-node-configs.sh to send node-scoped credentials; admin.conf stays on the deployment host."
