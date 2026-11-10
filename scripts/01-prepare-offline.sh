@@ -30,7 +30,7 @@ log "Downloading Calico manifests"
 curl -fL "https://raw.githubusercontent.com/projectcalico/calico/${CALICO_VERSION}/manifests/tigera-operator.yaml" -o "$OUT/manifests/tigera-operator.yaml"
 cp "$ROOT/manifests/calico-custom-resources.yaml" "$OUT/manifests/custom-resources.yaml"
 curl -fL "https://raw.githubusercontent.com/projectcalico/calico/${CALICO_VERSION}/manifests/v3_projectcalico_org.yaml" -o "$OUT/manifests/calico-crds.yaml"
-dnf -y download --resolve --alldeps --destdir "$OUT/rpms" chrony curl wget tar gzip jq openssl socat conntrack-tools ipset ipvsadm ebtables ethtool rsync policycoreutils-python-utils haproxy keepalived
+dnf -y download --resolve --alldeps --destdir "$OUT/rpms" chrony curl wget tar gzip jq openssl socat conntrack-tools ipset ipvsadm ebtables ethtool rsync policycoreutils-python-utils
 (cd "$OUT" && find bin src rpms manifests -type f -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS)
 cat >"$OUT/ARTIFACTS.txt" <<EOF
 Kubernetes=${K8S_VERSION}
@@ -44,4 +44,4 @@ CoreDNS=${COREDNS_VERSION}
 Architecture=amd64
 EOF
 log "Offline artifacts prepared in $OUT"
-log "IMPORTANT: container images are a separate required step. See docs/OFFLINE-IMAGES.md."
+log "Build the NGINX proxy separately with scripts/12-build-nginx-binary.sh; transfer offline/bin/nginx to Workers."\nlog "IMPORTANT: container images are a separate required step. See docs/OFFLINE-IMAGES.md."
