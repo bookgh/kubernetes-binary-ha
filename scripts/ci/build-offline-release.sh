@@ -72,7 +72,7 @@ docker rm "$CID" >/dev/null
 trap cleanup EXIT
 chmod 0755 "$WORK/$NGINX_ASSET"
 "$WORK/$NGINX_ASSET" -V 2>&1 | tee "$OUT/NGINX-BUILD-INFO.txt"
-sha256sum "$WORK/$NGINX_ASSET" > "$WORK/$NGINX_ASSET.sha256"
+(cd "$WORK" && sha256sum "$NGINX_ASSET" > "$NGINX_ASSET.sha256")
 install -m 0755 "$WORK/$NGINX_ASSET" "$OUT/bin/nginx"
 install -m 0644 "$WORK/$NGINX_ASSET.sha256" "$OUT/checksums/nginx.sha256"
 
@@ -92,7 +92,7 @@ EOF
 (cd "$OUT" && find bin src manifests checksums -type f -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS)
 ARCHIVE="${WORK}/offline-kubernetes-v${K8S_VERSION}-rocky9-amd64.tar.gz"
 tar -C "$WORK" -czf "$ARCHIVE" "$(basename "$OUT")"
-sha256sum "$ARCHIVE" > "$ARCHIVE.sha256"
+(cd "$WORK" && sha256sum "$(basename "$ARCHIVE")" > "$(basename "$ARCHIVE").sha256")
 
 if gh release view "$TAG" >/dev/null 2>&1; then
   die "Release ${TAG} 已存在；为保证不可变发布，不会覆盖。请提升版本号或人工处理旧 Release。"
