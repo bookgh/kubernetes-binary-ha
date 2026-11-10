@@ -23,9 +23,8 @@ if [[ "$NODE_NAME" == master-* ]]; then
   for unit in kube-apiserver kube-controller-manager kube-scheduler; do
     install -m 0644 "$ROOT/systemd/${unit}.service" "/etc/systemd/system/${unit}.service"
   done
-else
-  install -m 0644 "$ROOT/systemd/nginx-k8s-api.service" /etc/systemd/system/nginx-k8s-api.service
 fi
+install -m 0644 "$ROOT/systemd/nginx-k8s-api.service" /etc/systemd/system/nginx-k8s-api.service
 install -m 0644 "$ROOT/systemd/kubelet.service" /etc/systemd/system/kubelet.service
 install -m 0644 "$ROOT/systemd/kube-proxy.service" /etc/systemd/system/kube-proxy.service
 systemctl daemon-reload
