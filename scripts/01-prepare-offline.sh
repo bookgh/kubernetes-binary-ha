@@ -7,7 +7,8 @@ require_root
 [[ "$(uname -m)" == x86_64 ]] || die "暂存机 CPU 架构必须为 x86_64"
 OUT="${ROOT}/offline"
 mkdir -p "$OUT"/{bin,src,rpms,manifests,images,checksums,docker}
-dnf -y install dnf-plugins-core curl wget tar gzip jq
+dnf -y install dnf-plugins-core wget tar gzip jq
+command -v curl >/dev/null 2>&1 || dnf -y install curl-minimal
 
 log "正在下载 Kubernetes ${K8S_VERSION}"
 for b in kube-apiserver kube-controller-manager kube-scheduler kubelet kube-proxy kubectl; do
@@ -53,7 +54,7 @@ curl -fL --retry 4 --retry-all-errors "https://raw.githubusercontent.com/project
 cp "$ROOT/manifests/calico-custom-resources.yaml" "$OUT/manifests/custom-resources.yaml"
 curl -fL --retry 4 --retry-all-errors "https://raw.githubusercontent.com/projectcalico/calico/${CALICO_VERSION}/manifests/v3_projectcalico_org.yaml" -o "$OUT/manifests/calico-crds.yaml"
 
-RPM_PACKAGES=(chrony curl wget tar gzip jq openssl socat conntrack-tools ipset ipvsadm iptables ebtables ethtool rsync policycoreutils-python-utils)
+RPM_PACKAGES=(chrony curl-minimal wget tar gzip jq openssl socat conntrack-tools ipset ipvsadm iptables ebtables ethtool rsync policycoreutils-python-utils)
 if [[ "${KUBE_PROXY_MODE:-ipvs}" == nftables ]]; then
   RPM_PACKAGES+=(nftables)
 fi
