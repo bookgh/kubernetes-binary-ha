@@ -1,0 +1,1 @@
+{"CN":"Kubernetes Root CA","key":{"algo":"rsa","size":4096},"names":[{"C":"CN","ST":"Beijing","L":"Beijing","O":"Kubernetes","OU":"PKI"}]}
