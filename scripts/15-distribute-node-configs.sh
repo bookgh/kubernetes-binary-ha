@@ -34,6 +34,10 @@ for i in "${!NODES[@]}"; do
   scp "$src/var/lib/kube-proxy/config.yaml" "root@$ip:/var/lib/kube-proxy/config.yaml"
   scp "$src/etc/kubernetes/cluster.env" "root@$ip:/etc/kubernetes/cluster.env"
   scp "$src/etc/kubernetes/runtime.env" "root@$ip:/etc/kubernetes/runtime.env"
+  if [[ "$node" == worker-* ]]; then
+    ssh -o BatchMode=yes "root@$ip" "install -d -m 0755 /etc/nginx"
+    scp "$src/etc/nginx/nginx.conf" "root@$ip:/etc/nginx/nginx.conf"
+  fi
   scp "$GEN/common/etc/crictl.yaml" "root@$ip:/etc/crictl.yaml"
   if [[ "${RUNTIME_TYPE:-containerd}" == containerd ]]; then
     ssh -o BatchMode=yes "root@$ip" "install -d -m 0755 /etc/containerd"
