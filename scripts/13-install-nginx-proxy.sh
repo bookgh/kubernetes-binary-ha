@@ -30,10 +30,7 @@ id nginx >/dev/null 2>&1 || useradd --system --no-create-home --home-dir /nonexi
 install -d -m 0755 /usr/local/sbin /etc/nginx /var/log/nginx-k8s-api
 install -m 0755 "$TMP/$ASSET" /usr/local/sbin/nginx
 install -m 0644 "$ROOT/systemd/nginx-k8s-api.service" /etc/systemd/system/nginx-k8s-api.service
-sed -e "s/__MASTER1_IP__/${MASTER1_IP}/g" \
-    -e "s/__MASTER2_IP__/${MASTER2_IP}/g" \
-    -e "s/__MASTER3_IP__/${MASTER3_IP}/g" \
-    "$ROOT/config/nginx-stream.conf.template" > /etc/nginx/nginx.conf
+[[ -s /etc/nginx/nginx.conf ]] || die "缺少部署端生成的 NGINX 配置；请先运行 scripts/14-render-node-configs.sh 和 scripts/15-distribute-node-configs.sh"
 chmod 0644 /etc/nginx/nginx.conf
 /usr/local/sbin/nginx -t -c /etc/nginx/nginx.conf
 systemctl daemon-reload
