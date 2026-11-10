@@ -15,7 +15,7 @@
 - `MASTER1_IP`～`MASTER3_IP`：三台 Master 的可路由地址。
 - `WORKER1_IP`～`WORKER3_IP`：三台 Worker 的可路由地址。
 - `PRIVATE_REGISTRY`：隔离环境或内网镜像仓库地址。
-- `PAUSE_IMAGE`：containerd sandbox/pause 镜像，必须已镜像到可访问仓库。
+- `PAUSE_IMAGE`：容器 sandbox/pause 镜像，containerd 和 Docker/cri-dockerd 均需可访问。
 
 ## 运行时与 kube-proxy 参数
 
