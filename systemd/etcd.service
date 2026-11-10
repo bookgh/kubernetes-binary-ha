@@ -1,0 +1,39 @@
+[Unit]
+Description=etcd distributed key-value store
+Documentation=https://etcd.io/docs/
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=notify
+User=etcd
+Group=etcd
+EnvironmentFile=/etc/kubernetes/cluster.env
+ExecStart=/usr/local/bin/etcd \
+  --name=${NODE_NAME} \
+  --data-dir=/var/lib/etcd \
+  --listen-peer-urls=https://${NODE_IP}:2380 \
+  --initial-advertise-peer-urls=https://${NODE_IP}:2380 \
+  --listen-client-urls=https://${NODE_IP}:2379,https://127.0.0.1:2379 \
+  --advertise-client-urls=https://${NODE_IP}:2379 \
+  --initial-cluster=${ETCD_INITIAL_CLUSTER} \
+  --initial-cluster-state=new \
+  --initial-cluster-token=kubernetes-etcd-cluster \
+  --cert-file=/etc/etcd/pki/etcd-${NODE_NAME}-server.crt \
+  --key-file=/etc/etcd/pki/etcd-${NODE_NAME}-server.key \
+  --peer-cert-file=/etc/etcd/pki/etcd-${NODE_NAME}-peer.crt \
+  --peer-key-file=/etc/etcd/pki/etcd-${NODE_NAME}-peer.key \
+  --trusted-ca-file=/etc/etcd/pki/etcd-ca.crt \
+  --peer-trusted-ca-file=/etc/etcd/pki/etcd-ca.crt \
+  --client-cert-auth=true \
+  --peer-client-cert-auth=true \
+  --heartbeat-interval=${ETCD_HEARTBEAT_INTERVAL} \
+  --election-timeout=${ETCD_ELECTION_TIMEOUT} \
+  --quota-backend-bytes=${ETCD_QUOTA_BACKEND_BYTES}
+Restart=always
+RestartSec=5
+LimitNOFILE=1048576
+OOMScoreAdjust=-999
+
+[Install]
+WantedBy=multi-user.target
