@@ -44,6 +44,7 @@ case "${RUNTIME_TYPE:-containerd}" in
     else
       die "无法在 containerd 配置中定位 sandbox/pause 镜像字段"
     fi
+    containerd config dump >/dev/null || die "containerd 配置校验失败"
     CONTAINER_RUNTIME_ENDPOINT="unix:///run/containerd/containerd.sock"
     systemctl daemon-reload
     systemctl enable --now containerd
@@ -70,6 +71,7 @@ case "${RUNTIME_TYPE:-containerd}" in
   "log-opts": {"max-size": "100m", "max-file": "5"}
 }
 EOF
+    dockerd --validate --config-file=/etc/docker/daemon.json || die "Docker daemon.json 配置校验失败"
     CONTAINER_RUNTIME_ENDPOINT="unix:///run/cri-dockerd.sock"
     systemctl daemon-reload
     systemctl enable --now docker
@@ -87,4 +89,5 @@ timeout: 10
 debug: false
 EOF
 systemctl is-active --quiet "${RUNTIME_TYPE:-containerd}" || die "容器运行时服务未处于 active 状态"
+crictl --runtime-endpoint "$CONTAINER_RUNTIME_ENDPOINT" info >/dev/null || die "CRI endpoint 无法连接：$CONTAINER_RUNTIME_ENDPOINT"
 ok "${RUNTIME_TYPE:-containerd} 运行时及 Kubernetes 二进制安装完成。CRI endpoint：${CONTAINER_RUNTIME_ENDPOINT}"
