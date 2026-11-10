@@ -64,6 +64,7 @@ jobs:
           CRICTL_VERSION: "v1.34.0"
           CALICO_VERSION: "v3.33.0"
           COREDNS_VERSION: "v1.13.1"
+          NGINX_VERSION: "1.30.6"
         shell: bash
         run: |
           set -euo pipefail
