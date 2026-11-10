@@ -58,6 +58,34 @@ elif [[ "${RUNTIME_TYPE:-containerd}" == docker ]]; then
 }
 EOF
 fi
+
+# 系统内核配置同样在部署机生成，再由分发脚本下发；远程节点不临时拼接文件。
+install -d -m 0755 "$COMMON/etc/modules-load.d" "$COMMON/etc/sysctl.d"
+cat > "$COMMON/etc/modules-load.d/10-kubernetes.conf" <<'EOF'
+overlay
+br_netfilter
+nf_conntrack
+EOF
+if [[ "${KUBE_PROXY_MODE:-nftables}" == ipvs ]]; then
+  cat >> "$COMMON/etc/modules-load.d/10-kubernetes.conf" <<'EOF'
+ip_vs
+ip_vs_rr
+ip_vs_wrr
+ip_vs_sh
+EOF
+elif [[ "${KUBE_PROXY_MODE:-nftables}" == nftables ]]; then
+  cat >> "$COMMON/etc/modules-load.d/10-kubernetes.conf" <<'EOF'
+nf_tables
+EOF
+fi
+cat > "$COMMON/etc/sysctl.d/95-kubernetes.conf" <<'EOF'
+net.ipv4.ip_forward = 1
+net.bridge.bridge-nf-call-iptables = 1
+net.bridge.bridge-nf-call-ip6tables = 1
+net.ipv4.conf.all.rp_filter = 0
+net.ipv4.conf.default.rp_filter = 0
+EOF
+
 NODES=(master-01 master-02 master-03 worker-01 worker-02 worker-03)
 IPS=("$MASTER1_IP" "$MASTER2_IP" "$MASTER3_IP" "$WORKER1_IP" "$WORKER2_IP" "$WORKER3_IP")
 for i in "${!NODES[@]}"; do
