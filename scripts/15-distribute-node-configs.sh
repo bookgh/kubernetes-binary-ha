@@ -34,6 +34,14 @@ for i in "${!NODES[@]}"; do
   scp "$src/var/lib/kube-proxy/config.yaml" "root@$ip:/var/lib/kube-proxy/config.yaml"
   scp "$src/etc/kubernetes/cluster.env" "root@$ip:/etc/kubernetes/cluster.env"
   scp "$src/etc/kubernetes/runtime.env" "root@$ip:/etc/kubernetes/runtime.env"
+  scp "$GEN/common/etc/crictl.yaml" "root@$ip:/etc/crictl.yaml"
+  if [[ "${RUNTIME_TYPE:-containerd}" == containerd ]]; then
+    ssh -o BatchMode=yes "root@$ip" "install -d -m 0755 /etc/containerd"
+    scp "$GEN/common/etc/containerd/config.toml" "root@$ip:/etc/containerd/config.toml"
+  else
+    ssh -o BatchMode=yes "root@$ip" "install -d -m 0755 /etc/docker"
+    scp "$GEN/common/etc/docker/daemon.json" "root@$ip:/etc/docker/daemon.json"
+  fi
   scp "$PKI/k8s-ca.crt" "$PKI/k8s-ca-bundle.crt" "root@$ip:/etc/kubernetes/pki/"
   scp "$KCFG/kubelet-$node.conf" "root@$ip:/etc/kubernetes/kubelet.conf"
   scp "$KCFG/kube-proxy.conf" "root@$ip:/etc/kubernetes/kube-proxy.conf"
