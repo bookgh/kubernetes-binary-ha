@@ -1,18 +1,26 @@
 [Unit]
-Description=CRI Interface for Docker Engine
+Description=CRI Interface for Docker Application Container Engine
 Documentation=https://github.com/Mirantis/cri-dockerd
-After=docker.service
-Requires=docker.service
+After=network-online.target docker.service
+Wants=network-online.target
+Requires=cri-docker.socket docker.service
 
 [Service]
 EnvironmentFile=/etc/kubernetes/cluster.env
 Type=notify
-ExecStart=/usr/local/bin/cri-dockerd --container-runtime-endpoint unix:///var/run/docker.sock --network-plugin=cni --pod-infra-container-image=${PAUSE_IMAGE} --cni-bin-dir=/opt/cni/bin --cni-conf-dir=/etc/cni/net.d --listen=fd://
+ExecStart=/usr/local/bin/cri-dockerd --container-runtime-endpoint fd:// --pod-infra-container-image=${PAUSE_IMAGE} --network-plugin=cni --cni-bin-dir=/opt/cni/bin --cni-conf-dir=/etc/cni/net.d
 ExecReload=/bin/kill -s HUP $MAINPID
+TimeoutSec=0
 Restart=always
-RestartSec=5
-StartLimitInterval=0
-LimitNOFILE=1048576
+RestartSec=2
+StartLimitBurst=3
+StartLimitInterval=60s
+LimitNOFILE=infinity
+LimitNPROC=infinity
+LimitCORE=infinity
+TasksMax=infinity
+Delegate=yes
+KillMode=process
 
 [Install]
 WantedBy=multi-user.target
