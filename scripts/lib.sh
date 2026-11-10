@@ -22,13 +22,13 @@ die()  { printf '%s[%s 错误]%s %s\n' "$C_ERROR" "$(date '+%F %T')" "$C_RESET" 
 require_root() { [[ ${EUID} -eq 0 ]] || die '请使用 root 用户运行此脚本。'; }
 require_cmd() { command -v "$1" >/dev/null 2>&1 || die "缺少必要命令：$1"; }
 node_ip() {
-  case "$(hostname -s)" in
-    master-01) printf '%s\n' "$MASTER1_IP" ;;
-    master-02) printf '%s\n' "$MASTER2_IP" ;;
-    master-03) printf '%s\n' "$MASTER3_IP" ;;
-    worker-01) printf '%s\n' "$WORKER1_IP" ;;
-    worker-02) printf '%s\n' "$WORKER2_IP" ;;
-    worker-03) printf '%s\n' "$WORKER3_IP" ;;
-    *) die "无法识别当前主机名：$(hostname -s)，请设置为规划中的节点名称。" ;;
-  esac
+  local current
+  current="$(hostname -s)"
+  for i in "${!ALL_NAMES[@]}"; do
+    if [[ "${ALL_NAMES[$i]}" == "$current" ]]; then
+      printf '%s\\n' "${ALL_IPS[$i]}"
+      return 0
+    fi
+  done
+  die "无法识别当前主机名：$current，请检查 config/cluster.env 中的节点清单。"
 }
