@@ -68,7 +68,7 @@ sudo bash scripts/14-render-node-configs.sh
 sudo bash scripts/15-distribute-node-configs.sh
 ```
 
-第一个脚本在本地 `generated/<node>/` 生成每台节点的 `cluster.env`、kubelet、kube-proxy、NGINX stream 配置，以及 containerd/Docker、crictl 公共配置；第二个脚本通过 rsync/SCP 批量分发项目、离线资源、配置、证书和节点 kubeconfig。请先检查生成目录，再执行分发。远程安装脚本只安装二进制、部署 systemd 单元并校验配置，不再用 heredoc 临时创建服务配置。
+第一个脚本在本地 `generated/<node>/` 生成每台节点的 `cluster.env`、kubelet、kube-proxy、NGINX stream 配置，以及 containerd/Docker、crictl 公共配置；同时在 `generated/common/etc/` 生成内核模块清单和 sysctl 文件。第二个脚本通过 rsync/SCP 批量分发项目、离线资源、配置、证书和节点 kubeconfig。请先检查生成目录，再执行分发。远程安装脚本只安装二进制、应用已分发的内核配置、部署 systemd 单元并校验配置，不再用 heredoc 临时创建服务配置。
 
 ### 容器运行时选择
 
@@ -116,6 +116,7 @@ sudo bash scripts/15-distribute-node-configs.sh
 sudo bash scripts/16-batch-exec.sh all 00-preflight.sh --parallel
 sudo bash scripts/16-batch-exec.sh all 02-install-runtime.sh --parallel
 sudo bash scripts/16-batch-exec.sh all 06-install-systemd.sh --parallel
+# 06 阶段会按选择加载 IPVS 或 nftables 内核模块，并应用生成的 sysctl 配置
 
 # 先并发启动三台 etcd，再启动三台控制平面
 sudo bash scripts/16-batch-exec.sh masters 07-bootstrap-etcd.sh --parallel
