@@ -13,9 +13,11 @@ for f in "$ROOT/offline/manifests/calico-crds.yaml" "$ROOT/offline/manifests/tig
   [[ -s "$f" ]] || die "缺少 Calico 安装文件：$f"
 done
 "$KUBECTL" apply -f "$ROOT/offline/manifests/calico-crds.yaml"
-"$KUBECTL" apply -f "$ROOT/offline/manifests/tigera-operator.yaml"
+mkdir -p "$ROOT/generated"
+sed "s#quay.io/tigera#${PRIVATE_REGISTRY}/tigera#g" "$ROOT/offline/manifests/tigera-operator.yaml" > "$ROOT/generated/tigera-operator.yaml"
+"$KUBECTL" apply -f "$ROOT/generated/tigera-operator.yaml"
 "$KUBECTL" wait --for=condition=Available deployment/tigera-operator -n tigera-operator --timeout=300s
-sed "s#__POD_CIDR__#${POD_CIDR}#g" "$ROOT/manifests/calico-installation.yaml.template" > "$ROOT/generated/calico-installation.yaml"
+sed -e "s#__POD_CIDR__#${POD_CIDR}#g" -e "s#__PRIVATE_REGISTRY__#${PRIVATE_REGISTRY}#g" "$ROOT/manifests/calico-installation.yaml.template" > "$ROOT/generated/calico-installation.yaml"
 "$KUBECTL" apply -f "$ROOT/generated/calico-installation.yaml"
 "$KUBECTL" wait --for=condition=Ready nodes --all --timeout=600s
 "$KUBECTL" get pods -n calico-system -o wide
