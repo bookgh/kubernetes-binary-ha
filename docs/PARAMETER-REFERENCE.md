@@ -8,7 +8,7 @@
 - `CLUSTER_NAME`：kubeconfig 中的集群上下文名称。
 - `CLUSTER_DOMAIN`：集群内部 DNS 后缀。
 - `API_DNS`、`API_PORT`：管理员访问 Kubernetes API 的 DNS 名称和端口。当前无 LB/VIP，DNS 必须解析到一台可达 Master；管理员入口暂不具备 HA。
-- `NGINX_VERSION`：在联网构建机源码编译的 NGINX 版本，启用 stream 模块。
+- `NGINX_VERSION`：由 GitHub Actions 按该版本源码编译并发布到 Kubernetes Release 的 NGINX 版本，启用 stream 模块。
 - `POD_CIDR`：必须与 controller-manager `--cluster-cidr` 和 Calico IPPool 一致。
 - `SERVICE_CIDR`：必须与 API Server `--service-cluster-ip-range` 一致。
 - `DNS_SERVICE_IP`：CoreDNS ClusterIP，必须与 kubelet `clusterDNS` 一致。
@@ -69,5 +69,5 @@
 - 上游为三台 Master 的 TCP/6443。
 - NGINX 使用 stream TCP 透传，不终止 TLS。
 - API Server 证书 SAN 必须包含 `127.0.0.1` 和所有 Master IP。
-- Docker/Podman 仅在构建机使用；Worker 安装导出的 `offline/bin/nginx`。
+- Docker 仅在 GitHub Actions 构建任务中使用；Worker 从对应 Release 下载 NGINX 资产并验证 SHA256。
 - Master 本机客户端直接访问本机 API Server 的 `127.0.0.1:6443`。
