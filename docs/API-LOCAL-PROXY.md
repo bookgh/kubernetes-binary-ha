@@ -18,7 +18,7 @@ Worker 本机 kubelet / kube-proxy
   -> 被选中的 kube-apiserver
 ```
 
-NGINX 只安装在 Worker。构建机通过 `nginx/Dockerfile` 编译 NGINX 并导出二进制；集群节点不运行 NGINX 容器，也不要求安装 Docker/Podman。
+NGINX 只安装在 Worker。GitHub Actions 通过 `nginx/Dockerfile` 编译 NGINX，并将二进制及 SHA256 发布到 Kubernetes 对应版本的 Release；Worker 安装脚本下载并验证该资产。集群节点不运行 NGINX 容器，也不要求安装 Docker/Podman。
 
 ## 三、kube-apiserver 监听要求
 
@@ -50,14 +50,7 @@ NGINX 只安装在 Worker。构建机通过 `nginx/Dockerfile` 编译 NGINX 并�
 
 ## 七、部署和验证
 
-构建机：
-
-```bash
-sudo bash scripts/12-build-nginx-binary.sh
-sha256sum -c offline/bin/nginx.sha256
-```
-
-每台 Worker：
+GitHub Actions 完成 Release 构建后，每台 Worker：
 
 ```bash
 sudo bash scripts/13-install-nginx-proxy.sh
