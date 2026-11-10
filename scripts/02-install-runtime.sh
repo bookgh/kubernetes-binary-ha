@@ -44,6 +44,7 @@ case "${RUNTIME_TYPE:-containerd}" in
     [[ -d /tmp/docker-runtime/docker ]] || die "Docker 静态包目录结构不正确，预期包含 docker/ 子目录"
     install -m 0755 /tmp/docker-runtime/docker/* /usr/local/bin/
     install -m 0755 "$OFF/docker/cri-dockerd" /usr/local/bin/cri-dockerd
+    getent group docker >/dev/null 2>&1 || groupadd --system docker
     install -m 0644 "$ROOT/systemd/docker.service" /etc/systemd/system/docker.service
     install -m 0644 "$ROOT/systemd/cri-docker.socket" /etc/systemd/system/cri-docker.socket
     install -m 0644 "$ROOT/systemd/cri-docker.service" /etc/systemd/system/cri-docker.service
