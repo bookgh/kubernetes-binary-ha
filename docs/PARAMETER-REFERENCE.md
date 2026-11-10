@@ -17,6 +17,16 @@
 - `PRIVATE_REGISTRY`：隔离环境或内网镜像仓库地址。
 - `PAUSE_IMAGE`：containerd sandbox/pause 镜像，必须已镜像到可访问仓库。
 
+## 运行时与 kube-proxy 参数
+
+- `RUNTIME_TYPE`：`containerd` 或 `docker`。Docker 模式由 cri-dockerd 提供 CRI 兼容接口。
+- `CONTAINER_RUNTIME_ENDPOINT`：CRI socket。containerd 为 `unix:///run/containerd/containerd.sock`；Docker/cri-dockerd 为 `unix:///run/cri-dockerd.sock`。
+- `DOCKER_VERSION`：Docker 静态二进制版本，Docker 模式必填。
+- `CRI_DOCKERD_VERSION`：cri-dockerd 版本，Docker 模式必填。
+- `KUBE_PROXY_MODE`：`ipvs` 或 `nftables`，配置文件显式指定，不依赖 kube-proxy 默认值。
+- `IPVS_STRICT_ARP`：IPVS 模式的 strictARP 设置。
+- `NFTABLES_MASQUERADE_BIT`：nftables 模式 masquerade fwmark bit，范围 0–31。
+
 ## 组件版本参数
 
 - `ETCD_VERSION`：etcd 发布版本；升级前核对 Kubernetes 与 etcd 兼容性。
@@ -55,7 +65,7 @@
 - `--cluster-cidr`：必须与 Pod CIDR 一致。
 - `--allocate-node-cidrs=true`：为节点分配 PodCIDR。
 - `--cluster-signing-*`：证书签发配置，必须保护私钥。
-- `containerRuntimeEndpoint`：containerd CRI socket。
+- `containerRuntimeEndpoint`：由 `RUNTIME_TYPE` 决定；Docker 模式通过 cri-dockerd socket 接入。
 - `cgroupDriver=systemd`：必须与 containerd `SystemdCgroup=true` 一致。
 - `authentication.x509.clientCAFile`：kubelet 客户端证书 CA。
 - `authorization.mode=Webhook`：将授权请求委托给 API Server。
