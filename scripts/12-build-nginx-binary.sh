@@ -2,14 +2,14 @@
 set -Eeuo pipefail
 source "$(dirname "$0")/lib.sh"
 require_root
-[[ "$(uname -m)" == "x86_64" ]] || die "NGINX build target is amd64/x86_64"
+[[ "$(uname -m)" == "x86_64" ]] || die "NGINX 构建目标架构必须为 amd64/x86_64"
 ENGINE="${CONTAINER_ENGINE:-}"
 if [[ -z "$ENGINE" ]]; then
   if command -v docker >/dev/null 2>&1; then ENGINE=docker
   elif command -v podman >/dev/null 2>&1; then ENGINE=podman
-  else die "Install Docker or Podman on the connected build host"; fi
+  else die "请在可联网的构建机安装 Docker 或 Podman"; fi
 fi
-command -v "$ENGINE" >/dev/null 2>&1 || die "Container engine not found: $ENGINE"
+command -v "$ENGINE" >/dev/null 2>&1 || die "未找到容器引擎： $ENGINE"
 IMAGE="local/k8s-nginx-builder:${NGINX_VERSION}"
 "$ENGINE" build --pull -t "$IMAGE" -f "$ROOT/nginx/Dockerfile" "$ROOT/nginx"
 CID="$("$ENGINE" create "$IMAGE")"
@@ -28,6 +28,6 @@ fi
 if [[ -f "$ROOT/offline/ARTIFACTS.txt" ]]; then
   grep -v '^NGINX=' "$ROOT/offline/ARTIFACTS.txt" > "$ROOT/offline/ARTIFACTS.txt.tmp" || true
   mv "$ROOT/offline/ARTIFACTS.txt.tmp" "$ROOT/offline/ARTIFACTS.txt"
-  printf 'NGINX=%s (source-built with stream module)\n' "$NGINX_VERSION" >> "$ROOT/offline/ARTIFACTS.txt"
+  printf 'NGINX=%s (源码编译并启用 stream 模块)\n' "$NGINX_VERSION" >> "$ROOT/offline/ARTIFACTS.txt"
 fi
-log "NGINX binary exported to $ROOT/offline/bin/nginx"
+log "NGINX 二进制文件已导出到： $ROOT/offline/bin/nginx"
