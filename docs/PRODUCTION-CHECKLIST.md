@@ -20,3 +20,6 @@
 - [ ] VIP failover and API backend failover pass.
 - [ ] Certificate expiry, audit logs, etcd alarms, node pressure and API latency monitored.
 - [ ] Upgrade rehearsal performed against a staging copy.
+
+- [ ] Each Worker NGINX service listens only on 127.0.0.1:6443 and passes TLS through to the three master API servers.
+- [ ] Stop one master API server at a time and verify worker-local NGINX retries another healthy master.
