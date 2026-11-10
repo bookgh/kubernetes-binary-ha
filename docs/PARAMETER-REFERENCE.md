@@ -24,7 +24,7 @@
 - `CONTAINER_RUNTIME_ENDPOINT`：CRI socket。containerd 为 `unix:///run/containerd/containerd.sock`；Docker/cri-dockerd 为 `unix:///run/cri-dockerd.sock`。
 - `DOCKER_VERSION`：Docker 静态二进制版本，Docker 模式必填。
 - `CRI_DOCKERD_VERSION`：cri-dockerd 版本，Docker 模式必填。
-- `KUBE_PROXY_MODE`：`ipvs` 或 `nftables`，配置文件显式指定，不依赖 kube-proxy 默认值。
+- `KUBE_PROXY_MODE`：`ipvs` 或 `nftables`，配置文件显式指定，不依赖 kube-proxy 默认值。Kubernetes v1.37 中 IPVS 已弃用，建议新部署选择 nftables。
 - `IPVS_STRICT_ARP`：IPVS 模式的 strictARP 设置。
 - `NFTABLES_MASQUERADE_BIT`：nftables 模式 masquerade fwmark bit，范围 0–31。
 
