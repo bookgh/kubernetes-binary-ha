@@ -84,17 +84,50 @@ sudo bash scripts/15-distribute-node-configs.sh
 
 ## 六、节点部署顺序
 
-1. 六台节点分别运行 `scripts/00-preflight.sh`。
-2. 从对应 Release 下载离线资源包并解压到项目的 `offline/` 目录。
-3. 六台节点运行 `scripts/02-install-runtime.sh`。
-4. 在可信任 PKI 工作站运行 `scripts/03-generate-pki.sh`，检查证书并按最小权限分发。
-5. 运行 `scripts/04-make-kubeconfigs.sh`，仅向对应节点分发 kubelet kubeconfig。
-6. 六台节点运行 `scripts/06-install-systemd.sh`。
-7. 三台 Master 配置并启动 etcd：`scripts/07-bootstrap-etcd.sh`。
-8. 三台 Master 启动控制平面：`scripts/08-start-control-plane.sh`。
-9. 每台 Worker 先运行 `scripts/13-install-nginx-proxy.sh` 安装 Release 中的 NGINX，再运行 `scripts/09-start-worker.sh`。
-10. 按部署手册部署 Calico、CoreDNS、RBAC 并执行网络验收。
-11. 在具备管理员凭据的节点运行 `scripts/10-verify.sh`。
+### 6.1 部署机本地准备
+
+以下步骤在部署机执行。先将 `config/cluster.env.example` 复制为 `config/cluster.env` 并填写参数：
+
+```bash
+# 在 Rocky Linux 9 amd64 暂存机准备离线资源
+sudo bash scripts/01-prepare-offline.sh
+
+# 在部署机本地生成 PKI、kubeconfig 和各节点配置
+sudo bash scripts/03-generate-pki.sh
+sudo bash scripts/04-make-kubeconfigs.sh
+sudo bash scripts/14-render-node-configs.sh
+
+# 一次性批量同步项目、offline/、节点配置、节点证书和 kubeconfig
+sudo bash scripts/15-distribute-node-configs.sh
+```
+
+`15-distribute-node-configs.sh` 不会分发根 CA 私钥、etcd CA 私钥或管理员 kubeconfig；节点只接收其角色所需的证书和 kubeconfig。管理员 kubeconfig 保留在部署机 `~/.kube/config`。
+
+### 6.2 远程节点批量执行
+
+部署机需配置 root SSH 免密登录。使用统一批量执行入口，支持 `all`、`masters`、`workers` 节点组；`--parallel` 表示并发执行，任一节点失败会返回失败状态：
+
+```bash
+# 六节点系统预检、运行时安装和 systemd 安装
+sudo bash scripts/16-batch-exec.sh all 00-preflight.sh --parallel
+sudo bash scripts/16-batch-exec.sh all 02-install-runtime.sh --parallel
+sudo bash scripts/16-batch-exec.sh all 06-install-systemd.sh --parallel
+
+# 先并发启动三台 etcd，再启动三台控制平面
+sudo bash scripts/16-batch-exec.sh masters 07-bootstrap-etcd.sh --parallel
+sudo bash scripts/16-batch-exec.sh masters 08-start-control-plane.sh --parallel
+
+# Worker 先安装 NGINX API 代理，再启动 kubelet/kube-proxy
+sudo bash scripts/16-batch-exec.sh workers 13-install-nginx-proxy.sh --parallel
+sudo bash scripts/16-batch-exec.sh workers 09-start-worker.sh --parallel
+```
+
+### 6.3 后续集群组件
+
+1. 按部署手册部署 Calico、CoreDNS 和 RBAC。
+2. 确认全部镜像已同步到私有仓库或导入节点。
+3. 执行网络、Service、NodePort、DNS 和故障切换验收。
+4. 使用 `kubectl get nodes -o wide` 检查节点状态。
 
 `scripts/12-build-nginx-binary.sh` 已保留为兼容提示入口，不再执行本地构建。NGINX 必须来自对应 Kubernetes Release。
 
