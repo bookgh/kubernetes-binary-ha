@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 在部署机执行：同步项目运行文件和离线包，再分发已生成的节点配置。
+# 在部署机执行：批量同步项目、离线包、节点配置及按节点授权的凭据。
 set -Eeuo pipefail
 source "$(dirname "$0")/lib.sh"
 require_root
@@ -7,16 +7,21 @@ require_cmd ssh
 require_cmd scp
 require_cmd rsync
 GEN="${ROOT}/generated"
-[[ -d "$GEN" ]] || die "找不到 generated/；请先运行 scripts/14-render-node-configs.sh"
+PKI="${ROOT}/pki"
+KCFG="${ROOT}/kubeconfigs"
+[[ -d "$GEN" ]] || die "缺少 generated/；请先运行 scripts/14-render-node-configs.sh"
+[[ -s "$PKI/k8s-ca.crt" && -s "$PKI/k8s-ca-bundle.crt" ]] || die "缺少 PKI；请先运行 scripts/03-generate-pki.sh"
+[[ -s "$KCFG/admin.conf" && -s "$KCFG/kube-proxy.conf" ]] || die "缺少 kubeconfig；请先运行 scripts/04-make-kubeconfigs.sh"
+
 NODES=(master-01 master-02 master-03 worker-01 worker-02 worker-03)
 IPS=("$MASTER1_IP" "$MASTER2_IP" "$MASTER3_IP" "$WORKER1_IP" "$WORKER2_IP" "$WORKER3_IP")
 REMOTE_ROOT="/opt/kubernetes-binary-ha"
 for i in "${!NODES[@]}"; do
   node="${NODES[$i]}"; ip="${IPS[$i]}"; src="$GEN/$node"
   [[ -d "$src" ]] || die "缺少节点配置目录：$src"
-  log "同步项目文件和配置到 $node ($ip)"
-  ssh -o BatchMode=yes "root@$ip" "install -d -m 0755 $REMOTE_ROOT"
-  # 不分发 PKI 私钥或本地 kubeconfig；这些凭据由专门流程按节点最小权限传输。
+  log "同步项目文件、离线包和节点配置到 $node ($ip)"
+  ssh -o BatchMode=yes "root@$ip" "install -d -m 0755 $REMOTE_ROOT /etc/kubernetes/pki /etc/etcd/pki"
+  # 根 CA 私钥、etcd CA 私钥和管理员 kubeconfig 不会分发到节点。
   rsync -az --delete \
     --exclude='.git/' --exclude='generated/' --exclude='pki/' --exclude='kubeconfigs/' \
     "$ROOT/" "root@$ip:$REMOTE_ROOT/"
@@ -24,6 +29,27 @@ for i in "${!NODES[@]}"; do
   scp "$src/var/lib/kubelet/config.yaml" "root@$ip:/var/lib/kubelet/config.yaml"
   scp "$src/var/lib/kube-proxy/config.yaml" "root@$ip:/var/lib/kube-proxy/config.yaml"
   scp "$src/etc/kubernetes/runtime.env" "root@$ip:/etc/kubernetes/runtime.env"
-  ssh -o BatchMode=yes "root@$ip" "chmod 0600 /etc/kubernetes/runtime.env"
-  ok "$node 项目文件和运行配置分发完成"
+  scp "$PKI/k8s-ca.crt" "$PKI/k8s-ca-bundle.crt" "root@$ip:/etc/kubernetes/pki/"
+  scp "$KCFG/kubelet-$node.conf" "root@$ip:/etc/kubernetes/kubelet.conf"
+  scp "$KCFG/kube-proxy.conf" "root@$ip:/etc/kubernetes/kube-proxy.conf"
+
+  if [[ "$node" == master-* ]]; then
+    MASTER_PKI=(apiserver.crt apiserver.key apiserver-kubelet-client.crt apiserver-kubelet-client.key front-proxy-ca.crt front-proxy-client.crt front-proxy-client.key apiserver-etcd-client.crt apiserver-etcd-client.key cluster-signer.crt cluster-signer.key sa.key sa.pub)
+    for file in "${MASTER_PKI[@]}"; do
+      [[ -s "$PKI/$file" ]] || die "缺少 Master 凭据：$PKI/$file"
+      scp "$PKI/$file" "root@$ip:/etc/kubernetes/pki/$file"
+    done
+    scp "$KCFG/controller-manager.conf" "root@$ip:/etc/kubernetes/controller-manager.conf"
+    scp "$KCFG/scheduler.conf" "root@$ip:/etc/kubernetes/scheduler.conf"
+    for file in etcd-ca.crt "etcd-$node-server.crt" "etcd-$node-server.key" "etcd-$node-peer.crt" "etcd-$node-peer.key"; do
+      [[ -s "$PKI/$file" ]] || die "缺少 etcd 凭据：$PKI/$file"
+      scp "$PKI/$file" "root@$ip:/etc/etcd/pki/$file"
+    done
+    ssh -o BatchMode=yes "root@$ip" "chown -R etcd:etcd /etc/etcd/pki && chmod 0750 /etc/etcd/pki && chmod 0640 /etc/etcd/pki/*.key"
+  fi
+  ssh -o BatchMode=yes "root@$ip" "chmod 0600 /etc/kubernetes/runtime.env /etc/kubernetes/*.conf /etc/kubernetes/pki/*.key"
+  ok "$node 项目、节点配置和所需凭据分发完成"
 done
+install -d -m 0700 "$HOME/.kube"
+install -m 0600 "$KCFG/admin.conf" "$HOME/.kube/config"
+ok "管理员 kubeconfig 已安装到部署机 $HOME/.kube/config；CA 根私钥仍保留在部署机 PKI 目录。"
