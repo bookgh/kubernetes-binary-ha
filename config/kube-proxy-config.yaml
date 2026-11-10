@@ -1,0 +1,31 @@
+apiVersion: kubeproxy.config.k8s.io/v1alpha1
+kind: KubeProxyConfiguration
+clientConnection:
+  kubeconfig: /etc/kubernetes/kube-proxy.conf
+  acceptContentTypes: ""
+  contentType: application/vnd.kubernetes.protobuf
+  burst: 10
+  qps: 5
+hostnameOverride: ""
+bindAddress: 0.0.0.0
+clusterCIDR: 10.244.0.0/16
+mode: ipvs
+ipvs:
+  strictARP: false
+nftables:
+  masqueradeBit: 14
+  masqueradeAll: false
+  syncPeriod: 30s
+  minSyncPeriod: 1s
+iptables:
+  masqueradeAll: false
+  masqueradeBit: 14
+  syncPeriod: 30s
+  minSyncPeriod: 1s
+conntrack:
+  maxPerCore: 0
+  min: 131072
+  tcpEstablishedTimeout: 24h
+  tcpCloseWaitTimeout: 1h
+metricsBindAddress: 127.0.0.1:10249
+healthzBindAddress: 127.0.0.1:10256
