@@ -23,12 +23,16 @@ ETCD_ENDPOINTS="https://${MASTER1_IP}:2379,https://${MASTER2_IP}:2379,https://${
 ETCDCTL_API=3 "$ETCDCTL" --endpoints="$ETCD_ENDPOINTS" \
   --cacert="$PKI/etcd-ca.crt" --cert="$PKI/apiserver-etcd-client.crt" \
   --key="$PKI/apiserver-etcd-client.key" endpoint health
-ETCDCTL_API=3 "$ETCDCTL" --endpoints="$ETCD_ENDPOINTS" \
+ETCD_STATUS="$(ETCDCTL_API=3 "$ETCDCTL" --endpoints="$ETCD_ENDPOINTS" \
   --cacert="$PKI/etcd-ca.crt" --cert="$PKI/apiserver-etcd-client.crt" \
-  --key="$PKI/apiserver-etcd-client.key" endpoint status --write-out=table
-ETCDCTL_API=3 "$ETCDCTL" --endpoints="$ETCD_ENDPOINTS" \
+  --key="$PKI/apiserver-etcd-client.key" endpoint status --write-out=json)"
+printf '%s\n' "$ETCD_STATUS" | jq -e 'length == 3 and ([.[] | select(.Status.leader == .Status.header.member_id)] | length == 1)' >/dev/null || die "etcd 必须有 3 个健康 endpoint 且恰有 1 个 Leader"
+printf '%s\n' "$ETCD_STATUS" | jq -r '.[] | [.Endpoint, .Status.header.member_id, .Status.leader, .Status.raftTerm, .Status.raftIndex] | @tsv'
+ETCD_MEMBERS="$(ETCDCTL_API=3 "$ETCDCTL" --endpoints="$ETCD_ENDPOINTS" \
   --cacert="$PKI/etcd-ca.crt" --cert="$PKI/apiserver-etcd-client.crt" \
-  --key="$PKI/apiserver-etcd-client.key" member list --write-out=table
+  --key="$PKI/apiserver-etcd-client.key" member list --write-out=json)"
+printf '%s\n' "$ETCD_MEMBERS" | jq -e '.members | length == 3' >/dev/null || die "etcd member 数量不是 3"
+printf '%s\n' "$ETCD_MEMBERS" | jq -r '.members[] | [.name, .ID, .peerURLs[0]] | @tsv'
 
 log "2/5 检查 API Server /readyz"
 "$KUBECTL" --kubeconfig="$KUBECONFIG" get --raw='/readyz?verbose'
