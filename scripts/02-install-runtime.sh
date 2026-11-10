@@ -59,6 +59,7 @@ case "$RUNTIME_TYPE" in
     install -d -m 0755 /usr/local/lib/docker/cli-plugins
     [[ -s "$OFF/docker/docker-compose" ]] || die "Release 中缺少 docker-compose 插件"
     install -m 0755 "$OFF/docker/docker-compose" /usr/local/lib/docker/cli-plugins/docker-compose
+    ln -sf /usr/local/lib/docker/cli-plugins/docker-compose /usr/local/bin/docker-compose
     getent group docker >/dev/null 2>&1 || groupadd --system docker
     install -m 0644 "$ROOT/systemd/docker.service" /etc/systemd/system/docker.service
     install -m 0644 "$ROOT/systemd/cri-docker.socket" /etc/systemd/system/cri-docker.socket
