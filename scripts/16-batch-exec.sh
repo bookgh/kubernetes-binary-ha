@@ -13,16 +13,16 @@ PARALLEL="${3:-}"
 [[ -f "$ROOT/scripts/$SCRIPT" ]] || die "本地不存在脚本：$ROOT/scripts/$SCRIPT"
 case "$GROUP" in
   all)
-    NODES=(master-01 master-02 master-03 worker-01 worker-02 worker-03)
-    IPS=("$MASTER1_IP" "$MASTER2_IP" "$MASTER3_IP" "$WORKER1_IP" "$WORKER2_IP" "$WORKER3_IP")
+    NODES=("${ALL_NAMES[@]}")
+    IPS=("${ALL_IPS[@]}")
     ;;
   masters)
-    NODES=(master-01 master-02 master-03)
-    IPS=("$MASTER1_IP" "$MASTER2_IP" "$MASTER3_IP")
+    NODES=("${MASTER_NAMES[@]}")
+    IPS=("${MASTER_IPS[@]}")
     ;;
   workers)
-    NODES=(worker-01 worker-02 worker-03)
-    IPS=("$WORKER1_IP" "$WORKER2_IP" "$WORKER3_IP")
+    NODES=("${WORKER_NAMES[@]}")
+    IPS=("${WORKER_IPS[@]}")
     ;;
   *) die "节点组仅支持 all、masters、workers" ;;
 esac
