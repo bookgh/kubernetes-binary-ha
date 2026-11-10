@@ -8,7 +8,7 @@ require_cmd sha256sum
 : "${K8S_VERSION:?请在 config/cluster.env 中设置 K8S_VERSION}"
 : "${NGINX_VERSION:?请在 config/cluster.env 中设置 NGINX_VERSION}"
 K8S_VERSION="${K8S_VERSION#v}"
-TAG="k8s-v${K8S_VERSION}"
+TAG="k8s-v${K8S_VERSION}-r${RELEASE_REVISION}"
 ASSET="nginx-${NGINX_VERSION}-linux-amd64"
 RELEASE_URL="https://github.com/bookgh/kubernetes-binary-ha/releases/download/${TAG}"
 TMP="$(mktemp -d)"
