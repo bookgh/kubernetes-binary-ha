@@ -1,0 +1,123 @@
+name: Issue-driven offline bundle release
+
+on:
+  issues:
+    types: [opened, edited, labeled]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Kubernetes version (for example v1.37.2)
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  issues: read
+
+concurrency:
+  group: offline-release-${{ github.event.issue.number || inputs.version }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (contains(github.event.issue.labels.*.name, 'build-offline') &&
+       github.event.issue.pull_request == null)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve and validate version
+        id: version
+        env:
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          ISSUE_BODY: ${{ github.event.issue.body }}
+          MANUAL_VERSION: ${{ inputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+            raw="${MANUAL_VERSION}"
+          else
+            # Extract a version token only; never evaluate or execute issue text.
+            raw="$(printf '%s\n%s\n' "${ISSUE_TITLE}" "${ISSUE_BODY}" |
+              grep -Eo 'v?[0-9]+\.[0-9]+\.[0-9]+' | head -n1 || true)"
+          fi
+          [[ "${raw}" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
+            echo "No valid Kubernetes semver found (expected vX.Y.Z)." >&2; exit 1;
+          }
+          version="${raw#v}"
+          # Confirm that the requested Kubernetes release exists upstream.
+          curl --fail --silent --show-error --location --head "https://dl.k8s.io/v${version}/bin/linux/amd64/kubelet" >/dev/null
+          echo "version=${version}" >> "${GITHUB_OUTPUT}"
+          echo "tag=k8s-v${version}" >> "${GITHUB_OUTPUT}"
+
+      - name: Build amd64 offline artifact bundle
+        env:
+          K8S_VERSION: ${{ steps.version.outputs.version }}
+          ETCD_VERSION: "3.6.16"
+          CONTAINERD_VERSION: "2.4.0"
+          RUNC_VERSION: "1.3.3"
+          CNI_VERSION: "v1.7.1"
+          CRICTL_VERSION: "v1.34.0"
+          CALICO_VERSION: "v3.33.0"
+          COREDNS_VERSION: "v1.13.1"
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="offline-kubernetes-v${K8S_VERSION}-rocky9-amd64"
+          mkdir -p "${root}"/{bin,src,manifests,checksums}
+          for binary in kube-apiserver kube-controller-manager kube-scheduler kubelet kube-proxy kubectl; do
+            url="https://dl.k8s.io/v${K8S_VERSION}/bin/linux/amd64/${binary}"
+            curl -fL --retry 3 "${url}" -o "${root}/bin/${binary}"
+            curl -fL --retry 3 "${url}.sha256" -o "${root}/checksums/${binary}.sha256"
+            expected="$(tr -d '[:space:]' < "${root}/checksums/${binary}.sha256")"
+            printf '%s  %s\n' "${expected}" "${root}/bin/${binary}" | sha256sum -c -
+            chmod 0755 "${root}/bin/${binary}"
+          done
+          curl -fL --retry 3 "https://github.com/etcd-io/etcd/releases/download/v${ETCD_VERSION}/etcd-v${ETCD_VERSION}-linux-amd64.tar.gz" -o "${root}/src/etcd.tar.gz"
+          curl -fL --retry 3 "https://github.com/containerd/containerd/releases/download/v${CONTAINERD_VERSION}/containerd-${CONTAINERD_VERSION}-linux-amd64.tar.gz" -o "${root}/src/containerd.tar.gz"
+          curl -fL --retry 3 "https://github.com/opencontainers/runc/releases/download/v${RUNC_VERSION}/runc.amd64" -o "${root}/bin/runc"
+          curl -fL --retry 3 "https://github.com/containernetworking/plugins/releases/download/${CNI_VERSION}/cni-plugins-linux-amd64-${CNI_VERSION}.tgz" -o "${root}/src/cni-plugins.tgz"
+          curl -fL --retry 3 "https://github.com/kubernetes-sigs/cri-tools/releases/download/${CRICTL_VERSION}/crictl-${CRICTL_VERSION}-linux-amd64.tar.gz" -o "${root}/src/crictl.tar.gz"
+          curl -fL --retry 3 "https://raw.githubusercontent.com/projectcalico/calico/${CALICO_VERSION}/manifests/tigera-operator.yaml" -o "${root}/manifests/tigera-operator.yaml"
+          curl -fL --retry 3 "https://raw.githubusercontent.com/projectcalico/calico/${CALICO_VERSION}/manifests/v3_projectcalico_org.yaml" -o "${root}/manifests/calico-crds.yaml"
+          cat > "${root}/ARTIFACTS.txt" <<EOF
+          Kubernetes=v${K8S_VERSION}
+          etcd=v${ETCD_VERSION}
+          containerd=${CONTAINERD_VERSION}
+          runc=v${RUNC_VERSION}
+          CNI_PLUGINS=${CNI_VERSION}
+          crictl=${CRICTL_VERSION}
+          Calico=${CALICO_VERSION}
+          CoreDNS=${COREDNS_VERSION} (manifest/image mirroring must be completed for the target cluster)
+          Architecture=amd64
+          OS=Rocky Linux 9
+          EOF
+          (cd "${root}" && find bin src manifests checksums -type f -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS)
+          tar -czf "${root}.tar.gz" "${root}"
+          sha256sum "${root}.tar.gz" > "${root}.tar.gz.sha256"
+          mv "${root}.tar.gz" "${root}.tar.gz.sha256" "${GITHUB_WORKSPACE}/"
+
+      - name: Refuse to overwrite an existing Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          set -euo pipefail
+          if gh release view "${TAG}" >/dev/null 2>&1; then
+            echo "Release ${TAG} already exists; immutable releases are not overwritten." >&2
+            exit 1
+          fi
+
+      - name: Publish Release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          gh release create "${TAG}" \
+            "offline-kubernetes-v${VERSION}-rocky9-amd64.tar.gz" \
+            "offline-kubernetes-v${VERSION}-rocky9-amd64.tar.gz.sha256" \
+            --title "Kubernetes v${VERSION} offline bundle (Rocky Linux 9 amd64)" \
+            --notes "Automated offline artifact bundle built from Issue version v${VERSION}. Verify SHA256 before use. Container image mirroring and site-specific configuration remain separate steps."
