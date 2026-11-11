@@ -155,7 +155,7 @@ publish_images() {
     docker login "$HARBOR_HOST" --username admin --password-stdin
 
   # Keep the source repository path under the Harbor library project.
-  while IFS=$'\\t' read -r source_ref _; do
+  while IFS=$'\t' read -r source_ref _; do
     [[ -n "$source_ref" ]] || continue
     repository_path="${source_ref#*/}"
     [[ "$repository_path" != "$source_ref" ]] ||
