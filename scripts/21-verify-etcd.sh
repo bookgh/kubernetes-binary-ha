@@ -33,4 +33,4 @@ for i in "${!MASTER_NAMES[@]}"; do
 done
 printf '%s\n' "$STATUS" | jq -r '.[] | [.Endpoint, .Status.header.member_id, .Status.leader, .Status.raftTerm, .Status.raftIndex] | @tsv'
 printf '%s\n' "$MEMBERS" | jq -r '.members[] | [.name, .ID, .peerURLs[0]] | @tsv'
-ok "etcd 三成员健康，quorum 正常且唯一 Leader 已确认；可以继续启动控制平面。"
+ok "全部配置成员健康，quorum 正常且唯一 Leader 已确认；可以继续启动控制平面。"
