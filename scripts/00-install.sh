@@ -22,11 +22,32 @@ fingerprint() {
     find "$ROOT/config/cfssl" "$ROOT/manifests" -type f -print0 2>/dev/null | sort -z | xargs -0 -r sha256sum
   } | sha256sum | awk '{print $1}'
 }
+local_healthy() {
+  local id="$1"
+  case "$id" in
+    download) [[ -s "$ROOT/offline/SHA256SUMS" && -x "$ROOT/offline/bin/kubectl" && -x "$ROOT/offline/bin/cfssl" ]] ;;
+    cli-tools) command -v helm >/dev/null && command -v calicoctl >/dev/null && command -v crictl >/dev/null && command -v cfssl >/dev/null ;;
+    ssh-key)
+      for ip in "${ALL_IPS[@]}"; do ssh -o BatchMode=yes -o ConnectTimeout=5 "root@$ip" true >/dev/null 2>&1 || return 1; done
+      ;;
+    pki) [[ -s "$ROOT/pki/k8s-ca.crt" && -s "$ROOT/pki/k8s-ca.key" && -s "$ROOT/pki/apiserver.crt" && -s "$ROOT/pki/sa.key" && -s "$ROOT/pki/sa.pub" ]] ;;
+    kubeconfigs) [[ -s "$ROOT/kubeconfigs/admin.conf" && -s "$ROOT/kubeconfigs/kube-proxy.conf" ]] ;;
+    render) [[ -s "$ROOT/generated/common/etc/modules-load.d/10-kubernetes.conf" && -s "$ROOT/generated/common/etc/sysctl.d/95-kubernetes.conf" && -s "$ROOT/generated/master-01/etc/kubernetes/cluster.env" ]] ;;
+    distribute)
+      for ip in "${ALL_IPS[@]}"; do ssh -o BatchMode=yes -o ConnectTimeout=5 "root@$ip" "test -s /etc/kubernetes/cluster.env && test -s /opt/kubernetes-binary-ha/scripts/22-node-step.sh" >/dev/null 2>&1 || return 1; done
+      ;;
+    etcd-health) return 1 ;;
+    calico) "$ROOT/offline/bin/kubectl" -n calico-system get ds calico-node >/dev/null 2>&1 && "$ROOT/offline/bin/kubectl" -n calico-system rollout status ds/calico-node --timeout=10s >/dev/null 2>&1 ;;
+    coredns) "$ROOT/offline/bin/kubectl" -n kube-system rollout status deployment/coredns --timeout=10s >/dev/null 2>&1 ;;
+    verify) return 1 ;;
+    *) return 0 ;;
+  esac
+}
 local_step() {
   local id="$1" script="$2" fp marker step_log
   fp="$(fingerprint "$script")"; marker="$STATE/steps/$id.done"; step_log="$LOGDIR/$id.log"
-  if [[ -s "$marker" && "$(cat "$marker")" == "$fp" ]]; then
-    ok "跳过本地阶段 $id（配置和脚本指纹未变化）"; return 0
+  if [[ -s "$marker" && "$(cat "$marker")" == "$fp" ]] && local_healthy "$id"; then
+    ok "跳过本地阶段 $id（标记、指纹和健康状态均匹配）"; return 0
   fi
   log "开始本地阶段 $id：$script"
   if bash "$ROOT/scripts/$script" >>"$step_log" 2>&1; then
