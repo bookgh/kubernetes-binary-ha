@@ -6,9 +6,7 @@ events { worker_connections 4096; }
 stream {
     upstream kube_apiserver_masters {
         least_conn;
-        server __MASTER1_IP__:6443 max_fails=2 fail_timeout=5s;
-        server __MASTER2_IP__:6443 max_fails=2 fail_timeout=5s;
-        server __MASTER3_IP__:6443 max_fails=2 fail_timeout=5s;
+        __MASTER_UPSTREAM_SERVERS__
     }
     server {
         listen 127.0.0.1:6443;
