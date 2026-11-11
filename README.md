@@ -20,7 +20,7 @@ Worker 本机 NGINX 只做 TCP 转发，不解密 TLS。Master 上的 kube-apise
 - `scripts/`：系统预检、离线资源准备、安装、证书、启动、验证和升级脚本。
 - `scripts/ci/`：GitHub Actions 调用的构建与发布脚本，是离线资源构建流程的唯一实现入口。
 - `systemd/`：containerd、etcd、Kubernetes 组件及 Worker NGINX 服务单元。
-- `manifests/`：RBAC、Calico 和 CoreDNS 清单模板。
+- `helm/`：CI 下载并随 Release 打包的 Calico CRD、Tigera Operator 和 CoreDNS Helm Charts。
 - `nginx/Dockerfile`：从源码编译带 `stream` 模块的 NGINX。
 - `docs/`：部署手册、参数、网络端口、离线镜像和生产验收文档。
 
@@ -38,7 +38,7 @@ NGINX 不再由运维人员在暂存机手动构建。所有二进制资源（�
 
 ### 新版 Release 内容与证书方式
 
-当前离线发布修订号由 config/release-versions.env 的 RELEASE_REVISION 控制，当前修订使用 tag `k8s-v1.37.2-r3`。离线归档包含 CFSSL/cfssljson、Helm、Calicoctl、crictl、etcd、containerd、CNI plugins、Docker Engine、cri-dockerd、Docker Compose、Rocky Linux 9 RPM 及依赖；另含 Harbor 官方离线安装器，以及 CoreDNS、pause、Calico 和 NodeLocal DNSCache 镜像归档。完整清单见归档内 `ARTIFACTS.txt`、`IMAGE-REFERENCES.txt` 和 `SHA256SUMS`。
+当前离线发布修订号由 config/release-versions.env 的 RELEASE_REVISION 控制，当前修订使用 tag `k8s-v1.37.2-r5`。离线归档包含 CFSSL/cfssljson、Helm、Calicoctl、crictl、etcd、containerd、CNI plugins、Docker Engine、cri-dockerd、Docker Compose、Rocky Linux 9 RPM 及依赖；另含 Harbor 官方离线安装器、Calico/CoreDNS Helm Charts，以及 pause、Calico 和 NodeLocal DNSCache 镜像归档。完整清单见归档内 `ARTIFACTS.txt`、`IMAGE-REFERENCES.txt` 和 `SHA256SUMS`。
 
 证书配置模板统一存放在 config/cfssl/，scripts/03-generate-pki.sh 使用 CFSSL 签发 X.509 证书，并为节点证书通过 -hostname 传入节点主机名和内网 IP。实际私钥与签发证书保留在部署机 pki/，不得提交到仓库。
 
@@ -60,7 +60,7 @@ sudo bash scripts/15-distribute-node-configs.sh
 1. 在仓库创建 Issue，标题或正文填写 Kubernetes 版本，例如 `v1.37.2`。
 2. 为 Issue 添加 `build-offline` 标签。
 3. Actions 自动调用 `scripts/ci/build-offline-release.sh`。
-4. 脚本读取 `config/release-versions.env` 中的组件版本，统一下载 Kubernetes、etcd、containerd、runc、CNI、crictl、CFSSL、Helm、Calicoctl、Docker Engine、cri-dockerd、Docker Compose、Harbor offline installer，并在 Rocky Linux 9 容器中解析下载 RPM 依赖和 Calico 清单；同时拉取基础 OCI 镜像并打包。
+4. 脚本读取 `config/release-versions.env` 中的组件版本，统一下载 Kubernetes、etcd、containerd、runc、CNI、crictl、CFSSL、Helm、Calicoctl、Docker Engine、cri-dockerd、Docker Compose、Harbor offline installer，并在 Rocky Linux 9 容器中解析下载 RPM 依赖；CI 下载 Calico CRD/Operator 与 CoreDNS Helm Charts，渲染后从 Chart 和 Tigera Operator 动态清单提取全部镜像并打包。
 5. 脚本通过 `nginx/Dockerfile` 在 Rocky Linux 9 容器构建环境源码编译 NGINX stream 二进制。
 6. 发布 `k8s-vX.Y.Z-rN` Release，包含离线资源包、NGINX 独立二进制和 SHA256 文件；当前修订号为 r3。
 
@@ -71,7 +71,7 @@ sudo bash scripts/15-distribute-node-configs.sh
 ### 版本维护原则
 
 - Kubernetes 版本由 Issue 或手动输入提供。
-- etcd、containerd、runc、CNI、crictl、Calico、CoreDNS 和 NGINX 版本只在 `config/release-versions.env` 中维护。
+- etcd、containerd、runc、CNI、crictl、pause、NodeLocal DNS 和 NGINX 等版本在 `config/release-versions.env` 中维护；Calico、Tigera Operator、CoreDNS 应用版本和 Helm Chart 版本只在 `config/cluster.env` 中维护（仓库默认值位于 `config/cluster.env.example`，CI 从该示例配置读取）。
 - 下载地址、校验、构建和 Release 上传只在 `scripts/ci/build-offline-release.sh` 中维护。
 - Workflow YAML 只负责事件过滤、checkout 和调用仓库脚本，不重复维护 URL、版本矩阵或构建命令。
 - 修改构建流程时优先修改脚本和配置，不要在 Workflow 中复制构建实现。
@@ -171,7 +171,7 @@ sudo bash scripts/16-batch-exec.sh workers 09-start-worker.sh --parallel
 
 ### 6.3 后续集群组件
 
-1. 按 docs/INSTALL-FROM-SCRATCH.md 执行 scripts/19-install-calico.sh 和 scripts/20-install-coredns.sh。
+1. 按 docs/INSTALL-FROM-SCRATCH.md 执行 scripts/19-install-calico.sh 和 scripts/20-install-coredns.sh；两个脚本只使用 offline/helm 内的本地 Chart。
 2. 确认全部镜像已同步到私有仓库或导入节点。
 3. 执行网络、Service、NodePort、DNS 和故障切换验收。
 4. 使用 `kubectl get nodes -o wide` 检查节点状态。
