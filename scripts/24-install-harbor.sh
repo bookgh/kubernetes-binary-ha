@@ -54,7 +54,7 @@ install_docker_engine() {
     /usr/local/lib/docker/cli-plugins/docker-compose
 
   if [[ ! -s "$DOCKER_CONFIG" ]]; then
-    printf '{}\\n' > "$DOCKER_CONFIG"
+    printf '{}\n' > "$DOCKER_CONFIG"
   fi
   jq empty "$DOCKER_CONFIG" >/dev/null ||
     die "$DOCKER_CONFIG 不是有效 JSON，拒绝覆盖"
@@ -86,8 +86,8 @@ create_or_load_credentials() {
     admin_password="$(openssl rand -hex 24)"
     database_password="$(openssl rand -hex 24)"
     {
-      printf 'HARBOR_ADMIN_PASSWORD=%q\\n' "$admin_password"
-      printf 'HARBOR_DATABASE_PASSWORD=%q\\n' "$database_password"
+      printf 'HARBOR_ADMIN_PASSWORD=%q\n' "$admin_password"
+      printf 'HARBOR_DATABASE_PASSWORD=%q\n' "$database_password"
     } > "$CREDENTIAL_FILE"
     chmod 0600 "$CREDENTIAL_FILE"
   fi
@@ -161,7 +161,7 @@ publish_images() {
 
   log "导入统一 Kubernetes 镜像归档。"
   docker load --input "$IMAGE_ARCHIVE"
-  printf '%s\\n' "$HARBOR_ADMIN_PASSWORD" |
+  printf '%s\n' "$HARBOR_ADMIN_PASSWORD" |
     docker login "$HARBOR_HOST" --username admin --password-stdin
 
   for entry in "${image_map[@]}"; do
