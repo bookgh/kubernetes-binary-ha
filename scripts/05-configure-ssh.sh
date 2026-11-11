@@ -75,12 +75,12 @@ if [[ "$NEED_KEY" -eq 1 ]]; then
   sed -i '/^# BEGIN KUBERNETES-BINARY-HA$/,/^# END KUBERNETES-BINARY-HA$/d' "$SSH_CONFIG"
 
   {
-    printf '%s\\n' '# BEGIN KUBERNETES-BINARY-HA'
+    printf '%s\n' '# BEGIN KUBERNETES-BINARY-HA'
     for ip in "${ALL_IPS[@]}"; do
-      printf 'Host %s\\n  User %s\\n  Port %s\\n  IdentityFile %s\\n  IdentitiesOnly yes\\n  StrictHostKeyChecking accept-new\\n\\n' \
+      printf 'Host %s\n  User %s\n  Port %s\n  IdentityFile %s\n  IdentitiesOnly yes\n  StrictHostKeyChecking accept-new\n\n' \
         "$ip" "$SSH_USER" "$SSH_PORT" "$SSH_KEY"
     done
-    printf '%s\\n' '# END KUBERNETES-BINARY-HA'
+    printf '%s\n' '# END KUBERNETES-BINARY-HA'
   } >> "$SSH_CONFIG"
 fi
 
