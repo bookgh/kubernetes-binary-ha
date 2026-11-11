@@ -151,7 +151,7 @@ publish_images() {
   [[ -s "$references_file" ]] || die "缺少镜像来源清单：$references_file"
   log "导入 CI 根据离线部署制品提取的镜像归档。"
   docker load --input "$IMAGE_ARCHIVE"
-  printf '%s\\n' "$HARBOR_ADMIN_PASSWORD" |
+  printf '%s\n' "$HARBOR_ADMIN_PASSWORD" |
     docker login "$HARBOR_HOST" --username admin --password-stdin
 
   # Keep the source repository path under the Harbor library project.
