@@ -19,7 +19,7 @@ fingerprint() {
   {
     sha256sum "$ROOT/scripts/$script" "$ROOT/config/cluster.env" "$ROOT/config/release-versions.env"
     find "$ROOT/scripts" -maxdepth 1 -type f -name "*.sh" -print0 | sort -z | xargs -0 -r sha256sum
-    find "$ROOT/config/cfssl" "$ROOT/manifests" -type f -print0 2>/dev/null | sort -z | xargs -0 -r sha256sum
+    find "$ROOT/config" "$ROOT/manifests" "$ROOT/systemd" -type f -print0 2>/dev/null | sort -z | xargs -0 -r sha256sum
   } | sha256sum | awk '{print $1}'
 }
 local_healthy() {
