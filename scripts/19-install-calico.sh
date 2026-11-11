@@ -14,7 +14,6 @@ KUBECONFIG="${KUBECONFIG:-$HOME/.kube/config}"
 export KUBECONFIG
 [[ -s "$KUBECONFIG" ]] || die "缺少管理员 kubeconfig"
 : "${CALICO_CHART_VERSION:?请先将 config/cluster.env.example 中的 Calico 版本变量同步到 config/cluster.env}"
-: "${TIGERA_OPERATOR_VERSION:?请先将 config/cluster.env.example 中的 TIGERA_OPERATOR_VERSION 同步到 config/cluster.env}"
 : "${PRIVATE_REGISTRY:?请在 config/cluster.env 设置 PRIVATE_REGISTRY}"
 : "${HARBOR_HOST:?请在 config/cluster.env 设置 HARBOR_HOST}"
 
@@ -36,7 +35,6 @@ log "2/3 安装/升级 Tigera Operator（镜像来自 Harbor）"
   --namespace tigera-operator \
   --set tigeraOperator.registry="$HARBOR_HOST" \
   --set tigeraOperator.image=library/tigera/operator \
-  --set-string "tigeraOperator.version=$TIGERA_OPERATOR_VERSION" \
   --set installation.registry="$HARBOR_HOST" \
   --set installation.imagePath=library \
   --set installation.calicoNetwork.bgp=Disabled \
