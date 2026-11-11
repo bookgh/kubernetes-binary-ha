@@ -18,6 +18,10 @@ source "$CLUSTER_CONFIG"
 : "${CALICO_CHART_VERSION:?请在 config/cluster.env.example 定义 CALICO_CHART_VERSION}"
 : "${COREDNS_CHART_VERSION:?请在 config/cluster.env.example 定义 COREDNS_CHART_VERSION}"
 
+# cluster.env.example stores ETCD_VERSION with a leading v; normalize it for URL/path assembly.
+ETCD_VERSION="${ETCD_VERSION#v}"
+[[ "$ETCD_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || die "ETCD_VERSION 格式无效：$ETCD_VERSION"
+
 log() {
   printf '[信息] %s\n' "$*"
 }
