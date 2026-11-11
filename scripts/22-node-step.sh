@@ -25,6 +25,8 @@ fingerprint() {
     [[ ! -f /etc/kubernetes/runtime.env ]] || sha256sum /etc/kubernetes/runtime.env
     [[ ! -f /etc/kubernetes/pki/k8s-ca.crt ]] || sha256sum /etc/kubernetes/pki/k8s-ca.crt
     [[ ! -f /etc/crictl.yaml ]] || sha256sum /etc/crictl.yaml
+    for f in /var/lib/kubelet/config.yaml /var/lib/kube-proxy/config.yaml /etc/nginx/nginx.conf /etc/containerd/config.toml /etc/docker/daemon.json /etc/modules-load.d/10-kubernetes.conf /etc/sysctl.d/95-kubernetes.conf; do [[ ! -f "$f" ]] || sha256sum "$f"; done
+    [[ ! -f "$ROOT/offline/SHA256SUMS" ]] || sha256sum "$ROOT/offline/SHA256SUMS"
   } | sha256sum | awk '{print $1}'
 }
 healthy() {
