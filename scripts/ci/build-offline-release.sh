@@ -132,6 +132,49 @@ for chart in "$CALICO_CRD_CHART" "$CALICO_OPERATOR_CHART" "$COREDNS_CHART"; do
   [[ -s "$chart" ]] || die "缺少已下载的 Helm Chart：$chart"
 done
 
+# Build CoreDNS overrides from the exact chart defaults. Helm --set on a nested
+# array index replaces the whole array and can leave nil plugin entries; mutate
+# the chart's values.yaml instead so every default plugin remains intact.
+"$OUT/bin/helm" show values "$COREDNS_CHART" > "$WORK/coredns-default-values.yaml"
+python3 - "$WORK/coredns-default-values.yaml" "$OUT/helm/coredns-values.yaml" "$DNS_SERVICE_IP" "$CLUSTER_DOMAIN" <<'PY'
+import sys
+import yaml
+
+source, destination, service_ip, cluster_domain = sys.argv[1:]
+with open(source, encoding="utf-8") as stream:
+    values = yaml.safe_load(stream)
+
+servers = values.get("servers")
+if not isinstance(servers, list) or not servers:
+    raise SystemExit("CoreDNS chart has no valid servers list")
+
+kubernetes_plugin = None
+for server in servers:
+    if not isinstance(server, dict):
+        continue
+    for plugin in server.get("plugins", []):
+        if isinstance(plugin, dict) and plugin.get("name") == "kubernetes":
+            kubernetes_plugin = plugin
+            break
+    if kubernetes_plugin:
+        break
+if kubernetes_plugin is None:
+    raise SystemExit("CoreDNS chart defaults do not contain a kubernetes plugin")
+
+kubernetes_plugin["parameters"] = f"{cluster_domain} in-addr.arpa ip6.arpa"
+values.setdefault("service", {})["clusterIP"] = service_ip
+values["service"]["name"] = "kube-dns"
+values["k8sAppLabelOverride"] = "kube-dns"
+values["replicaCount"] = 2
+values["priorityClassName"] = "system-cluster-critical"
+values["tolerations"] = [
+    {"key": "CriticalAddonsOnly", "operator": "Exists"},
+    {"key": "node-role.kubernetes.io/control-plane", "effect": "NoSchedule"},
+]
+with open(destination, "w", encoding="utf-8") as stream:
+    yaml.safe_dump(values, stream, sort_keys=False, allow_unicode=True)
+PY
+
 # Kubernetes 1.36+ uses Calico's native v3 CRD chart.
 "$OUT/bin/helm" template calico-crds "$CALICO_CRD_CHART" \
   --api-versions admissionregistration.k8s.io/v1/MutatingAdmissionPolicy \
@@ -141,17 +184,7 @@ done
   > "$OUT/manifests/helm-rendered/calico-operator.yaml"
 "$OUT/bin/helm" template coredns "$COREDNS_CHART" \
   --namespace kube-system \
-  --set image.repository=registry.k8s.io/coredns/coredns \
-  --set-string "service.clusterIP=${DNS_SERVICE_IP}" \
-  --set service.name=kube-dns \
-  --set k8sAppLabelOverride=kube-dns \
-  --set replicaCount=2 \
-  --set priorityClassName=system-cluster-critical \
-  --set 'tolerations[0].key=CriticalAddonsOnly' \
-  --set 'tolerations[0].operator=Exists' \
-  --set 'tolerations[1].key=node-role.kubernetes.io/control-plane' \
-  --set 'tolerations[1].effect=NoSchedule' \
-  --set-string "servers[0].plugins[3].parameters=${CLUSTER_DOMAIN} in-addr.arpa ip6.arpa" \
+  --values "$OUT/helm/coredns-values.yaml" \
   > "$OUT/manifests/helm-rendered/coredns.yaml"
 
 for rendered in "$OUT"/manifests/helm-rendered/*.yaml; do
