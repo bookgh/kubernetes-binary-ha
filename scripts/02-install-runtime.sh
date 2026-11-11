@@ -32,6 +32,10 @@ case "$RUNTIME_TYPE" in
   containerd)
     [[ -s "$OFF/src/containerd.tar.gz" ]] || die "containerd 模式缺少 offline/src/containerd.tar.gz"
     [[ -s /etc/containerd/config.toml ]] || die "缺少部署端生成的 /etc/containerd/config.toml"
+    [[ -s "/etc/containerd/certs.d/${HARBOR_HOST}/hosts.toml" ]] ||
+      die "缺少 Harbor HTTP registry 配置；请重新执行 prepare 并分发配置"
+    grep -Fq 'config_path = "/etc/containerd/certs.d"' /etc/containerd/config.toml ||
+      die "containerd 未启用 registry config_path"
     TMP_CONTAINERD="$(mktemp -d)"
     tar -xzf "$OFF/src/containerd.tar.gz" -C "$TMP_CONTAINERD"
     [[ -x "$TMP_CONTAINERD/bin/containerd" ]] || die "containerd 归档中未找到 bin/containerd"
@@ -51,6 +55,8 @@ case "$RUNTIME_TYPE" in
     [[ -f "$OFF/docker/docker.tgz" ]] || die "Docker 模式缺少 offline/docker/docker.tgz"
     [[ -f "$OFF/docker/cri-dockerd" ]] || die "Docker 模式缺少 offline/docker/cri-dockerd"
     [[ -s /etc/docker/daemon.json ]] || die "缺少部署端生成的 /etc/docker/daemon.json"
+    jq -e --arg registry "${HARBOR_HOST}" '.["insecure-registries"] | index($registry) != null' /etc/docker/daemon.json >/dev/null ||
+      die "Docker daemon.json 未信任 Harbor HTTP registry"
     install -d -m 0755 /tmp/docker-runtime
     tar -xzf "$OFF/docker/docker.tgz" -C /tmp/docker-runtime
     [[ -d /tmp/docker-runtime/docker ]] || die "Docker 静态包目录结构不正确，预期包含 docker/ 子目录"
