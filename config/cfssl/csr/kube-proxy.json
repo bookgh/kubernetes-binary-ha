@@ -1,1 +1,13 @@
-{"CN":"system:kube-proxy","key":{"algo":"rsa","size":2048},"names":[{"O":"system:kube-proxy","OU":"Kubernetes Kube Proxy"}]}
+{
+  "CN": "system:kube-proxy",
+  "key": {
+    "algo": "rsa",
+    "size": 2048
+  },
+  "names": [
+    {
+      "O": "system:kube-proxy",
+      "OU": "Kubernetes Kube Proxy"
+    }
+  ]
+}
