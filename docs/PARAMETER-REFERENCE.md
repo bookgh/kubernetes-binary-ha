@@ -13,9 +13,11 @@
 - `SERVICE_CIDR`：必须与 API Server `--service-cluster-ip-range` 一致。
 - `DNS_SERVICE_IP`：CoreDNS ClusterIP，必须与 kubelet `clusterDNS` 一致。
 - `KUBERNETES_SERVICE_IP`：Kubernetes API Service 的 ClusterIP，必须是 SERVICE_CIDR 中的首个 Service IP，并进入 API Server 证书 SAN。
-- `MASTER1_IP`～`MASTER3_IP`：三台 Master 的可路由地址。
-- `WORKER1_IP`～`WORKER3_IP`：三台 Worker 的可路由地址。
-- `MASTER_NAMES`/`MASTER_IPS`、`WORKER_NAMES`/`WORKER_IPS`、`ALL_NAMES`/`ALL_IPS`：部署脚本使用的节点清单；本项目当前拓扑固定为三 Master + 三 Worker，修改节点 IP 时更新对应标量地址，证书、配置渲染、分发和批量执行从这些数组读取节点，避免在多个脚本重复维护节点列表。
+- `MASTER_COUNT`：Master 数量；当前固定为 `3`，不可调整。
+- `NODE_NAMES`：六个节点主机名的唯一清单，前三项必须是 `master-*`，后三项必须是 `worker-*`。
+- `NODE_IPS`：与 `NODE_NAMES` 按索引一一对应的六个 IPv4 地址；修改节点时只需同步修改这两个数组。
+- `MASTER_NAMES`/`MASTER_IPS`、`WORKER_NAMES`/`WORKER_IPS`、`ALL_NAMES`/`ALL_IPS`：由 `scripts/lib.sh` 根据上述两个数组自动派生，供现有部署脚本使用，不要在 `cluster.env` 中重复定义。
+- `MASTER1_IP`～`MASTER3_IP`、`WORKER1_IP`～`WORKER3_IP`：由 `scripts/lib.sh` 自动派生的兼容变量，供现有配置模板、etcd 检查和远端节点配置使用，不要手工维护。
 - `PRIVATE_REGISTRY`：隔离环境或内网镜像仓库地址。
 - `COREDNS_IMAGE`：CoreDNS 已同步至私有仓库的完整镜像引用。
 - `PAUSE_IMAGE`：容器 sandbox/pause 镜像，containerd 和 Docker/cri-dockerd 均需可访问。
