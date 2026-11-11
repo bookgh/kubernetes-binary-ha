@@ -46,6 +46,8 @@ for ip in "${MASTER_IPS[@]}"; do API_HOSTS+=",$ip"; done
 issue k8s-ca kube-apiserver "" "$API_HOSTS" apiserver server apiserver
 openssl x509 -in "$PKI/apiserver.crt" -noout -checkhost "$API_DNS" >/dev/null
 openssl x509 -in "$PKI/apiserver.crt" -noout -checkip 127.0.0.1 >/dev/null
+openssl x509 -in "$PKI/apiserver.crt" -noout -checkip "$KUBERNETES_SERVICE_IP" >/dev/null
+openssl x509 -in "$PKI/apiserver.crt" -noout -checkhost "kubernetes.default.svc.${CLUSTER_DOMAIN}" >/dev/null
 for ip in "${MASTER_IPS[@]}"; do openssl x509 -in "$PKI/apiserver.crt" -noout -checkip "$ip" >/dev/null; done
 issue k8s-ca system:kube-apiserver system:masters "127.0.0.1" apiserver-kubelet-client client apiserver-kubelet-client
 issue front-proxy-ca front-proxy-client "" "127.0.0.1" front-proxy-client client front-proxy-client
