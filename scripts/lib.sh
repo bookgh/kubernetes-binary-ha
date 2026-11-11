@@ -16,11 +16,11 @@ GITHUB_REPOSITORY_URL="${GITHUB_REPOSITORY_URL:-}"
 GITHUB_RELEASE_BASE_URL="${GITHUB_RELEASE_BASE_URL:-}"
 
 [[ "$SSH_USER" =~ ^[a-z_][a-zA-Z0-9_.-]*[$]?$ ]] || {
-  printf '[错误] SSH_USER 格式无效。\\n' >&2
+  printf '[错误] SSH_USER 格式无效。\n' >&2
   exit 1
 }
 [[ "$SSH_PORT" =~ ^[1-9][0-9]{0,4}$ ]] && (( SSH_PORT <= 65535 )) || {
-  printf '[错误] SSH_PORT 必须是 1-65535 之间的端口。\\n' >&2
+  printf '[错误] SSH_PORT 必须是 1-65535 之间的端口。\n' >&2
   exit 1
 }
 
@@ -51,7 +51,7 @@ die()  { printf '%s[%s 错误]%s %s\n' "$C_ERROR" "$(date '+%F %T')" "$C_RESET" 
 require_root() { [[ ${EUID} -eq 0 ]] || die '请使用 root 用户运行此脚本。'; }
 require_cmd() { command -v "$1" >/dev/null 2>&1 || die "缺少必要命令：$1"; }
 derive_inventory() {
-  local names_decl ips_decl i j octet n master_count total
+  local names_decl ips_decl i j octet n master_count total ip
   local -a octets
 
   names_decl="$(declare -p NODE_NAMES 2>/dev/null || true)"
@@ -90,7 +90,7 @@ derive_inventory() {
   done
 
   MASTER_NAMES=("${NODE_NAMES[@]:0:master_count}")
-  : "${HARBOR_NODE_IP:=${MASTER_IPS[0]}}"
+  : "${HARBOR_NODE_IP:=${NODE_IPS[0]}}"
   : "${HARBOR_HOST:=harbor.${HARBOR_NODE_IP}.nip.io}"
   : "${HARBOR_URL:=http://${HARBOR_HOST}}"
   : "${HARBOR_HTTP_PORT:=80}"
