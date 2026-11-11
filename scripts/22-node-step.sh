@@ -27,6 +27,8 @@ fingerprint() {
     [[ ! -f /etc/crictl.yaml ]] || sha256sum /etc/crictl.yaml
     for f in /var/lib/kubelet/config.yaml /var/lib/kube-proxy/config.yaml /etc/nginx/nginx.conf /etc/containerd/config.toml /etc/docker/daemon.json /etc/modules-load.d/10-kubernetes.conf /etc/sysctl.d/95-kubernetes.conf; do [[ ! -f "$f" ]] || sha256sum "$f"; done
     [[ ! -f "$ROOT/offline/SHA256SUMS" ]] || sha256sum "$ROOT/offline/SHA256SUMS"
+    [[ ! -d "$ROOT/systemd" ]] || find "$ROOT/systemd" -type f -print0 | sort -z | xargs -0 -r sha256sum
+    for d in /etc/kubernetes /etc/etcd/pki /etc/containerd /etc/docker /etc/nginx /var/lib/kubelet /var/lib/kube-proxy /etc/modules-load.d /etc/sysctl.d; do [[ ! -d "$d" ]] || find "$d" -type f -print0 | sort -z | xargs -0 -r sha256sum; done
   } | sha256sum | awk '{print $1}'
 }
 healthy() {
