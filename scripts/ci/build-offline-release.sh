@@ -141,6 +141,11 @@ done
   --set service.name=kube-dns \
   --set k8sAppLabelOverride=kube-dns \
   --set replicaCount=2 \
+  --set priorityClassName=system-cluster-critical \
+  --set 'tolerations[0].key=CriticalAddonsOnly' \
+  --set 'tolerations[0].operator=Exists' \
+  --set 'tolerations[1].key=node-role.kubernetes.io/control-plane' \
+  --set 'tolerations[1].effect=NoSchedule' \
   --set-string "servers[0].plugins[3].parameters=${CLUSTER_DOMAIN} in-addr.arpa ip6.arpa" \
   > "$OUT/manifests/helm-rendered/coredns.yaml"
 
