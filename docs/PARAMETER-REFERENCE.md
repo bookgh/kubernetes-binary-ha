@@ -18,7 +18,7 @@
 - `NODE_IPS`：与 `NODE_NAMES` 按索引一一对应的 IPv4 地址；修改节点时同步修改这两个数组，并确保 `MASTER_COUNT` 与角色分界一致。
 - `MASTER_NAMES`/`MASTER_IPS`、`WORKER_NAMES`/`WORKER_IPS`、`ALL_NAMES`/`ALL_IPS`：由 `scripts/lib.sh` 根据上述两个数组自动派生，供现有部署脚本使用，不要在 `cluster.env` 中重复定义。
 - `MASTER1_IP`、`MASTER2_IP` 等编号标量：由 `scripts/lib.sh` 按数组顺序派生的兼容变量；动态部署逻辑应使用 `MASTER_IPS`/`WORKER_IPS`，不要手工维护标量。
-- `HARBOR_NODE_IP`：部署 Harbor 的集群节点 IP，必须属于 `NODE_IPS`；默认示例为第一个 Master。
+- `HARBOR_NODE_IP`：部署 Harbor 的节点 IP；可使用集群节点或独立 Rocky Linux 9 主机，默认示例为第一个 Master。
 - `HARBOR_HOST`：Harbor 访问域名，格式为 `harbor.<HARBOR_NODE_IP>.nip.io`。
 - `HARBOR_URL`：Harbor URL；当前安装器使用 `http://` + `HARBOR_HOST`，HTTP/80。
 - `HARBOR_HTTP_PORT`：Harbor HTTP 端口，当前脚本固定要求 80。
