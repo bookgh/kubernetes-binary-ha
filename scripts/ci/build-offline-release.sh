@@ -324,5 +324,5 @@ log "发布 Release ${TAG}。"
 gh release create "$TAG" "$ARCHIVE" "$ARCHIVE.sha256" \
   "$WORK/$NGINX_ASSET" "$WORK/$NGINX_ASSET.sha256" \
   --title "Kubernetes v${K8S_VERSION} 离线资源包（Rocky Linux 9 amd64）" \
-  --notes "离线包包含 Harbor ${HARBOR_VERSION} 官方离线安装器、CoreDNS、pause、Calico 和 NodeLocal DNS 镜像归档，以及 Kubernetes/etcd/containerd/CFSSL/Helm/Docker/NGINX 和 Rocky Linux 9 RPM。使用前请校验 SHA256。"
+  --notes "离线包包含 Harbor ${HARBOR_VERSION} 官方离线安装器、Calico/CoreDNS Helm Charts、pause、Calico 和 NodeLocal DNS 镜像归档，以及 Kubernetes/etcd/containerd/CFSSL/Helm/Docker/NGINX 和 Rocky Linux 9 RPM。使用前请校验 SHA256。"
 log "Release 发布完成：${TAG}"
