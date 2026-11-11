@@ -37,6 +37,7 @@ log "使用 CoreDNS Helm Chart 安装/升级 kube-system/coredns"
   --set 'tolerations[1].key=node-role.kubernetes.io/control-plane' \
   --set 'tolerations[1].effect=NoSchedule' \
   --set-string "servers[0].plugins[3].parameters=$CLUSTER_DOMAIN in-addr.arpa ip6.arpa" \
+  --take-ownership \
   --wait --timeout 5m
 
 "$KUBECTL" -n kube-system rollout status deployment/coredns --timeout=300s
