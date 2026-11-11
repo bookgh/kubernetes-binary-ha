@@ -25,7 +25,7 @@ DOCKER_CONFIG="/etc/docker/daemon.json"
 
 (
   cd "$OFFLINE_DIR"
-  sha256sum --check SHA256SUMS
+  sha256sum --check harbor/SHA256SUMS
 ) || die "Harbor 节点离线资源 SHA256 校验失败"
 [[ "$HARBOR_URL" == "http://${HARBOR_HOST}" ]] ||
   die "当前 Harbor 部署模式仅支持 HTTP/80，HARBOR_URL 必须为 http://${HARBOR_HOST}"
