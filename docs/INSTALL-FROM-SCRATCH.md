@@ -264,7 +264,9 @@ sudo bash scripts/18-verify-cluster.sh
 2. API Server /readyz?verbose；
 3. 所有 Node Ready；
 4. Calico DaemonSet rollout、calicoctl 节点和 IPPool、可用时 TigeraStatus；
-5. CoreDNS Deployment、Service ClusterIP、Endpoints 和全量 Pod 状态；Node 数量及每个 InternalIP 与部署配置一致。\n6. NodeLocal DNSCache DaemonSet 覆盖全部节点并 Ready。\n7. 自动化网络验收：从 Harbor 强制拉取 BusyBox 测试镜像，验证 Pod 的 resolv.conf 使用 NodeLocal DNS、解析 kubernetes.default 和验收 Service 域名，再从不同节点间通过 Pod IP 与 ClusterIP Service 访问 HTTP 服务。测试 namespace 在结束时自动删除。
+5. CoreDNS Deployment、Service ClusterIP、Endpoints 和全量 Pod 状态；Node 数量及每个 InternalIP 与部署配置一致。
+6. NodeLocal DNSCache DaemonSet 覆盖全部节点并 Ready。
+7. 自动化网络验收：从 Harbor 强制拉取 BusyBox 测试镜像，验证 Pod 的 resolv.conf 使用 NodeLocal DNS、解析 kubernetes.default 和验收 Service 域名，再从不同节点间通过 Pod IP 与 ClusterIP Service 访问 HTTP 服务。测试 namespace 在结束时自动删除。
 
 `scripts/18-verify-cluster.sh` 会自动调用 `scripts/26-verify-network.sh` 执行以下检查，无需手动创建测试 Pod：
 
