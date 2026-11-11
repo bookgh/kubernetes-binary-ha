@@ -30,9 +30,22 @@ local_healthy() {
     ssh-key)
       for ip in "${ALL_IPS[@]}"; do ssh -o BatchMode=yes -o ConnectTimeout=5 "root@$ip" true >/dev/null 2>&1 || return 1; done
       ;;
-    pki) [[ -s "$ROOT/pki/k8s-ca.crt" && -s "$ROOT/pki/k8s-ca.key" && -s "$ROOT/pki/apiserver.crt" && -s "$ROOT/pki/sa.key" && -s "$ROOT/pki/sa.pub" ]] ;;
+    pki)
+      [[ -s "$ROOT/pki/k8s-ca.crt" && -s "$ROOT/pki/k8s-ca.key" && -s "$ROOT/pki/apiserver.crt" && -s "$ROOT/pki/etcd-ca.crt" && -s "$ROOT/pki/sa.key" && -s "$ROOT/pki/sa.pub" ]] || return 1
+      for node in "${MASTER_NAMES[@]}"; do
+        for suffix in server.crt server.key peer.crt peer.key; do
+          [[ -s "$ROOT/pki/etcd-$node-$suffix" ]] || return 1
+        done
+      done
+      ;;
     kubeconfigs) [[ -s "$ROOT/kubeconfigs/admin.conf" && -s "$ROOT/kubeconfigs/kube-proxy.conf" ]] ;;
-    render) [[ -s "$ROOT/generated/common/etc/modules-load.d/10-kubernetes.conf" && -s "$ROOT/generated/common/etc/sysctl.d/95-kubernetes.conf" && -s "$ROOT/generated/${MASTER_NAMES[0]}/etc/kubernetes/cluster.env" ]] ;;
+    render)
+      [[ -s "$ROOT/generated/common/etc/modules-load.d/10-kubernetes.conf" && -s "$ROOT/generated/common/etc/sysctl.d/95-kubernetes.conf" ]] || return 1
+      for node in "${ALL_NAMES[@]}"; do
+        [[ -s "$ROOT/generated/$node/etc/kubernetes/cluster.env" ]] || return 1
+        if [[ "$node" == worker-* ]]; then [[ -s "$ROOT/generated/$node/etc/nginx/nginx.conf" ]] || return 1; fi
+      done
+      ;;
     distribute)
       for ip in "${ALL_IPS[@]}"; do ssh -o BatchMode=yes -o ConnectTimeout=5 "root@$ip" "test -s /etc/kubernetes/cluster.env && test -s /opt/kubernetes-binary-ha/scripts/22-node-step.sh" >/dev/null 2>&1 || return 1; done
       ;;
