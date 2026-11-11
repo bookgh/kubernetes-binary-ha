@@ -1,5 +1,16 @@
 # Kubernetes 集群分阶段部署手册
 
+## 统一安装入口
+
+在满足 [从零部署指南](INSTALL-FROM-SCRATCH.md) 中的节点、网络、Release 和私有镜像仓库前置条件后，部署机可直接运行：
+
+~~~bash
+sudo bash scripts/00-install.sh all
+~~~
+
+入口会按顺序完成离线下载、SSH 公钥配置、CFSSL、配置分发、六节点运行时与系统参数、etcd、控制平面、Worker、Calico、CoreDNS 和验收。失败后查看 `/var/log/kubernetes-binary-ha-install/` 与节点 `/var/log/kubernetes-binary-ha/`，修复后重复同一命令即可续装。参数和标记机制见 [统一安装入口说明](UNIFIED-INSTALLER.md)。
+
+
 本文以 Rocky Linux 9、amd64、三 Master + 三 Worker 为基线。所有集群参数集中在部署机的 `config/cluster.env`。
 
 ## 阶段 0：站点准备
