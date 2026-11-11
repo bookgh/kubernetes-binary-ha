@@ -66,6 +66,7 @@ local_healthy() {
       grep -Fxq "CalicoChart=$CALICO_CHART_VERSION" "$ROOT/offline/ARTIFACTS.txt" || return 1
       grep -Fxq "CoreDNSChart=$COREDNS_CHART_VERSION" "$ROOT/offline/ARTIFACTS.txt" || return 1
       grep -Fxq "Runtime=$RUNTIME_TYPE" "$ROOT/offline/ARTIFACTS.txt" || return 1
+      grep -Fq 'docker.io/library/busybox:1.36.1' "$ROOT/offline/images/IMAGE-REFERENCES.txt" || return 1
       [[ -s "$ROOT/offline/helm/projectcalico.org.v3-${CALICO_CHART_VERSION}.tgz" && -s "$ROOT/offline/helm/tigera-operator-${CALICO_CHART_VERSION}.tgz" && -s "$ROOT/offline/helm/coredns-${COREDNS_CHART_VERSION}.tgz" && -s "$ROOT/offline/helm/coredns-values.yaml" ]] || return 1
       (cd "$ROOT/offline" && sha256sum -c SHA256SUMS >/dev/null 2>&1)
       ;;
@@ -116,6 +117,13 @@ local_healthy() {
       "$ROOT/offline/bin/kubectl" -n tigera-operator rollout status deployment/tigera-operator --timeout=10s >/dev/null 2>&1 &&
         "$ROOT/offline/bin/kubectl" -n calico-system rollout status ds/calico-node --timeout=10s >/dev/null 2>&1 &&
         DATASTORE_TYPE=kubernetes KUBECONFIG="$HOME/.kube/config" calicoctl get ippools -o json 2>/dev/null | jq -e --arg cidr "$POD_CIDR" '[.items[] | select(.spec.cidr == $cidr)] | length == 1' >/dev/null
+      ;;
+    node-local-dns)
+      local node_count ready_count
+      "$ROOT/offline/bin/kubectl" -n kube-system rollout status ds/node-local-dns --timeout=10s >/dev/null 2>&1 || return 1
+      node_count="$("$ROOT/offline/bin/kubectl" get nodes -o json 2>/dev/null | jq '.items | length')" || return 1
+      ready_count="$("$ROOT/offline/bin/kubectl" -n kube-system get ds node-local-dns -o json 2>/dev/null | jq -r '.status.numberReady')" || return 1
+      [[ "$ready_count" == "$node_count" ]]
       ;;
     coredns)
       local service_ip
@@ -169,6 +177,7 @@ validate_image_config() {
   [[ -n "$PRIVATE_REGISTRY" && "$PRIVATE_REGISTRY" != *example* ]] || die "请在 config/cluster.env 设置真实 PRIVATE_REGISTRY"
   [[ "$PAUSE_IMAGE" == "${PRIVATE_REGISTRY}/"* ]] || die "PAUSE_IMAGE 必须先镜像到 PRIVATE_REGISTRY：当前为 $PAUSE_IMAGE"
   [[ "$NODE_LOCAL_DNS_IMAGE" == "${PRIVATE_REGISTRY}/"* ]] || die "NODE_LOCAL_DNS_IMAGE 必须指向 PRIVATE_REGISTRY：当前为 $NODE_LOCAL_DNS_IMAGE"
+  [[ "$NETWORK_TEST_IMAGE" == "${PRIVATE_REGISTRY}/"* ]] || die "NETWORK_TEST_IMAGE 必须指向 PRIVATE_REGISTRY：当前为 $NETWORK_TEST_IMAGE"
   [[ "$PRIVATE_REGISTRY" == "${HARBOR_HOST}/library" ]] || die "PRIVATE_REGISTRY 必须设置为 ${HARBOR_HOST}/library"
 }
 remote_step() { bash "$ROOT/scripts/23-batch-step.sh" "$1" "$2" --parallel >>"$LOG" 2>&1 || { tail -n 100 "$LOG" >&2; die "远程阶段失败：$2；修复后重新运行 scripts/00-install.sh $TARGET"; }; ok "远程阶段完成：$2"; }
@@ -352,6 +361,12 @@ prepare_coredns() {
   prepare_calico
   local_step coredns 20-install-coredns.sh
 }
+prepare_node_local_dns() {
+  validate_image_config
+  ensure_harbor_ready
+  prepare_coredns
+  local_step node-local-dns 25-install-node-local-dns.sh
+}
 verify_cluster() { local_step verify 18-verify-cluster.sh; }
 case "$TARGET" in
   prepare) prepare_system ;;
@@ -365,13 +380,14 @@ case "$TARGET" in
   workers) prepare_workers ;;
   calico) prepare_calico ;;
   coredns) prepare_coredns ;;
+  node-local-dns|nodelocaldns) prepare_node_local_dns ;;
   verify) verify_cluster ;;
   status)
     printf '本地阶段标记目录：%s\n' "$STATE/steps"
     find "$STATE/steps" -maxdepth 1 -type f -printf '%f\n' | sort
     printf '远程节点标记位置：/var/lib/kubernetes-binary-ha/steps/（每台节点独立保存）\n'
     ;;
-  all) validate_image_config; prepare_system; prepare_harbor; prepare_etcd; prepare_control_plane; prepare_workers; local_step calico 19-install-calico.sh; local_step coredns 20-install-coredns.sh; verify_cluster ;;
-  *) die "用法：$0 {all|prepare|download|ssh|certs|system|harbor|etcd|control-plane|workers|calico|coredns|verify|status}" ;;
+  all) validate_image_config; prepare_system; prepare_harbor; prepare_etcd; prepare_control_plane; prepare_workers; local_step calico 19-install-calico.sh; local_step coredns 20-install-coredns.sh; local_step node-local-dns 25-install-node-local-dns.sh; verify_cluster ;;
+  *) die "用法：$0 {all|prepare|download|ssh|certs|system|harbor|etcd|control-plane|workers|calico|coredns|node-local-dns|verify|status}" ;;
 esac
 ok "目标阶段 $TARGET 执行结束。安装日志：$LOG"
