@@ -24,6 +24,8 @@ if [[ "$NEED_KEY" -eq 1 ]]; then
     ssh-keygen -y -f "$SSH_KEY" > "$SSH_KEY.pub"
     chmod 0644 "$SSH_KEY.pub"
   fi
+  chmod 0600 "$SSH_KEY"
+  chmod 0644 "$SSH_KEY.pub"
   for ip in "${ALL_IPS[@]}"; do
     warn "为 root@$ip 安装部署公钥；如尚未有其他可用认证，请按提示输入 root 密码。首次连接前请核对 SSH host key 指纹。"
     ssh-copy-id -o StrictHostKeyChecking=accept-new -i "$SSH_KEY.pub" "root@$ip"
