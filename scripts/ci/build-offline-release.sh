@@ -99,6 +99,9 @@ install -m 0755 "$WORK/linux-amd64/helm" "$OUT/bin/helm"
 # Package the exact local manifests consumed by the offline installer.
 install -m 0644 "$ROOT/manifests/calico-installation.yaml.template" "$OUT/manifests/calico-installation.yaml.template"
 install -m 0644 "$ROOT/manifests/coredns.yaml.template" "$OUT/manifests/coredns.yaml.template"
+mkdir -p "$OUT/manifests/rendered"
+sed "s#__COREDNS_IMAGE__#registry.k8s.io/coredns/coredns:${COREDNS_VERSION}#g" \
+  "$OUT/manifests/coredns.yaml.template" > "$OUT/manifests/rendered/coredns.yaml"
 
 # Runtime and operator-generated images are declared for discovery only; never kubectl-apply this file.
 {
@@ -111,7 +114,7 @@ spec:
   containers:
 EOF
   index=0
-  for image_ref in "${OFFLINE_EXTRA_IMAGE_REFS[@]}" "registry.k8s.io/coredns/coredns:${COREDNS_VERSION}"; do
+  for image_ref in "${OFFLINE_EXTRA_IMAGE_REFS[@]}"; do
     printf '  - name: image-%03d\n    image: "%s"\n' "$index" "$image_ref"
     index=$((index + 1))
   done
