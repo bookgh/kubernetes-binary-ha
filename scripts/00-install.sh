@@ -49,6 +49,7 @@ local_healthy() {
     distribute)
       for ip in "${ALL_IPS[@]}"; do ssh_remote "$ip" "test -s /etc/kubernetes/cluster.env && test -s /opt/kubernetes-binary-ha/scripts/22-node-step.sh" >/dev/null 2>&1 || return 1; done
       ;;
+    harbor) ssh_remote "$HARBOR_NODE_IP" "test -s /var/lib/kubernetes-binary-ha-harbor.done && curl --fail --silent '$HARBOR_URL/api/v2.0/ping' >/dev/null" >/dev/null 2>&1 ;;
     etcd-health) return 1 ;;
     calico) "$ROOT/offline/bin/kubectl" -n calico-system get ds calico-node >/dev/null 2>&1 && "$ROOT/offline/bin/kubectl" -n calico-system rollout status ds/calico-node --timeout=10s >/dev/null 2>&1 ;;
     coredns) "$ROOT/offline/bin/kubectl" -n kube-system rollout status deployment/coredns --timeout=10s >/dev/null 2>&1 ;;
@@ -96,6 +97,9 @@ validate_image_config() {
   [[ -n "$PRIVATE_REGISTRY" && "$PRIVATE_REGISTRY" != *example* ]] || die "请在 config/cluster.env 设置真实 PRIVATE_REGISTRY"
   [[ "$PAUSE_IMAGE" == "${PRIVATE_REGISTRY}/"* ]] || die "PAUSE_IMAGE 必须先镜像到 PRIVATE_REGISTRY：当前为 $PAUSE_IMAGE"
   [[ "$COREDNS_IMAGE" == "${PRIVATE_REGISTRY}/"* ]] || die "COREDNS_IMAGE 必须先镜像到 PRIVATE_REGISTRY：当前为 $COREDNS_IMAGE"
+  [[ "$CALICO_NODE_IMAGE" == "${PRIVATE_REGISTRY}/"* ]] || die "CALICO_NODE_IMAGE 必须指向 PRIVATE_REGISTRY：当前为 $CALICO_NODE_IMAGE"
+  [[ "$NODE_LOCAL_DNS_IMAGE" == "${PRIVATE_REGISTRY}/"* ]] || die "NODE_LOCAL_DNS_IMAGE 必须指向 PRIVATE_REGISTRY：当前为 $NODE_LOCAL_DNS_IMAGE"
+  [[ "$PRIVATE_REGISTRY" == "${HARBOR_HOST}/library" ]] || die "PRIVATE_REGISTRY 必须设置为 ${HARBOR_HOST}/library"
 }
 remote_step() { bash "$ROOT/scripts/23-batch-step.sh" "$1" "$2" --parallel >>"$LOG" 2>&1 || { tail -n 100 "$LOG" >&2; die "远程阶段失败：$2；修复后重新运行 scripts/00-install.sh $TARGET"; }; ok "远程阶段完成：$2"; }
 prepare_download() {
@@ -190,7 +194,38 @@ require_certificates() {
       >/dev/null 2>&1 || die "Master $node ($ip) 尚未收到自己的 etcd server/peer 凭据。请先执行：sudo bash scripts/00-install.sh prepare"
   done
 }
+ensure_harbor_ready() {
+  ssh_remote "$HARBOR_NODE_IP" \
+    "test -s /var/lib/kubernetes-binary-ha-harbor.done && curl --fail --silent '$HARBOR_URL/api/v2.0/ping' >/dev/null" \
+    >/dev/null 2>&1 ||
+    die "Harbor 尚未部署或健康检查失败。请先执行：sudo bash scripts/00-install.sh harbor"
+}
+
+prepare_harbor() {
+  validate_image_config
+  [[ -s "$ROOT/offline/harbor/harbor-offline-installer-v${HARBOR_VERSION}-amd64.tgz" ]] ||
+    die "缺少 Harbor 离线安装器；请先执行 download/prepare"
+  [[ -s "$ROOT/offline/images/kubernetes-images-linux-amd64.tar" ]] ||
+    die "缺少 Kubernetes 镜像归档；请先执行 download/prepare"
+
+  if local_healthy harbor; then
+    ok "跳过 Harbor 阶段（远程标记和 API 健康检查均匹配）"
+    return 0
+  fi
+
+  log "在 Harbor 节点 $HARBOR_NODE_IP 部署 Harbor：$HARBOR_URL"
+  ssh_remote "$HARBOR_NODE_IP" \
+    "bash '/opt/kubernetes-binary-ha/scripts/24-install-harbor.sh'" >>"$LOG" 2>&1 ||
+    {
+      tail -n 100 "$LOG" >&2
+      die "Harbor 部署失败；修复后运行 scripts/00-install.sh harbor 重试"
+    }
+  ensure_harbor_ready
+  ok "Harbor 部署和基础镜像导入完成"
+}
+
 prepare_etcd() {
+  ensure_harbor_ready
   require_certificates
   remote_step masters 07-bootstrap-etcd.sh
   local_step etcd-health 21-verify-etcd.sh
@@ -222,6 +257,7 @@ case "$TARGET" in
   ssh) prepare_ssh ;;
   certs) prepare_download; prepare_ssh; prepare_certs ;;
   system) prepare_system ;;
+  harbor) prepare_harbor ;;
   etcd) prepare_etcd ;;
   control-plane) prepare_control_plane ;;
   workers) prepare_workers ;;
@@ -233,7 +269,7 @@ case "$TARGET" in
     find "$STATE/steps" -maxdepth 1 -type f -printf '%f\n' | sort
     printf '远程节点标记位置：/var/lib/kubernetes-binary-ha/steps/（每台节点独立保存）\n'
     ;;
-  all) validate_image_config; prepare_system; require_certificates; remote_step masters 07-bootstrap-etcd.sh; local_step etcd-health 21-verify-etcd.sh; remote_step masters 08-start-control-plane.sh; remote_step workers 13-install-nginx-proxy.sh; remote_step workers 09-start-worker.sh; local_step calico 19-install-calico.sh; local_step coredns 20-install-coredns.sh; verify_cluster ;;
-  *) die "用法：$0 {all|prepare|download|ssh|certs|system|etcd|control-plane|workers|calico|coredns|verify|status}" ;;
+  all) validate_image_config; prepare_system; prepare_harbor; require_certificates; remote_step masters 07-bootstrap-etcd.sh; local_step etcd-health 21-verify-etcd.sh; remote_step masters 08-start-control-plane.sh; remote_step workers 13-install-nginx-proxy.sh; remote_step workers 09-start-worker.sh; local_step calico 19-install-calico.sh; local_step coredns 20-install-coredns.sh; verify_cluster ;;
+  *) die "用法：$0 {all|prepare|download|ssh|certs|system|harbor|etcd|control-plane|workers|calico|coredns|verify|status}" ;;
 esac
 ok "目标阶段 $TARGET 执行结束。安装日志：$LOG"
