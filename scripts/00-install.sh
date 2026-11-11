@@ -119,7 +119,7 @@ prepare_system() {
   remote_step all 06-install-systemd.sh
 }
 require_certificates() {
-  local missing=0 file
+  local missing=0 file expected_etcd_servers="" expected_initial_cluster="" i ip node suffix env_file nginx_file master_ip
   for file in \
     "$ROOT/pki/k8s-ca.crt" \
     "$ROOT/pki/apiserver.crt" \
