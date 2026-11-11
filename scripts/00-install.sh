@@ -128,10 +128,46 @@ require_certificates() {
     done
   done
   (( missing == 0 )) || die "缺少一个或多个 Master 的 etcd 成员证书/私钥。请先执行：sudo bash scripts/00-install.sh prepare"
-  for ip in "${ALL_IPS[@]}"; do
+  require_cmd openssl
+  expected_etcd_servers=""
+  expected_initial_cluster=""
+  for i in "${!MASTER_IPS[@]}"; do
+    ip="${MASTER_IPS[$i]}"
+    node="${MASTER_NAMES[$i]}"
+    [[ -n "$expected_etcd_servers" ]] && expected_etcd_servers+=","
+    [[ -n "$expected_initial_cluster" ]] && expected_initial_cluster+=","
+    expected_etcd_servers+="https://$ip:2379"
+    expected_initial_cluster+="$node=https://$ip:2380"
+    openssl x509 -in "$ROOT/pki/apiserver.crt" -noout -checkip "$ip" >/dev/null 2>&1 || die "API Server 证书 SAN 缺少 Master IP：$node ($ip)；请按证书轮换流程重新签发"
+    openssl x509 -in "$ROOT/pki/etcd-$node-server.crt" -noout -checkhost "$node" >/dev/null 2>&1 || die "etcd server 证书 SAN 缺少节点名：$node"
+    openssl x509 -in "$ROOT/pki/etcd-$node-server.crt" -noout -checkip "$ip" >/dev/null 2>&1 || die "etcd server 证书 SAN 缺少 IP：$node ($ip)"
+    openssl x509 -in "$ROOT/pki/etcd-$node-peer.crt" -noout -checkhost "$node" >/dev/null 2>&1 || die "etcd peer 证书 SAN 缺少节点名：$node"
+    openssl x509 -in "$ROOT/pki/etcd-$node-peer.crt" -noout -checkip "$ip" >/dev/null 2>&1 || die "etcd peer 证书 SAN 缺少 IP：$node ($ip)"
+  done
+  for node in "${ALL_NAMES[@]}"; do
+    env_file="$ROOT/generated/$node/etc/kubernetes/cluster.env"
+    [[ -s "$env_file" ]] || die "缺少节点生成配置：$env_file；请先执行 prepare"
+    grep -Fxq "ETCD_SERVERS=$expected_etcd_servers" "$env_file" || die "$node 的 ETCD_SERVERS 与当前 MASTER_COUNT/节点 IP 不一致；请重新执行 prepare"
+    grep -Fxq "ETCD_INITIAL_CLUSTER=$expected_initial_cluster" "$env_file" || die "$node 的 ETCD_INITIAL_CLUSTER 与当前 Master 清单不一致；请重新执行 prepare"
+    if [[ "$node" == worker-* ]]; then
+      nginx_file="$ROOT/generated/$node/etc/nginx/nginx.conf"
+      [[ -s "$nginx_file" ]] || die "缺少 Worker NGINX 配置：$nginx_file；请重新执行 prepare"
+      for ip in "${MASTER_IPS[@]}"; do
+        grep -Fq "server $ip:6443" "$nginx_file" || die "$node 的 NGINX upstream 缺少 Master $ip；请重新执行 prepare"
+      done
+    fi
+  done
+  for i in "${!ALL_IPS[@]}"; do
+    ip="${ALL_IPS[$i]}"
+    node="${ALL_NAMES[$i]}"
     ssh -o BatchMode=yes -o ConnectTimeout=5 "root@$ip" \
-      "test -s /etc/kubernetes/pki/k8s-ca.crt && test -s /etc/kubernetes/cluster.env" \
-      >/dev/null 2>&1 || die "节点 $ip 尚未收到 Kubernetes CA 证书或集群配置。请先执行：sudo bash scripts/00-install.sh prepare"
+      "test -s /etc/kubernetes/pki/k8s-ca.crt && grep -Fxq 'ETCD_SERVERS=$expected_etcd_servers' /etc/kubernetes/cluster.env && grep -Fxq 'ETCD_INITIAL_CLUSTER=$expected_initial_cluster' /etc/kubernetes/cluster.env" \
+      >/dev/null 2>&1 || die "节点 $node ($ip) 的 Kubernetes CA 或动态 etcd 配置未更新。请先执行：sudo bash scripts/00-install.sh prepare"
+    if [[ "$node" == worker-* ]]; then
+      for master_ip in "${MASTER_IPS[@]}"; do
+        ssh -o BatchMode=yes -o ConnectTimeout=5 "root@$ip" "grep -Fq 'server $master_ip:6443' /etc/nginx/nginx.conf" >/dev/null 2>&1 || die "Worker $node 的 NGINX upstream 缺少 Master $master_ip；请先执行 prepare"
+      done
+    fi
   done
   for i in "${!MASTER_IPS[@]}"; do
     ip="${MASTER_IPS[$i]}"
