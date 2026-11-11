@@ -104,4 +104,14 @@ for i in "${!ALL_NAMES[@]}"; do
   ok "${ALL_NAMES[$i]} SSH 公钥登录正常"
 done
 
-ok "全部节点 SSH 公钥登录配置完成。"
+if (( HARBOR_IS_CLUSTER_NODE == 0 )); then
+  ssh -p "$SSH_PORT" \
+    -o BatchMode=yes \
+    -o ConnectTimeout=8 \
+    -o StrictHostKeyChecking=accept-new \
+    "$SSH_USER@$HARBOR_NODE_IP" \
+    'test -n "$(hostname -s)"' >/dev/null
+  ok "Harbor 节点 $HARBOR_NODE_IP SSH 公钥登录正常"
+fi
+
+ok "全部集群节点及 Harbor 节点 SSH 公钥登录配置完成。"
