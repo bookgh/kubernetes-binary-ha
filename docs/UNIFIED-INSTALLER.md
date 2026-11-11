@@ -19,7 +19,7 @@ sudo bash scripts/00-install.sh all
 | `sudo bash scripts/00-install.sh all` | 从下载到最终验收的完整流程 |
 | `sudo bash scripts/00-install.sh prepare` | 显式执行预处理：下载资源、安装部署机工具、配置 SSH、生成证书/kubeconfig、渲染分发配置，并完成节点预检、运行时和 systemd 准备 |
 | `sudo bash scripts/00-install.sh download` | 仅下载 Release、校验离线包、安装部署机 RPM 和 CLI |
-| `sudo bash scripts/00-install.sh ssh` | 配置并验证六节点 SSH 公钥登录 |
+| `sudo bash scripts/00-install.sh ssh` | 配置并验证全部节点 SSH 公钥登录 |
 | `sudo bash scripts/00-install.sh certs` | SSH 检查、生成/复用证书、kubeconfig、渲染和分发 |
 | `sudo bash scripts/00-install.sh system` | `prepare` 的兼容别名，执行完整预处理 |
 | `sudo bash scripts/00-install.sh etcd` | 仅检查本地/节点证书和配置已准备，再启动 etcd 并按 MASTER_COUNT 验证 etcd 成员和 quorum；缺少证书立即报错退出，不自动补装依赖 |
