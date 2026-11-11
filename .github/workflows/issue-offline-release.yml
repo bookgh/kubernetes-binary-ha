@@ -29,6 +29,9 @@ jobs:
       - name: Checkout source
         uses: actions/checkout@v5
 
+      - name: 安装 YAML 解析依赖
+        run: python3 -m pip install --break-system-packages --disable-pip-version-check PyYAML==6.0.2
+
       - name: 构建并发布离线资源
         env:
           GH_TOKEN: ${{ github.token }}
