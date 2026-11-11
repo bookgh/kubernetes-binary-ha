@@ -21,7 +21,7 @@ contains() {
 }
 
 contains "$INSTALL" 'source "$ROOT/config/release-versions.env"'
-contains "$INSTALL" 'all) validate_image_config; prepare_system; prepare_harbor; prepare_etcd; prepare_control_plane; prepare_workers; local_step calico 19-install-calico.sh; local_step coredns 20-install-coredns.sh; verify_cluster ;;'
+contains "$INSTALL" 'all) validate_image_config; prepare_system; prepare_harbor; prepare_etcd; prepare_control_plane; prepare_workers; local_step calico 19-install-calico.sh; local_step coredns 20-install-coredns.sh; local_step node-local-dns 25-install-node-local-dns.sh; verify_cluster ;;'
 contains "$INSTALL" 'wait_for_all_apis'
 contains "$INSTALL" 'IMAGE_ARCHIVE_SHA256=$image_sha'
 contains "$NGINX" 'NGINX_BINARY="$ROOT/offline/bin/nginx"'
