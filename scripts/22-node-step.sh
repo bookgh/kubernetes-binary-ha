@@ -20,7 +20,7 @@ exec 9>"/var/lib/kubernetes-binary-ha/step.lock"
 flock -n 9 || { echo "another install step is running on this node" >&2; exit 1; }
 fingerprint() {
   {
-    sha256sum "$ROOT/scripts/$SCRIPT" "$ROOT/config/cluster.env" "$ROOT/config/release-versions.env"
+    sha256sum "$ROOT/scripts/$SCRIPT" "$ROOT/scripts/22-node-step.sh" "$ROOT/scripts/23-batch-step.sh" "$ROOT/config/cluster.env" "$ROOT/config/release-versions.env"
     [[ ! -f /etc/kubernetes/cluster.env ]] || sha256sum /etc/kubernetes/cluster.env
     [[ ! -f /etc/kubernetes/runtime.env ]] || sha256sum /etc/kubernetes/runtime.env
     [[ ! -f /etc/kubernetes/pki/k8s-ca.crt ]] || sha256sum /etc/kubernetes/pki/k8s-ca.crt
