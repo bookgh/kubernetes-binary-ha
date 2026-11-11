@@ -22,6 +22,11 @@ DOCKER_CONFIG="/etc/docker/daemon.json"
 
 [[ -s "$HARBOR_PACKAGE" ]] || die "缺少 Harbor 离线安装器：$HARBOR_PACKAGE"
 [[ -s "$IMAGE_ARCHIVE" ]] || die "缺少 Kubernetes 镜像归档：$IMAGE_ARCHIVE"
+
+(
+  cd "$OFFLINE_DIR"
+  sha256sum --check SHA256SUMS
+) || die "Harbor 节点离线资源 SHA256 校验失败"
 [[ "$HARBOR_URL" == "http://${HARBOR_HOST}" ]] ||
   die "当前 Harbor 部署模式仅支持 HTTP/80，HARBOR_URL 必须为 http://${HARBOR_HOST}"
 [[ "$HARBOR_HTTP_PORT" == "80" ]] || die "当前 nip.io HTTP 部署仅支持 HARBOR_HTTP_PORT=80"
