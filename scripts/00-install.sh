@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 统一部署入口：下载、SSH、系统准备、PKI、etcd、控制平面、Worker、CNI/DNS 和验收。
+# 统一部署入口：prepare 显式预处理；组件安装阶段只检查前置条件，不隐式安装依赖。
 set -Eeuo pipefail
 source "$(dirname "$0")/lib.sh"
 require_root
@@ -105,17 +105,46 @@ prepare_system() {
   remote_step all 02-install-runtime.sh
   remote_step all 06-install-systemd.sh
 }
+require_certificates() {
+  local missing=0 file
+  for file in \
+    "$ROOT/pki/k8s-ca.crt" \
+    "$ROOT/pki/apiserver.crt" \
+    "$ROOT/pki/etcd-ca.crt" \
+    "$ROOT/pki/etcd-master-01-server.crt" \
+    "$ROOT/pki/sa.key" \
+    "$ROOT/pki/sa.pub" \
+    "$ROOT/kubeconfigs/admin.conf" \
+    "$ROOT/kubeconfigs/kube-proxy.conf"; do
+    if [[ ! -s "$file" ]]; then
+      printf '  - %s\\n' "$file" >&2
+      missing=1
+    fi
+  done
+  (( missing == 0 )) || die "缺少必要证书或 kubeconfig。请先执行：sudo bash scripts/00-install.sh prepare（本命令不会自动生成证书或安装前置依赖）"
+  for ip in "${ALL_IPS[@]}"; do
+    ssh -o BatchMode=yes -o ConnectTimeout=5 "root@$ip" \
+      "test -s /etc/kubernetes/pki/k8s-ca.crt && test -s /etc/kubernetes/cluster.env" \
+      >/dev/null 2>&1 || die "节点 $ip 尚未收到 Kubernetes CA 证书或集群配置。请先执行：sudo bash scripts/00-install.sh prepare"
+  done
+  for ip in "${MASTER_IPS[@]}"; do
+    ssh -o BatchMode=yes -o ConnectTimeout=5 "root@$ip" \
+      "test -s /etc/etcd/pki/etcd-ca.crt && test -s /etc/etcd/pki/etcd-server.crt" \
+      >/dev/null 2>&1 || die "Master $ip 尚未收到 etcd 证书。请先执行：sudo bash scripts/00-install.sh prepare"
+  done
+}
 prepare_etcd() {
-  prepare_system
+  require_certificates
   remote_step masters 07-bootstrap-etcd.sh
   local_step etcd-health 21-verify-etcd.sh
 }
 prepare_control_plane() {
-  prepare_etcd
+  require_certificates
+  local_step etcd-health 21-verify-etcd.sh
   remote_step masters 08-start-control-plane.sh
 }
 prepare_workers() {
-  prepare_control_plane
+  require_certificates
   remote_step workers 13-install-nginx-proxy.sh
   remote_step workers 09-start-worker.sh
 }
@@ -131,6 +160,7 @@ prepare_coredns() {
 }
 verify_cluster() { local_step verify 18-verify-cluster.sh; }
 case "$TARGET" in
+  prepare) prepare_system ;;
   download) prepare_download ;;
   ssh) prepare_ssh ;;
   certs) prepare_download; prepare_ssh; prepare_certs ;;
@@ -146,7 +176,7 @@ case "$TARGET" in
     find "$STATE/steps" -maxdepth 1 -type f -printf '%f\n' | sort
     printf '远程节点标记位置：/var/lib/kubernetes-binary-ha/steps/（每台节点独立保存）\n'
     ;;
-  all) validate_image_config; prepare_download; prepare_ssh; prepare_certs; remote_step all 00-preflight.sh; remote_step all 02-install-runtime.sh; remote_step all 06-install-systemd.sh; remote_step masters 07-bootstrap-etcd.sh; local_step etcd-health 21-verify-etcd.sh; remote_step masters 08-start-control-plane.sh; remote_step workers 13-install-nginx-proxy.sh; remote_step workers 09-start-worker.sh; local_step calico 19-install-calico.sh; local_step coredns 20-install-coredns.sh; verify_cluster ;;
-  *) die "用法：$0 {all|download|ssh|certs|system|etcd|control-plane|workers|calico|coredns|verify|status}" ;;
+  all) validate_image_config; prepare_system; require_certificates; remote_step masters 07-bootstrap-etcd.sh; local_step etcd-health 21-verify-etcd.sh; remote_step masters 08-start-control-plane.sh; remote_step workers 13-install-nginx-proxy.sh; remote_step workers 09-start-worker.sh; local_step calico 19-install-calico.sh; local_step coredns 20-install-coredns.sh; verify_cluster ;;
+  *) die "用法：$0 {all|prepare|download|ssh|certs|system|etcd|control-plane|workers|calico|coredns|verify|status}" ;;
 esac
 ok "目标阶段 $TARGET 执行结束。安装日志：$LOG"
