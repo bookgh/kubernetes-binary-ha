@@ -135,7 +135,7 @@ done
   > "$OUT/manifests/helm-rendered/calico-operator.yaml"
 "$OUT/bin/helm" template coredns "$COREDNS_CHART" \
   --namespace kube-system \
-  --set image.repository=registry.k8s.io/coredns \
+  --set image.repository=registry.k8s.io/coredns/coredns \
   --set-string "image.tag=${COREDNS_VERSION#v}" \
   --set-string "service.clusterIP=${DNS_SERVICE_IP}" \
   --set service.name=kube-dns \
