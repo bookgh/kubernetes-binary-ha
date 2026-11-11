@@ -39,7 +39,7 @@ vi config/cluster.env
 
 至少确认以下参数：
 
-- 六台节点的 IP、主机名数组；目前脚本校验固定 3 Master + 3 Worker。
+- 在 `config/cluster.env` 中维护 `NODE_NAMES` 和 `NODE_IPS` 两个数组，顺序为前三台 Master、后三台 Worker；`MASTER_COUNT=3` 固定不变。节点名称和 IP 按索引一一对应，脚本会在 `lib.sh` 中派生其余节点清单和兼容变量，并校验数量、重复项、主机名角色及 IPv4 格式。
 - API_DNS 必须解析到可达 Master IP。当前没有 VIP/LB，DNS 解析不提供高可用。
 - RUNTIME_TYPE=containerd 或 RUNTIME_TYPE=docker。Docker 模式必须使用 cri-dockerd。
 - KUBE_PROXY_MODE=nftables 或 ipvs。Kubernetes 1.37 新部署推荐 nftables；IPVS 已弃用，使用前应确认内核模块和 kube-proxy 支持。
