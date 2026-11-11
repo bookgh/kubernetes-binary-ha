@@ -5,7 +5,7 @@ source "$(dirname "$0")/lib.sh"
 require_root
 for cmd in ssh ssh-keygen ssh-copy-id; do require_cmd "$cmd"; done
 SSH_DIR="${HOME}/.ssh"
-SSH_KEY="${K8S_SSH_KEY:-$SSH_DIR/kubernetes-binary-ha_ed25519}"
+SSH_KEY="$SSH_DIR/id_ed25519"
 install -d -m 0700 "$SSH_DIR"
 check_access() {
   local ip="$1"
@@ -20,12 +20,13 @@ if [[ "$NEED_KEY" -eq 1 ]]; then
     log "生成专用 SSH Ed25519 密钥：$SSH_KEY"
     ssh-keygen -q -t ed25519 -N "" -C "kubernetes-binary-ha-deploy" -f "$SSH_KEY"
     chmod 0600 "$SSH_KEY"
+  elif [[ ! -s "$SSH_KEY.pub" ]]; then
+    ssh-keygen -y -f "$SSH_KEY" > "$SSH_KEY.pub"
+    chmod 0644 "$SSH_KEY.pub"
   fi
   for ip in "${ALL_IPS[@]}"; do
-    if ! check_access "$ip"; then
-      warn "需要为 root@$ip 配置公钥；请按提示输入该节点 root 密码。首次连接前请核对 SSH host key 指纹。"
-      ssh-copy-id -o StrictHostKeyChecking=accept-new -i "$SSH_KEY.pub" "root@$ip"
-    fi
+    warn "为 root@$ip 安装部署公钥；如尚未有其他可用认证，请按提示输入 root 密码。首次连接前请核对 SSH host key 指纹。"
+    ssh-copy-id -o StrictHostKeyChecking=accept-new -i "$SSH_KEY.pub" "root@$ip"
   done
 fi
 for i in "${!ALL_NAMES[@]}"; do
