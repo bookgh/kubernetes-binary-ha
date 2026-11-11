@@ -13,11 +13,11 @@
 - `SERVICE_CIDR`：必须与 API Server `--service-cluster-ip-range` 一致。
 - `DNS_SERVICE_IP`：CoreDNS ClusterIP，必须与 kubelet `clusterDNS` 一致。
 - `KUBERNETES_SERVICE_IP`：Kubernetes API Service 的 ClusterIP，必须是 SERVICE_CIDR 中的首个 Service IP，并进入 API Server 证书 SAN。
-- `MASTER_COUNT`：Master 数量；当前固定为 `3`，不可调整。
-- `NODE_NAMES`：六个节点主机名的唯一清单，前三项必须是 `master-*`，后三项必须是 `worker-*`。
-- `NODE_IPS`：与 `NODE_NAMES` 按索引一一对应的六个 IPv4 地址；修改节点时只需同步修改这两个数组。
+- `MASTER_COUNT`：Master 数量；必须为正整数且小于节点总数，前 `MASTER_COUNT` 项为 Master，其余自动成为 Worker。建议生产环境使用奇数成员（3/5/7）；偶数成员会由 `lib.sh` 警告，因为 etcd 需要多数派。至少保留一个 Worker。
+- `NODE_NAMES`：所有节点主机名的唯一清单，前 `MASTER_COUNT` 项必须是 `master-*`，其余必须是 `worker-*`。至少包含一个 Master 和一个 Worker。
+- `NODE_IPS`：与 `NODE_NAMES` 按索引一一对应的 IPv4 地址；修改节点时同步修改这两个数组，并确保 `MASTER_COUNT` 与角色分界一致。
 - `MASTER_NAMES`/`MASTER_IPS`、`WORKER_NAMES`/`WORKER_IPS`、`ALL_NAMES`/`ALL_IPS`：由 `scripts/lib.sh` 根据上述两个数组自动派生，供现有部署脚本使用，不要在 `cluster.env` 中重复定义。
-- `MASTER1_IP`～`MASTER3_IP`、`WORKER1_IP`～`WORKER3_IP`：由 `scripts/lib.sh` 自动派生的兼容变量，供现有配置模板、etcd 检查和远端节点配置使用，不要手工维护。
+- `MASTER1_IP`、`MASTER2_IP` 等编号标量：由 `scripts/lib.sh` 按数组顺序派生的兼容变量；动态部署逻辑应使用 `MASTER_IPS`/`WORKER_IPS`，不要手工维护标量。
 - `PRIVATE_REGISTRY`：隔离环境或内网镜像仓库地址。
 - `COREDNS_IMAGE`：CoreDNS 已同步至私有仓库的完整镜像引用。
 - `PAUSE_IMAGE`：容器 sandbox/pause 镜像，containerd 和 Docker/cri-dockerd 均需可访问。
@@ -56,7 +56,7 @@
 - `ETCD_HEARTBEAT_INTERVAL`：Raft 心跳间隔，单位毫秒；示例 100。
 - `ETCD_ELECTION_TIMEOUT`：选举超时，单位毫秒，应大于心跳间隔；根据网络 RTT 调优。
 - `ETCD_QUOTA_BACKEND_BYTES`：后端数据库配额，示例 8 GiB；需监控告警并安全执行压缩/碎片整理。
-- `--initial-cluster`：三成员 peer 映射必须在所有成员上完全一致。
+- `--initial-cluster`：由全部 Master 动态生成的 peer 映射，必须在所有成员上完全一致。
 - `--initial-cluster-state=new`：仅用于首次创建集群，不可用作恢复手段。
 - `--listen-client-urls`：客户端监听地址，TCP/2379，仅允许 API Server 和授权运维端访问。
 - `--listen-peer-urls`：成员间监听地址，TCP/2380，仅允许 etcd 成员访问。
@@ -69,7 +69,7 @@
 - `--secure-port`：HTTPS API 端口，默认 6443。
 - `--authorization-mode=Node,RBAC`：Node Authorizer 与 RBAC。
 - `--enable-admission-plugins=NodeRestriction`：限制节点身份可执行的操作。
-- `--etcd-servers`：三台 etcd TLS 客户端端点。
+- `--etcd-servers`：由全部 Master 动态生成的 etcd TLS 客户端端点。
 - `--service-account-issuer` 及签名密钥：ServiceAccount Token 的签发者和签名配置。
 
 ## Controller Manager、Scheduler、Kubelet 与 containerd
@@ -89,7 +89,7 @@
 ## NGINX 本地 API 代理
 
 - NGINX 仅部署在 Worker，监听 `127.0.0.1:6443`。
-- 上游为三台 Master 的 TCP/6443。
+- 上游为全部 Master 的 TCP/6443，由节点清单动态生成。
 - NGINX 使用 stream TCP 透传，不终止 TLS。
 - API Server 证书 SAN 必须包含 `127.0.0.1` 和所有 Master IP。
 - Docker 仅在 GitHub Actions 构建任务中使用；Worker 从对应 Release 下载 NGINX 资产并验证 SHA256。
