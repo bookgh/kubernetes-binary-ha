@@ -10,7 +10,7 @@ KUBECONFIG="${KUBECONFIG:-$HOME/.kube/config}"
 export KUBECONFIG
 [[ -s "$KUBECONFIG" ]] || die "缺少管理员 kubeconfig"
 : "${COREDNS_IMAGE:?请在 config/cluster.env 设置已同步到私有仓库的 COREDNS_IMAGE}"
-TEMPLATE="$ROOT/manifests/coredns.yaml.template"
+TEMPLATE="$ROOT/offline/manifests/coredns.yaml.template"
 [[ -s "$TEMPLATE" ]] || die "缺少 manifests/coredns.yaml.template"
 mkdir -p "$ROOT/generated"
 sed -e "s#__CLUSTER_DOMAIN__#${CLUSTER_DOMAIN}#g" -e "s#__DNS_SERVICE_IP__#${DNS_SERVICE_IP}#g" -e "s#__COREDNS_IMAGE__#${COREDNS_IMAGE}#g" "$TEMPLATE" > "$ROOT/generated/coredns.yaml"
