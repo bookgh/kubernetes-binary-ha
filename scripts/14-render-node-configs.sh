@@ -51,6 +51,8 @@ if [[ "${RUNTIME_TYPE:-containerd}" == containerd ]]; then
   fi
   if grep -qE "^[[:space:]]*config_path[[:space:]]*=" "$COMMON/etc/containerd/config.toml"; then
     sed -i -E 's#^[[:space:]]*config_path[[:space:]]*=.*#  config_path = "/etc/containerd/certs.d"#' "$COMMON/etc/containerd/config.toml"
+  elif grep -Fq "[plugins.'io.containerd.cri.v1.images'.registry]" "$COMMON/etc/containerd/config.toml"; then
+    sed -i "/^\\[plugins.'io.containerd.cri.v1.images'.registry\\]/a\\  config_path = \"/etc/containerd/certs.d\"" "$COMMON/etc/containerd/config.toml"
   else
     cat >> "$COMMON/etc/containerd/config.toml" <<'EOF'
 
@@ -75,7 +77,7 @@ elif [[ "${RUNTIME_TYPE:-containerd}" == docker ]]; then
   "storage-driver": "overlay2",
   "log-driver": "json-file",
   "log-opts": {"max-size": "100m", "max-file": "5"},
-    "insecure-registries": ["${HARBOR_HOST}"]
+  "insecure-registries": ["${HARBOR_HOST}"]
 }
 EOF
 fi
