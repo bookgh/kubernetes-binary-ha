@@ -1,1 +1,13 @@
-{"CN":"etcd-member","key":{"algo":"rsa","size":2048},"names":[{"O":"etcd","OU":"etcd Server"}]}
+{
+  "CN": "etcd-member",
+  "key": {
+    "algo": "rsa",
+    "size": 2048
+  },
+  "names": [
+    {
+      "O": "etcd",
+      "OU": "etcd Server"
+    }
+  ]
+}
