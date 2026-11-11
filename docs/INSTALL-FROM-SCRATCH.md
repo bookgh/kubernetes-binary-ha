@@ -14,7 +14,7 @@ sudo bash scripts/00-install.sh all
 
 
 
-> **重要边界：** 本仓库自动化覆盖系统二进制、CFSSL、Helm、Calicoctl、crictl、Docker/Compose、RPM、etcd、Calico 安装清单和 CoreDNS 清单。Calico/CoreDNS/pause 等容器镜像仍需提前同步到所有节点可访问的私有镜像仓库；镜像不是 Release 中的二进制文件。当前 API 入口没有外部 LB/VIP，管理端 API_DNS 指向单台 Master，不具备入口层 HA。
+> **拓扑变更边界：** `MASTER_COUNT` 动态决定新集群初始化时的 Master/Worker 分组。修改配置后必须重新执行 `prepare`，重新渲染并分发证书和节点配置。此配置不是运行中 etcd 集群的扩缩容接口；已有集群不得只修改 `MASTER_COUNT` 后重新执行 `etcd`。运行中成员增删必须单独使用 etcd member add/remove 流程，更新证书、控制平面和代理配置，并先备份、逐步验收。证书脚本会复用既有 CA/叶子证书并拒绝覆盖不完整文件；当拓扑变化导致 API Server SAN 不再匹配时，必须按证书轮换流程处理，不能删除 CA 或 etcd 数据目录来绕过检查。\n\n> **重要边界：** 本仓库自动化覆盖系统二进制、CFSSL、Helm、Calicoctl、crictl、Docker/Compose、RPM、etcd、Calico 安装清单和 CoreDNS 清单。Calico/CoreDNS/pause 等容器镜像仍需提前同步到所有节点可访问的私有镜像仓库；镜像不是 Release 中的二进制文件。当前 API 入口没有外部 LB/VIP，管理端 API_DNS 指向单台 Master，不具备入口层 HA。
 
 ## 0. 部署拓扑与网络前置条件
 
