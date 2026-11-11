@@ -11,6 +11,7 @@ KUBECTL="$OFF/bin/kubectl"
 [[ -x "$KUBECTL" ]] || KUBECTL="$(command -v kubectl || true)"
 [[ -n "$KUBECTL" && -x "$KUBECTL" ]] || die "找不到 kubectl"
 KUBECONFIG="${KUBECONFIG:-$HOME/.kube/config}"
+export KUBECONFIG
 [[ -s "$KUBECONFIG" ]] || die "缺少 kubeconfig：$KUBECONFIG"
 
 log "1/5 检查 etcd endpoint、成员数量和 quorum"
