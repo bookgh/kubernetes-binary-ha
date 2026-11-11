@@ -10,7 +10,7 @@ sudo bash scripts/00-install.sh all
 
 该入口按依赖顺序完成：Release 离线资源下载与校验、部署机 RPM/CLI 安装、SSH 公钥登录、CFSSL PKI、kubeconfig、节点配置渲染与分发、六节点系统预检、容器运行时、systemd/内核参数、etcd、控制平面、Worker、NGINX、Calico、CoreDNS 和最终健康检查。
 
-> 一条命令不代表跳过环境准备。首次运行前仍须填写 `config/cluster.env`，发布并确认对应 GitHub Release 资产可下载，并将 Kubernetes pause、Calico、CoreDNS 等 OCI 镜像推送到所有节点可访问的私有仓库；其中 `PAUSE_IMAGE` 和 `COREDNS_IMAGE` 必须以 `PRIVATE_REGISTRY/` 开头。当前 Release 不含 OCI 镜像。请先核验 SSH host key 指纹；首次配置公钥时脚本会逐台提示输入 root 密码。
+> 一条命令不代表跳过环境准备。首次运行前仍须填写 `config/cluster.env`，发布并确认对应 GitHub Release 资产可下载，并将 Kubernetes pause、Calico、CoreDNS 等 OCI 镜像推送到所有节点可访问的私有仓库；其中 `PAUSE_IMAGE` 和 `COREDNS_IMAGE` 必须以 `PRIVATE_REGISTRY/` 开头。当前 Release 不含 OCI 镜像。请先核验 SSH host key 指纹；首次配置公钥时脚本会逐台提示输入 root 密码；部署专用无口令密钥保存在部署机 `~/.ssh/kubernetes-binary-ha_ed25519`，并为节点 IP 写入 SSH config，供 SCP/rsync 和批量执行复用。
 
 ## 2. 安装参数
 
