@@ -91,9 +91,15 @@ net.ipv4.conf.default.rp_filter = 0
 EOF
 
 ETCD_INITIAL_CLUSTER=""
+ETCD_SERVERS=""
+NGINX_UPSTREAM_SERVERS=""
 for i in "${!MASTER_NAMES[@]}"; do
   [[ -n "$ETCD_INITIAL_CLUSTER" ]] && ETCD_INITIAL_CLUSTER+=","
+  [[ -n "$ETCD_SERVERS" ]] && ETCD_SERVERS+=","
   ETCD_INITIAL_CLUSTER+="${MASTER_NAMES[$i]}=https://${MASTER_IPS[$i]}:2380"
+  ETCD_SERVERS+="https://${MASTER_IPS[$i]}:2379"
+  NGINX_UPSTREAM_SERVERS+="server ${MASTER_IPS[$i]}:6443 max_fails=2 fail_timeout=5s;"
+  if (( i + 1 < ${#MASTER_NAMES[@]} )); then NGINX_UPSTREAM_SERVERS+=$'\\n        '; fi
 done
 
 NODES=("${ALL_NAMES[@]}")
@@ -113,10 +119,9 @@ for i in "${!NODES[@]}"; do
       "$ROOT/config/kube-proxy-config.yaml" > "$dir/var/lib/kube-proxy/config.yaml"
   if [[ "$node" == worker-* ]]; then
     install -d -m 0700 "$dir/etc/nginx"
-    sed -e "s/__MASTER1_IP__/${MASTER1_IP}/g" \
-        -e "s/__MASTER2_IP__/${MASTER2_IP}/g" \
-        -e "s/__MASTER3_IP__/${MASTER3_IP}/g" \
-        "$ROOT/config/nginx-stream.conf.template" > "$dir/etc/nginx/nginx.conf"
+    awk -v servers="$NGINX_UPSTREAM_SERVERS" '{ gsub(/__MASTER_UPSTREAM_SERVERS__/, servers); print }' \
+      "$ROOT/config/nginx-stream.conf.template" > "$dir/etc/nginx/nginx.conf"
+    grep -q "server .*:6443" "$dir/etc/nginx/nginx.conf" || die "NGINX upstream 未生成任何 Master endpoint：$node"
   fi
   cat > "$dir/etc/kubernetes/cluster.env" <<EOF
 NODE_NAME=${node}
@@ -127,9 +132,8 @@ API_DNS=${API_DNS}
 API_PORT=${API_PORT}
 POD_CIDR=${POD_CIDR}
 SERVICE_CIDR=${SERVICE_CIDR}
-MASTER1_IP=${MASTER1_IP}
-MASTER2_IP=${MASTER2_IP}
-MASTER3_IP=${MASTER3_IP}
+MASTER_COUNT=${MASTER_COUNT}
+ETCD_SERVERS=${ETCD_SERVERS}
 ETCD_INITIAL_CLUSTER=${ETCD_INITIAL_CLUSTER}
 ETCD_HEARTBEAT_INTERVAL=${ETCD_HEARTBEAT_INTERVAL}
 ETCD_ELECTION_TIMEOUT=${ETCD_ELECTION_TIMEOUT}
