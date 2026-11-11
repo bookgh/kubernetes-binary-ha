@@ -38,7 +38,7 @@ NGINX 不再由运维人员在暂存机手动构建。所有二进制资源（�
 
 ### 新版 Release 内容与证书方式
 
-当前离线发布修订号由 config/release-versions.env 的 RELEASE_REVISION 控制，当前版本使用 tag k8s-v1.37.2-r2。离线归档包含 CFSSL/cfssljson、Helm、Calicoctl、crictl、etcd、containerd、CNI plugins、Docker Engine、cri-dockerd、Docker Compose、Rocky Linux 9 RPM 及依赖；完整清单见归档内 ARTIFACTS.txt 和 SHA256SUMS。
+当前离线发布修订号由 config/release-versions.env 的 RELEASE_REVISION 控制，当前修订使用 tag `k8s-v1.37.2-r3`。离线归档包含 CFSSL/cfssljson、Helm、Calicoctl、crictl、etcd、containerd、CNI plugins、Docker Engine、cri-dockerd、Docker Compose、Rocky Linux 9 RPM 及依赖；另含 Harbor 官方离线安装器，以及 CoreDNS、pause、Calico 和 NodeLocal DNSCache 镜像归档。完整清单见归档内 `ARTIFACTS.txt`、`IMAGE-REFERENCES.txt` 和 `SHA256SUMS`。
 
 证书配置模板统一存放在 config/cfssl/，scripts/03-generate-pki.sh 使用 CFSSL 签发 X.509 证书，并为节点证书通过 -hostname 传入节点主机名和内网 IP。实际私钥与签发证书保留在部署机 pki/，不得提交到仓库。
 
@@ -60,9 +60,9 @@ sudo bash scripts/15-distribute-node-configs.sh
 1. 在仓库创建 Issue，标题或正文填写 Kubernetes 版本，例如 `v1.37.2`。
 2. 为 Issue 添加 `build-offline` 标签。
 3. Actions 自动调用 `scripts/ci/build-offline-release.sh`。
-4. 脚本读取 `config/release-versions.env` 中的组件版本，统一下载 Kubernetes、etcd、containerd、runc、CNI、crictl、CFSSL、Helm、Calicoctl、Docker Engine、cri-dockerd、Docker Compose，并在 Rocky Linux 9 容器中解析下载 RPM 依赖和 Calico 清单。
+4. 脚本读取 `config/release-versions.env` 中的组件版本，统一下载 Kubernetes、etcd、containerd、runc、CNI、crictl、CFSSL、Helm、Calicoctl、Docker Engine、cri-dockerd、Docker Compose、Harbor offline installer，并在 Rocky Linux 9 容器中解析下载 RPM 依赖和 Calico 清单；同时拉取基础 OCI 镜像并打包。
 5. 脚本通过 `nginx/Dockerfile` 在 Rocky Linux 9 容器构建环境源码编译 NGINX stream 二进制。
-6. 发布 `k8s-vX.Y.Z-rN` Release，包含离线资源包、NGINX 独立二进制和 SHA256 文件；当前修订号为 r2。
+6. 发布 `k8s-vX.Y.Z-rN` Release，包含离线资源包、NGINX 独立二进制和 SHA256 文件；当前修订号为 r3。
 
 ### 手动触发
 
@@ -76,7 +76,7 @@ sudo bash scripts/15-distribute-node-configs.sh
 - Workflow YAML 只负责事件过滤、checkout 和调用仓库脚本，不重复维护 URL、版本矩阵或构建命令。
 - 修改构建流程时优先修改脚本和配置，不要在 Workflow 中复制构建实现。
 
-> Release 已包含本项目所需的 Rocky Linux 9 RPM 包及其依赖，但不包含完整系统仓库快照和 OCI 容器镜像。Calico、CoreDNS、pause 及业务镜像需要按目标版本单独同步到私有仓库或制作 OCI 归档。
+> Release 已包含 Harbor 官方离线安装器和项目明确列出的基础 OCI 镜像归档，但不包含完整 Rocky Linux 系统仓库快照，也不包含任意业务/扩展组件镜像。
 
 ## 统一安装入口（一条命令部署）
 
@@ -86,9 +86,9 @@ sudo bash scripts/15-distribute-node-configs.sh
 sudo bash scripts/00-install.sh all
 ~~~
 
-统一入口会按依赖顺序完成离线资源下载与校验、部署机工具安装、SSH 公钥配置、CFSSL 证书、kubeconfig、节点配置生成与分发、全部节点系统优化、运行时、etcd、控制平面、Worker、NGINX、Calico、CoreDNS 和最终验收。
+统一入口会按依赖顺序完成离线资源下载与校验、部署机工具安装、SSH 公钥配置、CFSSL 证书、kubeconfig、节点配置生成与分发、全部节点系统优化、运行时和 systemd、Harbor 部署与基础镜像导入、etcd、控制平面、Worker、NGINX、Calico、CoreDNS 和最终验收。
 
-支持按阶段执行：`prepare`（预处理）、`download`、`ssh`、`certs`、`system`、`etcd`、`control-plane`、`workers`、`calico`、`coredns`、`verify`、`status`。先执行预处理，再执行组件安装：
+支持按阶段执行：`prepare`（预处理）、`download`、`ssh`、`certs`、`system`、`harbor`、`etcd`、`control-plane`、`workers`、`calico`、`coredns`、`verify`、`status`。先执行预处理，再执行组件安装：
 
 ~~~bash
 sudo bash scripts/00-install.sh prepare
@@ -99,7 +99,7 @@ sudo bash scripts/00-install.sh verify
 
 `etcd`、`control-plane` 和 `workers` 等组件阶段不会自动安装前置依赖或生成证书；执行前会检查所需证书及节点分发状态，缺失时提示先运行 `prepare` 并退出。`all` 会显式先运行预处理，再部署所有组件。入口和每个节点均有独立执行锁、完成/失败标记、脚本及配置指纹和日志。失败后修复问题，再次执行同一命令即可跳过已完成且健康的阶段，继续失败阶段。etcd 已有数据时不会重新初始化；CFSSL 已生成的 CA、证书和 ServiceAccount 密钥会复用，防止重跑覆盖密钥。
 
-详细说明见 [docs/UNIFIED-INSTALLER.md](docs/UNIFIED-INSTALLER.md)。注意：Release 不含 OCI 容器镜像；运行 `all` 前仍需把 Calico、CoreDNS、pause 等镜像同步到节点可访问的私有仓库。
+详细说明见 [docs/UNIFIED-INSTALLER.md](docs/UNIFIED-INSTALLER.md)。`prepare` 完成后，`all` 会在 etcd 之前自动安装 Harbor 并导入基础镜像；也可单独运行 `sudo bash scripts/00-install.sh harbor`。当前 Harbor 默认通过 HTTP/80 访问，运行时配置为 insecure registry，而不是 TLS CA 证书信任。
 
 ## 五、集中式部署与配置分发
 
@@ -110,7 +110,7 @@ sudo bash scripts/14-render-node-configs.sh
 sudo bash scripts/15-distribute-node-configs.sh
 ```
 
-第一个脚本在本地 `generated/<node>/` 生成每台节点的 `cluster.env`、kubelet、kube-proxy、NGINX stream 配置，以及 containerd/Docker、crictl 公共配置；同时在 `generated/common/etc/` 生成内核模块清单和 sysctl 文件。第二个脚本通过 rsync/SCP 批量分发项目、离线资源、配置、证书和节点 kubeconfig。请先检查生成目录，再执行分发。远程安装脚本只安装二进制、应用已分发的内核配置、部署 systemd 单元并校验配置，不再用 heredoc 临时创建服务配置。
+第一个脚本在本地 `generated/<node>/` 生成每台节点的 `cluster.env`、kubelet、kube-proxy、NGINX stream 配置，以及 containerd/Docker、crictl 和 Harbor HTTP registry 信任配置；同时在 `generated/common/etc/` 生成内核模块清单和 sysctl 文件。第二个脚本通过 rsync/SCP 批量分发项目、离线资源、配置、证书和节点 kubeconfig。请先检查生成目录，再执行分发。远程安装脚本只安装二进制、应用已分发的内核配置、部署 systemd 单元并校验配置，不再用 heredoc 临时创建服务配置。
 
 ### 容器运行时选择
 
