@@ -38,7 +38,7 @@ NGINX 不再由运维人员在暂存机手动构建。所有二进制资源（�
 
 ### 新版 Release 内容与证书方式
 
-当前离线发布修订号由 config/release-versions.env 的 RELEASE_REVISION 控制，当前修订使用 tag `k8s-v1.37.2-r6`。离线归档包含 CFSSL/cfssljson、Helm、Calicoctl、crictl、etcd、containerd、CNI plugins、Docker Engine、cri-dockerd、Docker Compose、Rocky Linux 9 RPM 及依赖；另含 Harbor 官方离线安装器、Calico/CoreDNS Helm Charts，以及 pause、Calico 和 NodeLocal DNSCache 镜像归档。完整清单见归档内 `ARTIFACTS.txt`、`IMAGE-REFERENCES.txt` 和 `SHA256SUMS`。
+当前离线发布修订号由 config/release-versions.env 的 RELEASE_REVISION 控制，当前修订使用 tag `k8s-v1.37.2-r7`。离线归档包含 CFSSL/cfssljson、Helm、Calicoctl、crictl、etcd、containerd、CNI plugins、Docker Engine、cri-dockerd、Docker Compose、Rocky Linux 9 RPM 及依赖；另含 Harbor 官方离线安装器、Calico/CoreDNS Helm Charts，以及 pause、Calico、NodeLocal DNSCache 和 BusyBox 网络验收镜像归档。完整清单见归档内 `ARTIFACTS.txt`、`IMAGE-REFERENCES.txt` 和 `SHA256SUMS`。
 
 证书配置模板统一存放在 config/cfssl/，scripts/03-generate-pki.sh 使用 CFSSL 签发 X.509 证书，并为节点证书通过 -hostname 传入节点主机名和内网 IP。实际私钥与签发证书保留在部署机 pki/，不得提交到仓库。
 
@@ -53,7 +53,7 @@ sudo bash scripts/14-render-node-configs.sh
 sudo bash scripts/15-distribute-node-configs.sh
 ~~~
 
-集群安装完成后，执行 scripts/19-install-calico.sh、scripts/20-install-coredns.sh 和 scripts/18-verify-cluster.sh 验证网络与组件健康。
+集群安装完成后，依次执行 scripts/19-install-calico.sh、scripts/20-install-coredns.sh、scripts/25-install-node-local-dns.sh 和 scripts/18-verify-cluster.sh。最终验收会强制从 Harbor 拉取 BusyBox，并验证 Pod DNS、跨节点 Pod IP 与 ClusterIP Service。
 
 ### Issue 触发
 
@@ -86,9 +86,9 @@ sudo bash scripts/15-distribute-node-configs.sh
 sudo bash scripts/00-install.sh all
 ~~~
 
-统一入口会按依赖顺序完成离线资源下载与校验、部署机工具安装、SSH 公钥配置、CFSSL 证书、kubeconfig、节点配置生成与分发、全部节点系统优化、运行时和 systemd、Harbor 部署与基础镜像导入、etcd quorum 验证、全部 Master API `/readyz` 验证、Worker NGINX/kubelet、Calico、CoreDNS 和最终验收。
+统一入口会按依赖顺序完成离线资源下载与校验、部署机工具安装、SSH 公钥配置、CFSSL 证书、kubeconfig、节点配置生成与分发、全部节点系统优化、运行时和 systemd、Harbor 部署与基础镜像导入、etcd quorum 验证、全部 Master API `/readyz` 验证、Worker NGINX/kubelet、Calico、CoreDNS、NodeLocal DNSCache 和 Harbor/DNS/跨节点网络自动验收。
 
-支持按阶段执行：`prepare`（预处理）、`download`、`ssh`、`certs`、`system`、`harbor`、`etcd`、`control-plane`、`workers`、`calico`、`coredns`、`verify`、`status`。先执行预处理，再执行组件安装：
+支持按阶段执行：`prepare`（预处理）、`download`、`ssh`、`certs`、`system`、`harbor`、`etcd`、`control-plane`、`workers`、`calico`、`coredns`、`node-local-dns`、`verify`、`status`。先执行预处理，再执行组件安装：
 
 ~~~bash
 sudo bash scripts/00-install.sh prepare
@@ -110,7 +110,7 @@ sudo bash scripts/14-render-node-configs.sh
 sudo bash scripts/15-distribute-node-configs.sh
 ```
 
-第一个脚本在本地 `generated/<node>/` 生成每台节点的 `cluster.env`、kubelet、kube-proxy、NGINX stream 配置，以及 containerd/Docker、crictl 和 Harbor HTTP registry 信任配置；同时在 `generated/common/etc/` 生成内核模块清单和 sysctl 文件。第二个脚本通过 rsync/SCP 批量分发项目、离线资源、配置、证书和节点 kubeconfig。请先检查生成目录，再执行分发。远程安装脚本只安装二进制、应用已分发的内核配置、部署 systemd 单元并校验配置，不再用 heredoc 临时创建服务配置。
+第一个脚本在本地 `generated/<node>/` 生成每台节点的 `cluster.env`、kubelet（`clusterDNS` 指向 `NODE_LOCAL_DNS_IP`，默认 `169.254.20.10`）、kube-proxy、NGINX stream 配置，以及 containerd/Docker、crictl 和 Harbor HTTP registry 信任配置；同时在 `generated/common/etc/` 生成内核模块清单和 sysctl 文件。第二个脚本通过 rsync/SCP 批量分发项目、离线资源、配置、证书和节点 kubeconfig。请先检查生成目录，再执行分发。远程安装脚本只安装二进制、应用已分发的内核配置、部署 systemd 单元并校验配置，不再用 heredoc 临时创建服务配置。
 
 ### 容器运行时选择
 
@@ -172,9 +172,9 @@ sudo bash scripts/16-batch-exec.sh workers 09-start-worker.sh --parallel
 
 ### 6.3 后续集群组件
 
-1. 确认 Harbor 已健康且离线镜像已导入，再执行 scripts/19-install-calico.sh 和 scripts/20-install-coredns.sh；两个脚本只使用 offline/helm 内的本地 Chart。
+1. 确认 Harbor 已健康且离线镜像已导入，再依次执行 scripts/19-install-calico.sh、scripts/20-install-coredns.sh 和 scripts/25-install-node-local-dns.sh；Helm Chart 和 NodeLocal DNSCache 镜像均来自离线包/Harbor。
 2. 确认全部镜像已同步到私有仓库或导入节点。
-3. 执行网络、Service、NodePort、DNS 和故障切换验收。
+3. 执行 `sudo bash scripts/18-verify-cluster.sh`，自动验证 Harbor 镜像拉取、Pod DNS、跨节点 Pod IP 和 ClusterIP Service。NodeLocal DNSCache 必须在全部节点 Ready。
 4. 使用 `kubectl get nodes -o wide` 检查节点状态。
 
 `scripts/12-build-nginx-binary.sh` 已保留为兼容提示入口，不再执行本地构建。NGINX 必须来自对应 Kubernetes Release 离线包。
