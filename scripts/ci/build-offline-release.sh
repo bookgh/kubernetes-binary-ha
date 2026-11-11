@@ -205,9 +205,28 @@ EOF
   while IFS= read -r image_ref; do
     [[ "$image_ref" =~ ^[A-Za-z0-9][A-Za-z0-9._:/@+-]*$ ]] || continue
     case "$image_ref" in
-      calico/*|tigera/*) image_ref="quay.io/$image_ref" ;;
+      calico/*)
+        [[ "$image_ref" == *:* || "$image_ref" == *@* ]] || image_ref="${image_ref}:${CALICO_VERSION}"
+        image_ref="quay.io/$image_ref"
+        ;;
+      tigera/operator)
+        image_ref="quay.io/$image_ref:${TIGERA_OPERATOR_VERSION}"
+        ;;
+      tigera/*)
+        [[ "$image_ref" == *:* || "$image_ref" == *@* ]] || image_ref="${image_ref}:${CALICO_VERSION}"
+        image_ref="quay.io/$image_ref"
+        ;;
+      quay.io/calico/*)
+        [[ "$image_ref" == *:* || "$image_ref" == *@* ]] || image_ref="${image_ref}:${CALICO_VERSION}"
+        ;;
+      quay.io/tigera/operator)
+        image_ref="${image_ref}:${TIGERA_OPERATOR_VERSION}"
+        ;;
+      quay.io/tigera/*)
+        [[ "$image_ref" == *:* || "$image_ref" == *@* ]] || image_ref="${image_ref}:${CALICO_VERSION}"
+        ;;
     esac
-    [[ "$image_ref" == */* && "$image_ref" == *:* ]] || continue
+    [[ "$image_ref" == */* && ( "$image_ref" == *:* || "$image_ref" == *@* ) ]] || continue
     printf '  - name: calico-image-%03d\n    image: "%s"\n' "$index" "$image_ref"
     index=$((index + 1))
   done < "$WORK/calico-operator-images.txt"
