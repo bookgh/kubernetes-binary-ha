@@ -10,13 +10,13 @@
 sudo bash scripts/00-install.sh all
 ~~~
 
-`all` 会显式先执行预处理，再依序部署 etcd、控制平面、Worker 和集群组件。若选择分阶段安装，必须先执行 `sudo bash scripts/00-install.sh prepare`；随后 `etcd`、`workers` 等组件命令只做前置证书检查，不会自动生成证书或安装依赖。缺少证书时会提示并退出。入口记录本地和各节点的完成/失败标记，失败后修复再运行同一命令即可断点续装。详见 [docs/UNIFIED-INSTALLER.md](UNIFIED-INSTALLER.md)。
+`all` 会显式先执行预处理，再部署 Harbor 并导入基础镜像，然后依序部署 etcd、控制平面、Worker 和集群组件。若选择分阶段安装，必须先执行 `sudo bash scripts/00-install.sh prepare`；随后 `etcd`、`workers` 等组件命令只做前置证书检查，不会自动生成证书或安装依赖。缺少证书时会提示并退出。入口记录本地和各节点的完成/失败标记，失败后修复再运行同一命令即可断点续装。详见 [docs/UNIFIED-INSTALLER.md](UNIFIED-INSTALLER.md)。
 
 
 
 > **拓扑变更边界：** `MASTER_COUNT` 动态决定新集群初始化时的 Master/Worker 分组。修改配置后必须重新执行 `prepare`，重新渲染并分发证书和节点配置。此配置不是运行中 etcd 集群的扩缩容接口；已有集群不得只修改 `MASTER_COUNT` 后重新执行 `etcd`。运行中成员增删必须单独使用 etcd member add/remove 流程，更新证书、控制平面和代理配置，并先备份、逐步验收。证书脚本会复用既有 CA/叶子证书并拒绝覆盖不完整文件；当拓扑变化导致 API Server SAN 不再匹配时，必须按证书轮换流程处理，不能删除 CA 或 etcd 数据目录来绕过检查。
 
-> **重要边界：** 本仓库自动化覆盖系统二进制、CFSSL、Helm、Calicoctl、crictl、Docker/Compose、RPM、etcd、Calico 安装清单和 CoreDNS 清单。Calico/CoreDNS/pause 等容器镜像仍需提前同步到所有节点可访问的私有镜像仓库；镜像不是 Release 中的二进制文件。当前 API 入口没有外部 LB/VIP，管理端 API_DNS 指向单台 Master，不具备入口层 HA。
+> **重要边界：** 本仓库 Release 包含 Harbor 官方离线安装器，以及 CoreDNS、pause、Calico、NodeLocal DNSCache 等基础 OCI 镜像归档。业务镜像和未列入归档的 Operator/CSI/监控镜像仍需单独纳入。Harbor 默认通过 HTTP/80 + nip.io 访问，运行时配置为 HTTP insecure registry；HTTP 不存在 TLS CA 证书信任。当前 API 入口没有外部 LB/VIP，管理端 API_DNS 指向单台 Master，不具备入口层 HA。
 
 ## 0. 部署拓扑与网络前置条件
 
@@ -46,14 +46,14 @@ vi config/cluster.env
 - API_DNS 必须解析到可达 Master IP。当前没有 VIP/LB，DNS 解析不提供高可用。
 - RUNTIME_TYPE=containerd 或 RUNTIME_TYPE=docker。Docker 模式必须使用 cri-dockerd。
 - KUBE_PROXY_MODE=nftables 或 ipvs。Kubernetes 1.37 新部署推荐 nftables；IPVS 已弃用，使用前应确认内核模块和 kube-proxy 支持。
-- PRIVATE_REGISTRY、COREDNS_IMAGE、PAUSE_IMAGE 必须指向真实可达、已准备镜像的仓库。
+- `HARBOR_NODE_IP` 必须是 `NODE_IPS` 中的一个节点；`HARBOR_HOST` 使用 `harbor.<HARBOR_NODE_IP>.nip.io`，`HARBOR_URL` 使用 `http://`。\n- `PRIVATE_REGISTRY` 默认设置为 `${HARBOR_HOST}/library`；`COREDNS_IMAGE`、`PAUSE_IMAGE`、`CALICO_NODE_IMAGE`、`NODE_LOCAL_DNS_IMAGE` 指向 Harbor 中对应镜像。\n- `SSH_USER`、`SSH_PASSWORD`、`SSH_PORT` 控制公钥分发；非 root SSH 账号必须具备免密 sudo。
 - KUBERNETES_SERVICE_IP 必须是 SERVICE_CIDR 中 Kubernetes API Service 使用的 IP，默认 10.96.0.1，并进入 apiserver 证书 SAN。
 
 版本清单集中在 config/release-versions.env，集群参数集中在 config/cluster.env。修改版本后必须重新构建一个新的、不可覆盖的 Release tag。
 
 ## 2. 构建并发布离线 Release
 
-GitHub Actions 的离线 Release workflow 使用 scripts/ci/build-offline-release.sh 构建。为目标 Kubernetes 版本触发 workflow，构建完成后应在 GitHub Releases 中看到 k8s-v1.37.2-r2（tag 由 RELEASE_REVISION 控制）。
+GitHub Actions 的离线 Release workflow 使用 scripts/ci/build-offline-release.sh 构建。为目标 Kubernetes 版本触发 workflow，构建完成后应在 GitHub Releases 中看到 k8s-v1.37.2-r3（tag 由 RELEASE_REVISION 控制）。
 
 离线包归档内含：
 - Kubernetes server/client 二进制、etcd、containerd、runc、CNI plugins、crictl；
@@ -72,7 +72,7 @@ sudo dnf install -y --disablerepo="*" offline/rpms/*.rpm
 sudo bash scripts/17-install-cli-tools.sh
 ~~~
 
-01 会下载 Release 归档和 SHA256，校验外层及内部 SHA256SUMS，并将离线内容放入仓库根目录 offline/。RPM 包来自 Release，不再要求部署机访问 Rocky Linux 软件源。部署机本地安装 Helm、Calicoctl、crictl、CFSSL 和 cfssljson，便于后续管理和验收。
+01 会下载 Release 归档和 SHA256，校验外层及内部 SHA256SUMS，并将离线内容放入仓库根目录 offline/。RPM 包来自 Release，不再要求部署机访问 Rocky Linux 软件源。部署机本地安装 Helm、Calicoctl、crictl、CFSSL 和 cfssljson，便于后续管理和验收。离线资源目录同时包含 Harbor 安装器与 Kubernetes 镜像归档。
 
 如果部署机与实际执行下载的暂存机分离，将完整 offline/ 目录安全复制到部署机项目根目录，并再次执行：
 
@@ -141,7 +141,17 @@ sysctl net.ipv4.ip_forward
 - Docker 模式：Docker Engine + cri-dockerd + Compose plugin；kubelet 连接 /run/cri-dockerd.sock，不能将 Docker Engine socket 当作 CRI endpoint。
 - IPVS 模式检查 ipvsadm -Ln；nftables 模式检查 nft list ruleset。不要在集群运行后随意切换模式。
 
-## 7. 启动 etcd 集群并验证 quorum
+## 7. 部署 Harbor 并导入镜像，然后启动 etcd 集群
+
+在第 6 节全部节点预处理、运行时安装和配置分发完成后，先部署 Harbor：
+
+~~~bash
+sudo bash scripts/00-install.sh harbor
+~~~
+
+Harbor 部署在 `HARBOR_NODE_IP` 指定节点，默认使用 `http://harbor.<节点IP>.nip.io`。脚本会安装 Docker Engine/Compose（即使 Kubernetes 节点使用 containerd）、运行 Harbor 官方离线安装器、导入 `offline/images/kubernetes-images-linux-amd64.tar`，并将镜像推送到 `PRIVATE_REGISTRY`。Harbor 管理员密码和数据库密码在 Harbor 节点生成，保存在 `/root/harbor-credentials`，权限为 0600。
+
+运行时预处理阶段已经配置 registry trust：containerd 使用 `/etc/containerd/certs.d/<HARBOR_HOST>/hosts.toml`，Docker 使用 `insecure-registries`。由于当前 Harbor URL 为 HTTP，此配置不是 TLS CA 信任。完成 Harbor 健康检查和镜像推送后，才允许继续 etcd 阶段。
 
 ~~~bash
 sudo bash scripts/16-batch-exec.sh masters 07-bootstrap-etcd.sh --parallel
@@ -174,26 +184,17 @@ Worker NGINX 是 TLS passthrough，监听本机 127.0.0.1:6443，向全部 Maste
 
 ## 9. 镜像同步、安装 Calico 和 CoreDNS
 
-### 9.1 镜像准备
+### 9.1 镜像准备与验收
 
-离线 Release 包含清单和二进制，不包含 OCI 镜像。需在可访问上游镜像的暂存机拉取并推送至私有仓库。至少准备：
-- quay.io/tigera/operator:v3.33.0；
-- Calico v3.33.0 对应的 calico/node、calico/cni、calico/kube-controllers（以及 Operator 清单/Installation 实际引用的其他镜像）；
-- coredns/coredns:v1.13.1；
-- registry.k8s.io/pause:3.10。
+CoreDNS、pause、Calico Node/CNI/kube-controllers、Tigera Operator 和 NodeLocal DNSCache 已由 Actions 打包，并在 Harbor 阶段自动导入/推送。无需再手工执行 docker pull/tag/push。可在 Harbor UI 或 API 中确认以下镜像路径：
 
-示例（根据企业仓库命名规则调整）：
+- `$COREDNS_IMAGE`
+- `$PAUSE_IMAGE`
+- `$CALICO_NODE_IMAGE`
+- `$NODE_LOCAL_DNS_IMAGE`
+- `$PRIVATE_REGISTRY/tigera/operator:$CALICO_VERSION`
 
-~~~bash
-docker pull quay.io/tigera/operator:v3.33.0
-docker tag quay.io/tigera/operator:v3.33.0 "$PRIVATE_REGISTRY/tigera/operator:v3.33.0"
-docker push "$PRIVATE_REGISTRY/tigera/operator:v3.33.0"
-docker pull coredns/coredns:v1.13.1
-docker tag coredns/coredns:v1.13.1 "$COREDNS_IMAGE"
-docker push "$COREDNS_IMAGE"
-~~~
-
-Calico 其他镜像按 offline/manifests/tigera-operator.yaml 与 Operator 生成的资源逐项同步。确认全部节点都能访问仓库、信任仓库 CA，并已配置拉取凭据（如仓库启用认证）。
+NodeLocal DNSCache 镜像目前只纳入离线归档并推送到 Harbor；本仓库尚未新增 NodeLocal DNSCache DaemonSet 部署阶段。业务镜像及其他未列入基础归档的依赖仍需自行准备。
 
 ### 9.2 安装 Calico VXLAN
 
