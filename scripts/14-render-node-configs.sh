@@ -5,7 +5,7 @@ source "$(dirname "$0")/lib.sh"
 require_root
 : "${NODE_LOCAL_DNS_IP:?请在 config/cluster.env 设置 NODE_LOCAL_DNS_IP}"
 : "${DNS_SERVICE_IP:?请在 config/cluster.env 设置 DNS_SERVICE_IP}"
-[[ "$NODE_LOCAL_DNS_IP" =~ ^([0-9]{1,3}\\.){3}[0-9]{1,3}$ ]] || die "NODE_LOCAL_DNS_IP 必须为 IPv4 地址"
+[[ "$NODE_LOCAL_DNS_IP" == 169.254.* ]] || die "NODE_LOCAL_DNS_IP 必须使用 169.254.0.0/16 链路本地地址"
 case "${RUNTIME_TYPE:-containerd}" in
   containerd) RUNTIME_ENDPOINT="unix:///run/containerd/containerd.sock" ;;
   docker)
