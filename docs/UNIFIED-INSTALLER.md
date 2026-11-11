@@ -21,16 +21,17 @@ sudo bash scripts/00-install.sh all
 | `sudo bash scripts/00-install.sh download` | 仅下载 Release、校验离线包、安装部署机 RPM 和 CLI |
 | `sudo bash scripts/00-install.sh ssh` | 配置并验证全部节点 SSH 公钥登录 |
 | `sudo bash scripts/00-install.sh certs` | SSH 检查、生成/复用证书、kubeconfig、渲染和分发 |
-| `sudo bash scripts/00-install.sh system` | `prepare` 的兼容别名，执行完整预处理 |\n| `sudo bash scripts/00-install.sh harbor` | 在 `HARBOR_NODE_IP` 指定节点部署 Harbor，并导入/推送离线镜像 |
+| `sudo bash scripts/00-install.sh system` | `prepare` 的兼容别名，执行完整预处理 |
+| `sudo bash scripts/00-install.sh harbor` | 在 `HARBOR_NODE_IP` 指定节点部署 Harbor，并导入/推送离线镜像 |
 | `sudo bash scripts/00-install.sh etcd` | 检查 Harbor 健康、证书和节点配置，再启动 etcd 并按 MASTER_COUNT 验证成员和 quorum；缺少前置条件立即退出 |
-| `sudo bash scripts/00-install.sh control-plane` | 完成 etcd 后启动全部 Master 控制平面 |
-| `sudo bash scripts/00-install.sh workers` | 仅检查证书及节点配置已分发，再安装 Worker NGINX 并启动 kubelet/kube-proxy；不自动执行前置准备 |
+| `sudo bash scripts/00-install.sh control-plane` | 验证 etcd quorum 后启动全部 Master，并等待每台 Master API `/readyz` 成功 |
+| `sudo bash scripts/00-install.sh workers` | 检查证书、节点配置及全部 Master API `/readyz`，再安装 Worker NGINX 并启动 kubelet/kube-proxy；不自动执行前置准备 |
 | `sudo bash scripts/00-install.sh calico` | 完成前置阶段后安装 Calico |
 | `sudo bash scripts/00-install.sh coredns` | 完成前置阶段后安装 CoreDNS |
 | `sudo bash scripts/00-install.sh verify` | 重新执行集群健康检查 |
 | `sudo bash scripts/00-install.sh status` | 查看部署机本地阶段标记 |
 
-`prepare` 是独立的预处理阶段。请先执行 `sudo bash scripts/00-install.sh prepare`，再按需执行 `etcd`、`control-plane`、`workers` 等组件阶段。组件阶段不会隐式下载资源、安装依赖或生成证书；若本地证书或节点证书分发缺失，会明确提示先执行 `prepare` 并退出。`all` 会显式按顺序执行预处理、Harbor、etcd 和完整部署。单独执行 `etcd` 前必须先完成 `harbor`。
+`prepare` 是独立的预处理阶段。请先执行 `sudo bash scripts/00-install.sh prepare`，再按需执行 `etcd`、`control-plane`、`workers` 等组件阶段。组件阶段不会隐式下载资源、安装依赖或生成证书；若本地证书或节点证书分发缺失，会明确提示先执行 `prepare` 并退出。`all` 会显式按顺序执行预处理、Harbor、etcd quorum 验证、控制平面启动、全部 Master API `/readyz` 门槛、Worker、Calico、CoreDNS 和最终验收。单独执行 `etcd` 前必须先完成 `harbor`；单独执行 `workers` 或 `calico` 前，必须已有可用控制平面 API。
 
 ## 3. 幂等标记和断点续装
 
@@ -42,7 +43,7 @@ sudo bash scripts/00-install.sh all
 - `/var/lib/kubernetes-binary-ha-controller/steps/*.failed`
 - `/var/log/kubernetes-binary-ha-install/`
 
-每个本地阶段成功后写入 `.done`，失败写入 `.failed`。完成标记记录脚本、集群参数、Release 版本、CFSSL CSR/profile 和 manifests 的指纹；Harbor 阶段还会纳入 Harbor 离线安装器、镜像归档、镜像引用清单及 Harbor SHA256 清单。相关脚本、配置或镜像制品发生变化时，旧标记不再视为有效。
+离线 Release 下载和节点配置渲染均先写入同一文件系统的临时目录，全部校验/渲染成功后再切换目录，失败不会先删除上一份可用资源。每个本地阶段成功后写入 `.done`，失败写入 `.failed`。完成标记记录脚本、集群参数、Release 版本、CFSSL CSR/profile 和 manifests 的指纹；Harbor 阶段还会纳入 Harbor 离线安装器、镜像归档、镜像引用清单及 Harbor SHA256 清单。相关脚本、配置或镜像制品发生变化时，旧标记不再视为有效。
 
 ### 节点阶段标记
 
@@ -71,8 +72,8 @@ sudo bash scripts/00-install.sh all
 
 - etcd 已有 `/var/lib/etcd/member` 且服务 active 时，启动脚本视为已初始化并跳过；已有数据但服务停止时会拒绝重新初始化，要求人工检查。
 - CFSSL CA/叶子证书已存在且证书/私钥成对时复用；只有一半文件时拒绝覆盖。ServiceAccount JWT 密钥对同样复用，避免重跑改变签名密钥。
-- Calico、CoreDNS 使用 Kubernetes `apply` 和 rollout 检查，可重复提交期望配置。
-- 容器运行时和 systemd 安装脚本可重复执行；远端包装器在指纹一致且健康检查通过时不再重复执行。
+- Calico、CoreDNS 使用 Helm upgrade/install 和 rollout 检查，可重复提交期望配置；跳过阶段时还会复查 Tigera Operator、Calico IPPool、CoreDNS Service IP 与 Endpoints。
+- 容器运行时和 systemd 安装脚本可重复执行；远端包装器在指纹一致且健康检查通过时不再重复执行。 若 etcd、Kubernetes 或运行时服务已运行，安装脚本会先比对当前二进制版本，发现版本不一致就拒绝原地覆盖。scripts/11-upgrade-node.sh 当前明确禁用，避免将不完整的单节点替换流程误当作滚动升级方案。
 - 本地入口和每个远端节点均有 `flock` 锁，避免同一控制端或节点同时执行两个安装任务。
 
 > 证书 SAN、CA 或集群参数发生变化时，不会自动覆盖既有 CA/证书。请按证书轮换流程处理，不要为了让标记变绿而删除 PKI 或 etcd 数据。

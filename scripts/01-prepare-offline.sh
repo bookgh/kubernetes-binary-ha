@@ -17,7 +17,8 @@ TAG="k8s-v${VERSION}-r${RELEASE_REVISION}"
 ARCHIVE_NAME="offline-kubernetes-v${VERSION}-rocky9-amd64.tar.gz"
 ASSET_BASE="${GITHUB_RELEASE_BASE_URL:?请在 config/cluster.env 设置 GITHUB_RELEASE_BASE_URL}/${TAG}"
 WORK="$(mktemp -d)"
-cleanup() { rm -rf "$WORK"; }
+OUT_STAGE="$(mktemp -d "$ROOT/.offline-stage.XXXXXX")"
+cleanup() { rm -rf "$WORK"; [[ -z "$OUT_STAGE" ]] || rm -rf "$OUT_STAGE"; }
 trap cleanup EXIT
 
 log "从 Release 获取 Kubernetes ${K8S_VERSION} 离线资源包：${TAG}"
@@ -30,9 +31,8 @@ PACKAGE_DIR="$WORK/offline-kubernetes-v${VERSION}-rocky9-amd64"
 [[ -d "$PACKAGE_DIR" ]] || die "Release 归档目录结构不符合预期"
 (cd "$PACKAGE_DIR" && sha256sum -c SHA256SUMS) || die "Release 归档内部 SHA256 校验失败"
 
-OUT="${ROOT}/offline"
-rm -rf "$OUT"
-mkdir -p "$OUT" "$OUT/docker"
+OUT="$OUT_STAGE"
+mkdir -p "$OUT/docker"
 cp -a "$PACKAGE_DIR/." "$OUT/"
 
 case "${RUNTIME_TYPE:-containerd}" in
@@ -77,6 +77,7 @@ Source=GitHub Release ${TAG}
 EOF
 log "离线资源准备完成：$OUT"
 [[ -s "$OUT/harbor/harbor-offline-installer-v${HARBOR_VERSION}-amd64.tgz" ]] || die "缺少 Harbor 离线安装器"
+[[ -s "$OUT/bin/nginx" && -s "$OUT/checksums/nginx.sha256" ]] || die "缺少离线 NGINX 二进制或 SHA256 清单"
 [[ -s "$OUT/images/kubernetes-images-linux-amd64.tar" ]] || die "缺少 Kubernetes 镜像归档"
 for chart in \
   "$OUT/helm/projectcalico.org.v3-${CALICO_CHART_VERSION}.tgz" \
@@ -86,3 +87,16 @@ for chart in \
   [[ -s "$chart" ]] || die "Release 中缺少 Helm Chart：$chart"
 done
 log "Release 二进制、RPM、Harbor 安装器及 Kubernetes 镜像归档均已校验。"
+
+# 只有完整下载、解压、校验及必需资产检查全部通过后，才替换现有 offline/。
+OLD_OUT="$ROOT/.offline-previous.$"
+[[ ! -e "$OLD_OUT" ]] || die "发现未清理的离线资源备份目录：$OLD_OUT"
+if [[ -e "$ROOT/offline" ]]; then mv "$ROOT/offline" "$OLD_OUT"; fi
+if mv "$OUT_STAGE" "$ROOT/offline"; then
+  OUT_STAGE=""
+  rm -rf "$OLD_OUT"
+else
+  [[ ! -e "$OLD_OUT" ]] || mv "$OLD_OUT" "$ROOT/offline"
+  die "切换离线资源目录失败；已尝试恢复旧版本"
+fi
+ok "离线资源已原子切换到 $ROOT/offline。"

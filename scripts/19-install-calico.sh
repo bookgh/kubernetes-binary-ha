@@ -27,6 +27,7 @@ log "1/3 使用 Calico Helm Chart 安装 Kubernetes 1.36+ 原生 v3 CRD"
 "$HELM" template calico-crds "$CRD_CHART" \
   --api-versions admissionregistration.k8s.io/v1/MutatingAdmissionPolicy |
   "$KUBECTL" apply --server-side -f -
+"$KUBECTL" wait --for=condition=Established crd --all --timeout=120s
 
 log "2/3 安装/升级 Tigera Operator（镜像来自 Harbor）"
 "$KUBECTL" create namespace tigera-operator --dry-run=client -o yaml |

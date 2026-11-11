@@ -3,6 +3,13 @@
 set -Eeuo pipefail
 source "$(dirname "$0")/lib.sh"
 require_root
+require_cmd curl
+require_cmd jq
+: "${PRIVATE_REGISTRY:?请在 config/cluster.env 设置 PRIVATE_REGISTRY}"
+: "${HARBOR_HOST:?请在 config/cluster.env 设置 HARBOR_HOST}"
+: "${HARBOR_URL:?请在 config/cluster.env 设置 HARBOR_URL}"
+[[ "$PRIVATE_REGISTRY" == "${HARBOR_HOST}/library" ]] || die "PRIVATE_REGISTRY 必须设置为 ${HARBOR_HOST}/library"
+curl --fail --silent "$HARBOR_URL/api/v2.0/ping" >/dev/null || die "Harbor API 不可用：$HARBOR_URL；请先执行 scripts/00-install.sh harbor"
 
 HELM="$ROOT/offline/bin/helm"
 [[ -x "$HELM" ]] || HELM="$(command -v helm || true)"

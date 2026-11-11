@@ -10,6 +10,30 @@ OFF="${ROOT}/offline"
 # shellcheck disable=SC1091
 source /etc/kubernetes/runtime.env
 (cd "$OFF" && sha256sum -c SHA256SUMS)
+
+# 安装阶段不是升级入口：若已有服务运行，必须确认其当前二进制版本与目标 Release 一致。
+assert_active_version() {
+  local service="$1" binary="$2" expected="$3" actual
+  expected="${expected#v}"
+  if systemctl is-active --quiet "$service"; then
+    [[ -x "$binary" ]] || die "$service 正在运行，但找不到当前二进制 $binary；拒绝覆盖"
+    actual="$("$binary" --version 2>&1 | grep -Eo 'v?[0-9]+\.[0-9]+\.[0-9]+' | head -n1 | sed 's/^v//')" || actual=""
+    [[ -n "$actual" && "$actual" == "$expected" ]] ||
+      die "$service 当前版本为 ${actual:-unknown}，目标版本为 $expected；禁止通过安装脚本原地升级，请使用经过验证的滚动升级流程"
+  fi
+}
+ETCD_VERSION_NORMALIZED="${ETCD_VERSION#v}"
+assert_active_version etcd /usr/local/bin/etcd "$ETCD_VERSION_NORMALIZED"
+for service in kube-apiserver kube-controller-manager kube-scheduler kubelet kube-proxy; do
+  assert_active_version "$service" "/usr/local/bin/$service" "$K8S_VERSION"
+done
+if [[ "$RUNTIME_TYPE" == containerd ]]; then
+  assert_active_version containerd /usr/local/bin/containerd "$CONTAINERD_VERSION"
+else
+  assert_active_version docker /usr/local/bin/docker "$DOCKER_VERSION"
+  assert_active_version cri-docker /usr/local/bin/cri-dockerd "$CRI_DOCKERD_VERSION"
+fi
+
 log "安装离线系统 RPM 依赖包"
 dnf install -y --disablerepo="*" "$OFF"/rpms/*.rpm
 if [[ "$KUBE_PROXY_MODE" == nftables ]]; then

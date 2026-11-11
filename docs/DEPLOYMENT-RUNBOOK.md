@@ -8,17 +8,17 @@
 sudo bash scripts/00-install.sh all
 ~~~
 
-入口会按顺序完成离线下载、SSH 公钥配置、CFSSL、配置分发、六节点运行时与系统参数、etcd、控制平面、Worker、Calico、CoreDNS 和验收。失败后查看 `/var/log/kubernetes-binary-ha-install/` 与节点 `/var/log/kubernetes-binary-ha/`，修复后重复同一命令即可续装。参数和标记机制见 [统一安装入口说明](UNIFIED-INSTALLER.md)。
+入口会按顺序完成离线下载、SSH 公钥配置、CFSSL、配置分发、全部节点运行时与系统参数、Harbor 镜像导入、etcd quorum、全部 Master API `/readyz`、Worker、Calico、CoreDNS 和验收。失败后查看 `/var/log/kubernetes-binary-ha-install/` 与节点 `/var/log/kubernetes-binary-ha/`，修复后重复同一命令即可续装。参数和标记机制见 [统一安装入口说明](UNIFIED-INSTALLER.md)。
 
 
-本文以 Rocky Linux 9、amd64、三 Master + 三 Worker 为基线。所有集群参数集中在部署机的 `config/cluster.env`。
+本文以 Rocky Linux 9、amd64、示例三 Master + 三 Worker 为基线；Master 数量由 `MASTER_COUNT` 决定。所有集群参数集中在部署机的 `config/cluster.env`。
 
 ## 阶段 0：站点准备
 
 - 核对六台主机名、静态 IP、DNS、MTU、路由、NTP、磁盘和时间同步。
 - 确认 Pod CIDR/Service CIDR 不与现有网络重叠。
 - 确认 Worker 到所有 Master 的 TCP/6443 可达；Master 间 TCP/2379、2380 可达。
-- 在 GitHub Actions 中构建 k8s-vX.Y.Z-rN Release，确认完整离线包、RPM、CFSSL/Helm/Calicoctl/Docker/Compose 和独立 NGINX 资产及 SHA256 已上传。
+- 在 GitHub Actions 中构建 k8s-vX.Y.Z-rN Release，确认完整离线包、RPM、CFSSL/Helm/Calicoctl/Docker/Compose、离线 NGINX 二进制及 SHA256 已上传。
 - 准备 pause、Calico、CoreDNS 和业务容器镜像。
 - 配置部署机到六台节点的 root SSH 免密登录。
 
@@ -61,9 +61,19 @@ sudo bash scripts/16-batch-exec.sh all 06-install-systemd.sh --parallel
 - `06-install-systemd.sh` 应用部署端生成的内核模块和 sysctl 配置，再安装 systemd 单元。
 - 检查运行时状态、`crictl info`、CNI 二进制和 pause 镜像配置。
 
-## 阶段 3：etcd 与控制平面
+## 阶段 3：Harbor 离线部署与镜像导入
 
-三台 etcd 成员应并发启动：
+在 etcd 初始化前执行：
+
+~~~bash
+sudo bash scripts/00-install.sh harbor
+~~~
+
+确认 Harbor API 健康，且 `IMAGE-REFERENCES.txt` 中的基础镜像全部推送成功。Harbor 可部署在集群节点或独立 Rocky Linux 9 节点。
+
+## 阶段 4：etcd 与控制平面
+
+全部 Master etcd 成员应并发启动：
 
 ```bash
 sudo bash scripts/16-batch-exec.sh masters 07-bootstrap-etcd.sh --parallel
@@ -79,11 +89,11 @@ sudo bash scripts/21-verify-etcd.sh
 sudo bash scripts/16-batch-exec.sh masters 08-start-control-plane.sh --parallel
 ```
 
-分别检查三台 API Server 的 `/livez` 和 `/readyz`。禁止在已有 etcd 数据目录上重复执行首次初始化。
+通过 SSH 在每台 Master 本机检查 `https://127.0.0.1:6443/readyz`；统一安装入口会自动等待全部 Master 就绪。禁止在已有 etcd 数据目录上重复执行首次初始化。
 
-## 阶段 4：Worker NGINX 与 kubelet
+## 阶段 5：Worker NGINX 与 kubelet
 
-先在 Worker 安装 Release 中的 NGINX，再启动 Worker 服务：
+先在 Worker 使用已分发离线包中的 NGINX（不访问 GitHub），再启动 Worker 服务：
 
 ```bash
 sudo bash scripts/16-batch-exec.sh workers 13-install-nginx-proxy.sh --parallel

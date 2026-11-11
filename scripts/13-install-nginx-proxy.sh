@@ -36,6 +36,10 @@ install -m 0644 "$ROOT/systemd/nginx-k8s-api.service" /etc/systemd/system/nginx-
 chmod 0644 /etc/nginx/nginx.conf
 /usr/local/sbin/nginx -t -c /etc/nginx/nginx.conf
 systemctl daemon-reload
-systemctl enable --now nginx-k8s-api
+if systemctl is-active --quiet nginx-k8s-api; then
+  systemctl restart nginx-k8s-api
+else
+  systemctl enable --now nginx-k8s-api
+fi
 systemctl is-active --quiet nginx-k8s-api || die "nginx-k8s-api 服务启动失败"
 ok "NGINX 已通过 Release 下载、校验并安装，监听 127.0.0.1:${API_PORT}。"

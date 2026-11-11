@@ -10,7 +10,7 @@
 sudo bash scripts/00-install.sh all
 ~~~
 
-`all` 会显式先执行预处理，再部署 Harbor 并导入基础镜像，然后依序部署 etcd、控制平面、Worker 和集群组件。若选择分阶段安装，必须先执行 `sudo bash scripts/00-install.sh prepare`；随后 `etcd`、`workers` 等组件命令只做前置证书检查，不会自动生成证书或安装依赖。缺少证书时会提示并退出。入口记录本地和各节点的完成/失败标记，失败后修复再运行同一命令即可断点续装。详见 [docs/UNIFIED-INSTALLER.md](UNIFIED-INSTALLER.md)。
+`all` 会显式先执行预处理，再部署 Harbor 并导入基础镜像，然后依序部署 etcd、控制平面、Worker 和集群组件。若选择分阶段安装，必须先执行 `sudo bash scripts/00-install.sh prepare`；随后 `etcd`、`workers` 等组件命令只做前置证书和依赖检查，不会自动生成证书或安装依赖；启动控制平面后，入口会逐个检查全部 Master API `/readyz`，全部成功才允许启动 Worker。缺少证书时会提示并退出。入口记录本地和各节点的完成/失败标记，失败后修复再运行同一命令即可断点续装。详见 [docs/UNIFIED-INSTALLER.md](UNIFIED-INSTALLER.md)。
 
 
 
@@ -24,7 +24,7 @@ sudo bash scripts/00-install.sh all
 - 其余至少 1 台 Worker：kubelet、kube-proxy、NGINX TCP/TLS 透传代理。
 - Rocky Linux 9 x86_64，所有 Master 主机名使用 `master-*`，其余 Worker 使用 `worker-*`，静态 IP。
 - 所有节点时间同步；部署机通过 `SSH_USER`、`SSH_PASSWORD`、`SSH_PORT` 配置 SSH 公钥访问。非 root 账号必须具备免密 sudo。
-- Master 间 TCP 2379/2380；Worker 到全部 Master TCP 6443；节点间 VXLAN UDP 4789；节点间 TCP 179 仅在启用 Calico BGP 时需要。另按 docs/NETWORK-PORTS.md 配置其余端口。
+- Master 间 TCP 2379/2380；Worker 到全部 Master TCP 6443；节点间 VXLAN UDP 4789；节点间 TCP 179 仅在启用 Calico BGP 时需要。另按 [docs/PORTS.md](PORTS.md) 配置其余端口。
 - POD_CIDR、SERVICE_CIDR 不得与机房、VPN、VPC 网络冲突。
 - 所有节点的 MTU、防火墙、DNS、路由、磁盘和 SELinux 策略先行确认，不建议通过关闭防火墙/SELinux解决问题。
 
@@ -55,13 +55,13 @@ vi config/cluster.env
 
 ## 2. 构建并发布离线 Release
 
-GitHub Actions 的离线 Release workflow 使用 scripts/ci/build-offline-release.sh 构建。为目标 Kubernetes 版本触发 workflow，构建完成后应在 GitHub Releases 中看到 k8s-v1.37.2-r3（tag 由 RELEASE_REVISION 控制）。
+GitHub Actions 的离线 Release workflow 使用 scripts/ci/build-offline-release.sh 构建。为目标 Kubernetes 版本触发 workflow，构建完成后应在 GitHub Releases 中看到 k8s-v1.37.2-r6（tag 由 RELEASE_REVISION 控制）。
 
 离线包归档内含：
 - Kubernetes server/client 二进制、etcd、containerd、runc、CNI plugins、crictl；
 - CFSSL 和 cfssljson、Helm、Calicoctl；
 - Docker Engine 静态二进制、cri-dockerd、Docker Compose CLI plugin；
-- NGINX stream 二进制及构建信息；
+- NGINX stream 二进制及构建信息（安装时从 offline/bin/nginx 校验后本地安装，不需要 Worker 访问 GitHub）；
 - Rocky Linux 9 amd64 RPM 及依赖、Calico CRD/Operator Helm Charts、CoreDNS Helm Chart、渲染后的 manifests、SHA256SUMS 和 ARTIFACTS.txt。
 
 下载前检查 Release 资产和 SHA256。Release tag 不可覆盖；变更组件版本应发布新 tag。离线包包含 Harbor 离线安装器和项目基础镜像归档。
@@ -74,7 +74,7 @@ sudo dnf install -y --disablerepo="*" offline/rpms/*.rpm
 sudo bash scripts/17-install-cli-tools.sh
 ~~~
 
-01 会下载 Release 归档和 SHA256，校验外层及内部 SHA256SUMS，并将离线内容放入仓库根目录 offline/。RPM 包来自 Release，不再要求部署机访问 Rocky Linux 软件源。部署机本地安装 Helm、Calicoctl、crictl、CFSSL 和 cfssljson，便于后续管理和验收。离线资源目录同时包含 Harbor 安装器与 Kubernetes 镜像归档。
+01 会下载 Release 归档和 SHA256，校验外层及内部 SHA256SUMS，在临时目录完成全部资产校验后再原子切换仓库根目录 offline/；下载/校验失败不会先删除旧离线包。RPM 包来自 Release，不再要求部署机访问 Rocky Linux 软件源。部署机本地安装 Helm、Calicoctl、crictl、CFSSL 和 cfssljson，便于后续管理和验收。离线资源目录同时包含 Harbor 安装器与 Kubernetes 镜像归档。
 
 如果部署机与实际执行下载的暂存机分离，将完整 offline/ 目录安全复制到部署机项目根目录，并再次执行：
 
@@ -175,7 +175,7 @@ sudo bash scripts/21-verify-etcd.sh
 sudo bash scripts/16-batch-exec.sh masters 08-start-control-plane.sh --parallel
 ~~~
 
-确认各 Master 的 API Server /readyz 正常，再启动 Worker：
+通过 SSH 在每台 Master 本机检查 `https://127.0.0.1:6443/readyz`。统一安装入口会等待全部 Master 的 API `/readyz` 成功，再允许进入 Worker 阶段。手工分步执行时也必须遵守该门槛，再启动 Worker：
 
 ~~~bash
 sudo bash scripts/16-batch-exec.sh workers 13-install-nginx-proxy.sh --parallel
@@ -243,7 +243,7 @@ sudo bash scripts/18-verify-cluster.sh
 2. API Server /readyz?verbose；
 3. 所有 Node Ready；
 4. Calico DaemonSet rollout、calicoctl 节点和 IPPool、可用时 TigeraStatus；
-5. CoreDNS Deployment 和全量 Pod 状态。
+5. CoreDNS Deployment、Service ClusterIP、Endpoints 和全量 Pod 状态；Node 数量及每个 InternalIP 与部署配置一致。
 
 进一步执行业务网络验收：
 

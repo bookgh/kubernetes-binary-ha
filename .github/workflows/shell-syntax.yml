@@ -38,6 +38,9 @@ jobs:
       - name: Test dynamic inventory
         shell: bash
         run: bash scripts/tests/test-dynamic-inventory.sh
+      - name: Test installer flow and offline quick install
+        shell: bash
+        run: bash scripts/tests/test-installer-flow.sh
       - name: Validate JSON formatting
         shell: bash
         run: bash scripts/tests/check-json-format.sh

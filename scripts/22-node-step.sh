@@ -38,16 +38,20 @@ healthy() {
       systemctl is-active --quiet "$RUNTIME_TYPE" && crictl --runtime-endpoint "$CONTAINER_RUNTIME_ENDPOINT" info >/dev/null 2>&1
       ;;
     06-install-systemd.sh)
-      [[ -s /etc/systemd/system/kubelet.service && -s /etc/systemd/system/kube-proxy.service && -s /etc/modules-load.d/10-kubernetes.conf ]]
+      source /etc/kubernetes/cluster.env 2>/dev/null || return 1
+      [[ -s /etc/systemd/system/kubelet.service && -s /etc/systemd/system/kube-proxy.service && -s /etc/modules-load.d/10-kubernetes.conf && -s /etc/sysctl.d/95-kubernetes.conf ]] || return 1
+      [[ "$(sysctl -n net.ipv4.ip_forward 2>/dev/null)" == 1 && "$(sysctl -n net.bridge.bridge-nf-call-iptables 2>/dev/null)" == 1 ]] || return 1
+      if [[ "$KUBE_PROXY_MODE" == ipvs ]]; then command -v ipvsadm >/dev/null 2>&1 || return 1; else command -v nft >/dev/null 2>&1 || return 1; fi
       ;;
     07-bootstrap-etcd.sh) systemctl is-active --quiet etcd ;;
     08-start-control-plane.sh)
-      systemctl is-active --quiet kube-apiserver && systemctl is-active --quiet kube-controller-manager && systemctl is-active --quiet kube-scheduler
+      systemctl is-active --quiet kube-apiserver && systemctl is-active --quiet kube-controller-manager && systemctl is-active --quiet kube-scheduler &&
+        curl --fail --silent --cacert /etc/kubernetes/pki/k8s-ca.crt --connect-timeout 3 https://127.0.0.1:6443/readyz >/dev/null 2>&1
       ;;
     09-start-worker.sh)
       systemctl is-active --quiet nginx-k8s-api && systemctl is-active --quiet kubelet && systemctl is-active --quiet kube-proxy
       ;;
-    13-install-nginx-proxy.sh) systemctl is-active --quiet nginx-k8s-api ;;
+    13-install-nginx-proxy.sh) /usr/local/sbin/nginx -t -c /etc/nginx/nginx.conf >/dev/null 2>&1 && systemctl is-active --quiet nginx-k8s-api ;;
     *) return 0 ;;
   esac
 }

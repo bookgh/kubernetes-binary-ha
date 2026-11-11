@@ -60,20 +60,29 @@ install_docker_engine() {
   fi
   jq empty "$DOCKER_CONFIG" >/dev/null ||
     die "$DOCKER_CONFIG 不是有效 JSON，拒绝覆盖"
-  local tmp_config
-  tmp_config="$(mktemp)"
-  jq --arg registry "$HARBOR_HOST" '
-    .["insecure-registries"] =
-      (((.["insecure-registries"] // []) + [$registry]) | unique)
-  ' "$DOCKER_CONFIG" > "$tmp_config"
-  install -m 0644 "$tmp_config" "$DOCKER_CONFIG"
-  rm -f "$tmp_config"
+  local tmp_config registry_configured=0
+  if jq -e --arg registry "$HARBOR_HOST" '.["insecure-registries"] | index($registry) != null' "$DOCKER_CONFIG" >/dev/null; then
+    registry_configured=1
+  fi
+  if (( registry_configured == 0 )); then
+    tmp_config="$(mktemp)"
+    jq --arg registry "$HARBOR_HOST" '
+      .["insecure-registries"] =
+        (((.["insecure-registries"] // []) + [$registry]) | unique)
+    ' "$DOCKER_CONFIG" > "$tmp_config"
+    install -m 0644 "$tmp_config" "$DOCKER_CONFIG"
+    rm -f "$tmp_config"
+  fi
 
   if [[ ! -s /etc/systemd/system/docker.service ]]; then
     install -m 0644 "$ROOT/systemd/docker.service" \
       /etc/systemd/system/docker.service
   fi
   systemctl daemon-reload
+  if (( registry_configured == 0 )) && systemctl is-active --quiet docker; then
+    log "Harbor HTTP registry 配置发生变化，重启 Docker daemon 使配置生效。"
+    systemctl restart docker
+  fi
   systemctl enable --now docker
   systemctl is-active --quiet docker ||
     die "Harbor 所需 Docker Engine 未能启动"

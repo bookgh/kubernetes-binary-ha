@@ -2,6 +2,9 @@
 # 统一部署入口：prepare 显式预处理；组件安装阶段只检查前置条件，不隐式安装依赖。
 set -Eeuo pipefail
 source "$(dirname "$0")/lib.sh"
+# 统一加载离线资产版本；快速安装入口本身会使用 Harbor/Release 版本变量。
+# shellcheck disable=SC1090
+source "$ROOT/config/release-versions.env"
 require_root
 require_cmd flock
 TARGET="${1:-all}"
@@ -29,12 +32,43 @@ fingerprint() {
     fi
     find "$ROOT/scripts" -maxdepth 1 -type f -name "*.sh" -print0 | sort -z | xargs -0 -r sha256sum
     find "$ROOT/config" "$ROOT/manifests" "$ROOT/systemd" -type f -print0 2>/dev/null | sort -z | xargs -0 -r sha256sum
+    for artifact in "$ROOT/offline/SHA256SUMS" "$ROOT/offline/ARTIFACTS.txt"; do [[ ! -s "$artifact" ]] || sha256sum "$artifact"; done
   } | sha256sum | awk '{print $1}'
 }
+stage_fingerprint() {
+  local id="$1" script="$2" dir
+  {
+    fingerprint "$script"
+    case "$id" in
+      pki) dir="$ROOT/pki";;
+      kubeconfigs) dir="$ROOT/kubeconfigs";;
+      render) dir="$ROOT/generated";;
+      distribute) dir="";;
+      *) dir="";;
+    esac
+    if [[ -n "$dir" && -d "$dir" ]]; then
+      find "$dir" -type f -print0 | sort -z | xargs -0 -r sha256sum
+    elif [[ "$id" == distribute ]]; then
+      for dir in "$ROOT/pki" "$ROOT/kubeconfigs" "$ROOT/generated"; do
+        if [[ -d "$dir" ]]; then find "$dir" -type f -print0 | sort -z | xargs -0 -r sha256sum; fi
+      done
+    fi
+  } | sha256sum | awk '{print $1}'
+}
+
 local_healthy() {
   local id="$1"
   case "$id" in
-    download) [[ -s "$ROOT/offline/SHA256SUMS" && -x "$ROOT/offline/bin/kubectl" && -x "$ROOT/offline/bin/cfssl" ]] && (cd "$ROOT/offline" && sha256sum -c SHA256SUMS >/dev/null 2>&1) ;;
+    download)
+      [[ -s "$ROOT/offline/SHA256SUMS" && -s "$ROOT/offline/ARTIFACTS.txt" && -x "$ROOT/offline/bin/kubectl" && -x "$ROOT/offline/bin/cfssl" && -x "$ROOT/offline/bin/nginx" ]] || return 1
+      grep -Fxq "Kubernetes=$K8S_VERSION" "$ROOT/offline/ARTIFACTS.txt" || return 1
+      grep -Fxq "Harbor=$HARBOR_VERSION" "$ROOT/offline/ARTIFACTS.txt" || return 1
+      grep -Fxq "CalicoChart=$CALICO_CHART_VERSION" "$ROOT/offline/ARTIFACTS.txt" || return 1
+      grep -Fxq "CoreDNSChart=$COREDNS_CHART_VERSION" "$ROOT/offline/ARTIFACTS.txt" || return 1
+      grep -Fxq "Runtime=$RUNTIME_TYPE" "$ROOT/offline/ARTIFACTS.txt" || return 1
+      [[ -s "$ROOT/offline/helm/projectcalico.org.v3-${CALICO_CHART_VERSION}.tgz" && -s "$ROOT/offline/helm/tigera-operator-${CALICO_CHART_VERSION}.tgz" && -s "$ROOT/offline/helm/coredns-${COREDNS_CHART_VERSION}.tgz" && -s "$ROOT/offline/helm/coredns-values.yaml" ]] || return 1
+      (cd "$ROOT/offline" && sha256sum -c SHA256SUMS >/dev/null 2>&1)
+      ;;
     cli-tools) command -v helm >/dev/null && command -v calicoctl >/dev/null && command -v crictl >/dev/null && command -v cfssl >/dev/null ;;
     ssh-key)
       for ip in "${ALL_IPS[@]}"; do
@@ -50,28 +84,53 @@ local_healthy() {
         done
       done
       ;;
-    kubeconfigs) [[ -s "$ROOT/kubeconfigs/admin.conf" && -s "$ROOT/kubeconfigs/kube-proxy.conf" ]] ;;
+    kubeconfigs)
+      [[ -s "$ROOT/kubeconfigs/admin.conf" && -s "$ROOT/kubeconfigs/kube-proxy.conf" && -s "$ROOT/kubeconfigs/controller-manager.conf" && -s "$ROOT/kubeconfigs/scheduler.conf" ]] || return 1
+      for node in "${ALL_NAMES[@]}"; do [[ -s "$ROOT/kubeconfigs/kubelet-$node.conf" ]] || return 1; done
+      ;;
     render)
-      [[ -s "$ROOT/generated/common/etc/modules-load.d/10-kubernetes.conf" && -s "$ROOT/generated/common/etc/sysctl.d/95-kubernetes.conf" ]] || return 1
+      [[ -s "$ROOT/generated/common/etc/modules-load.d/10-kubernetes.conf" && -s "$ROOT/generated/common/etc/sysctl.d/95-kubernetes.conf" && -s "$ROOT/generated/common/etc/crictl.yaml" ]] || return 1
+      if [[ "$RUNTIME_TYPE" == containerd ]]; then [[ -s "$ROOT/generated/common/etc/containerd/config.toml" && -s "$ROOT/generated/common/etc/containerd/certs.d/$HARBOR_HOST/hosts.toml" ]] || return 1; fi
+      if [[ "$RUNTIME_TYPE" == docker ]]; then [[ -s "$ROOT/generated/common/etc/docker/daemon.json" ]] || return 1; fi
       for node in "${ALL_NAMES[@]}"; do
-        [[ -s "$ROOT/generated/$node/etc/kubernetes/cluster.env" ]] || return 1
+        [[ -s "$ROOT/generated/$node/etc/kubernetes/cluster.env" && -s "$ROOT/generated/$node/etc/kubernetes/runtime.env" && -s "$ROOT/generated/$node/var/lib/kubelet/config.yaml" && -s "$ROOT/generated/$node/var/lib/kube-proxy/config.yaml" ]] || return 1
         if [[ "$node" == worker-* ]]; then [[ -s "$ROOT/generated/$node/etc/nginx/nginx.conf" ]] || return 1; fi
       done
       ;;
     distribute)
-      for ip in "${ALL_IPS[@]}"; do ssh_remote "$ip" "test -s /etc/kubernetes/cluster.env && test -s /opt/kubernetes-binary-ha/scripts/22-node-step.sh" >/dev/null 2>&1 || return 1; done
+      for i in "${!ALL_IPS[@]}"; do
+        local ip="${ALL_IPS[$i]}" node="${ALL_NAMES[$i]}"
+        ssh_remote "$ip" "test -s /etc/kubernetes/cluster.env && test -s /etc/kubernetes/runtime.env && test -s /var/lib/kubelet/config.yaml && test -s /var/lib/kube-proxy/config.yaml && test -s /etc/crictl.yaml && test -s /etc/modules-load.d/10-kubernetes.conf && test -s /etc/sysctl.d/95-kubernetes.conf && test -s /opt/kubernetes-binary-ha/scripts/22-node-step.sh" >/dev/null 2>&1 || return 1
+        if [[ "$RUNTIME_TYPE" == containerd ]]; then ssh_remote "$ip" "test -s /etc/containerd/config.toml && test -s /etc/containerd/certs.d/$HARBOR_HOST/hosts.toml" >/dev/null 2>&1 || return 1; fi
+        if [[ "$RUNTIME_TYPE" == docker ]]; then ssh_remote "$ip" "test -s /etc/docker/daemon.json" >/dev/null 2>&1 || return 1; fi
+        if [[ "$node" == worker-* ]]; then ssh_remote "$ip" "test -s /etc/nginx/nginx.conf" >/dev/null 2>&1 || return 1; fi
+      done
       ;;
-    harbor) ssh_remote "$HARBOR_NODE_IP" "test -s /var/lib/kubernetes-binary-ha-harbor.done && curl --fail --silent '$HARBOR_URL/api/v2.0/ping' >/dev/null" >/dev/null 2>&1 ;;
+    harbor)
+      local image_sha
+      image_sha="$(sha256sum "$ROOT/offline/images/kubernetes-images-linux-amd64.tar" | awk '{print $1}')" || return 1
+      ssh_remote "$HARBOR_NODE_IP" "test -s /var/lib/kubernetes-binary-ha-harbor.done && grep -Fxq 'HARBOR_VERSION=$HARBOR_VERSION' /var/lib/kubernetes-binary-ha-harbor.done && grep -Fxq 'HARBOR_URL=$HARBOR_URL' /var/lib/kubernetes-binary-ha-harbor.done && grep -Fxq 'PRIVATE_REGISTRY=$PRIVATE_REGISTRY' /var/lib/kubernetes-binary-ha-harbor.done && grep -Fxq 'IMAGE_ARCHIVE_SHA256=$image_sha' /var/lib/kubernetes-binary-ha-harbor.done && curl --fail --silent '$HARBOR_URL/api/v2.0/ping' >/dev/null" >/dev/null 2>&1
+      ;;
     etcd-health) return 1 ;;
-    calico) "$ROOT/offline/bin/kubectl" -n calico-system get ds calico-node >/dev/null 2>&1 && "$ROOT/offline/bin/kubectl" -n calico-system rollout status ds/calico-node --timeout=10s >/dev/null 2>&1 ;;
-    coredns) "$ROOT/offline/bin/kubectl" -n kube-system rollout status deployment/coredns --timeout=10s >/dev/null 2>&1 ;;
+    calico)
+      "$ROOT/offline/bin/kubectl" -n tigera-operator rollout status deployment/tigera-operator --timeout=10s >/dev/null 2>&1 &&
+        "$ROOT/offline/bin/kubectl" -n calico-system rollout status ds/calico-node --timeout=10s >/dev/null 2>&1 &&
+        DATASTORE_TYPE=kubernetes KUBECONFIG="$HOME/.kube/config" calicoctl get ippools -o json 2>/dev/null | jq -e --arg cidr "$POD_CIDR" '[.items[] | select(.spec.cidr == $cidr)] | length == 1' >/dev/null
+      ;;
+    coredns)
+      local service_ip
+      "$ROOT/offline/bin/kubectl" -n kube-system rollout status deployment/coredns --timeout=10s >/dev/null 2>&1 || return 1
+      service_ip="$("$ROOT/offline/bin/kubectl" -n kube-system get service kube-dns -o jsonpath='{.spec.clusterIP}' 2>/dev/null)" || return 1
+      [[ "$service_ip" == "$DNS_SERVICE_IP" ]] || return 1
+      "$ROOT/offline/bin/kubectl" -n kube-system get endpoints kube-dns -o json 2>/dev/null | jq -e '[.subsets[]?.addresses[]?] | length > 0' >/dev/null
+      ;;
     verify) return 1 ;;
     *) return 0 ;;
   esac
 }
 local_step() {
   local id="$1" script="$2" fp marker step_log
-  fp="$(fingerprint "$script")"; marker="$STATE/steps/$id.done"; step_log="$LOGDIR/$id.log"
+  fp="$(stage_fingerprint "$id" "$script")"; marker="$STATE/steps/$id.done"; step_log="$LOGDIR/$id.log"
   if [[ -s "$marker" && "$(cat "$marker")" == "$fp" ]] && local_healthy "$id"; then
     ok "跳过本地阶段 $id（标记、指纹和健康状态均匹配）"; return 0
   fi
@@ -84,6 +143,7 @@ local_step() {
     fi
   }
   if run_local_script; then
+    fp="$(stage_fingerprint "$id" "$script")"
     printf '%s\n' "$fp" > "$marker"; chmod 0600 "$marker"
     rm -f "$STATE/steps/$id.failed"
     tail -n 10 "$step_log" | while IFS= read -r line; do printf '  %s\n' "$line"; done
@@ -208,10 +268,13 @@ require_certificates() {
   done
 }
 ensure_harbor_ready() {
+  local image_sha
+  image_sha="$(sha256sum "$ROOT/offline/images/kubernetes-images-linux-amd64.tar" | awk '{print $1}')" ||
+    die "无法读取本地 Harbor 镜像归档 SHA256"
   ssh_remote "$HARBOR_NODE_IP" \
-    "test -s /var/lib/kubernetes-binary-ha-harbor.done && curl --fail --silent '$HARBOR_URL/api/v2.0/ping' >/dev/null" \
+    "test -s /var/lib/kubernetes-binary-ha-harbor.done && grep -Fxq 'HARBOR_VERSION=$HARBOR_VERSION' /var/lib/kubernetes-binary-ha-harbor.done && grep -Fxq 'HARBOR_URL=$HARBOR_URL' /var/lib/kubernetes-binary-ha-harbor.done && grep -Fxq 'PRIVATE_REGISTRY=$PRIVATE_REGISTRY' /var/lib/kubernetes-binary-ha-harbor.done && grep -Fxq 'IMAGE_ARCHIVE_SHA256=$image_sha' /var/lib/kubernetes-binary-ha-harbor.done && curl --fail --silent '$HARBOR_URL/api/v2.0/ping' >/dev/null" \
     >/dev/null 2>&1 ||
-    die "Harbor 尚未部署或健康检查失败。请先执行：sudo bash scripts/00-install.sh harbor"
+    die "Harbor 未部署、健康检查失败或导入的镜像归档与当前 Release 不一致。请先执行：sudo bash scripts/00-install.sh harbor"
 }
 
 prepare_harbor() {
@@ -248,13 +311,33 @@ prepare_etcd() {
   remote_step masters 07-bootstrap-etcd.sh
   local_step etcd-health 21-verify-etcd.sh
 }
+wait_for_all_apis() {
+  local attempt ip all_ready
+  for attempt in {1..60}; do
+    all_ready=1
+    for ip in "${MASTER_IPS[@]}"; do
+      if ! ssh_remote "$ip" "curl --fail --silent --cacert /etc/kubernetes/pki/k8s-ca.crt --connect-timeout 3 --max-time 5 https://127.0.0.1:6443/readyz" >/dev/null 2>&1; then
+        all_ready=0
+        break
+      fi
+    done
+    if (( all_ready == 1 )); then
+      ok "全部 ${MASTER_COUNT} 个 Master API /readyz 均通过"
+      return 0
+    fi
+    sleep 5
+  done
+  die "等待全部 Master API /readyz 超时；请检查 kube-apiserver、etcd、证书和本机 6443 监听"
+}
 prepare_control_plane() {
   require_certificates
   local_step etcd-health 21-verify-etcd.sh
   remote_step masters 08-start-control-plane.sh
+  wait_for_all_apis
 }
 prepare_workers() {
   require_certificates
+  wait_for_all_apis
   remote_step workers 13-install-nginx-proxy.sh
   remote_step workers 09-start-worker.sh
 }
@@ -288,7 +371,7 @@ case "$TARGET" in
     find "$STATE/steps" -maxdepth 1 -type f -printf '%f\n' | sort
     printf '远程节点标记位置：/var/lib/kubernetes-binary-ha/steps/（每台节点独立保存）\n'
     ;;
-  all) validate_image_config; prepare_system; prepare_harbor; require_certificates; remote_step masters 07-bootstrap-etcd.sh; local_step etcd-health 21-verify-etcd.sh; remote_step masters 08-start-control-plane.sh; remote_step workers 13-install-nginx-proxy.sh; remote_step workers 09-start-worker.sh; local_step calico 19-install-calico.sh; local_step coredns 20-install-coredns.sh; verify_cluster ;;
+  all) validate_image_config; prepare_system; prepare_harbor; prepare_etcd; prepare_control_plane; prepare_workers; local_step calico 19-install-calico.sh; local_step coredns 20-install-coredns.sh; verify_cluster ;;
   *) die "用法：$0 {all|prepare|download|ssh|certs|system|harbor|etcd|control-plane|workers|calico|coredns|verify|status}" ;;
 esac
 ok "目标阶段 $TARGET 执行结束。安装日志：$LOG"

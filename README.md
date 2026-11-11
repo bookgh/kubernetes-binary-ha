@@ -86,7 +86,7 @@ sudo bash scripts/15-distribute-node-configs.sh
 sudo bash scripts/00-install.sh all
 ~~~
 
-统一入口会按依赖顺序完成离线资源下载与校验、部署机工具安装、SSH 公钥配置、CFSSL 证书、kubeconfig、节点配置生成与分发、全部节点系统优化、运行时和 systemd、Harbor 部署与基础镜像导入、etcd、控制平面、Worker、NGINX、Calico、CoreDNS 和最终验收。
+统一入口会按依赖顺序完成离线资源下载与校验、部署机工具安装、SSH 公钥配置、CFSSL 证书、kubeconfig、节点配置生成与分发、全部节点系统优化、运行时和 systemd、Harbor 部署与基础镜像导入、etcd quorum 验证、全部 Master API `/readyz` 验证、Worker NGINX/kubelet、Calico、CoreDNS 和最终验收。
 
 支持按阶段执行：`prepare`（预处理）、`download`、`ssh`、`certs`、`system`、`harbor`、`etcd`、`control-plane`、`workers`、`calico`、`coredns`、`verify`、`status`。先执行预处理，再执行组件安装：
 
@@ -97,7 +97,7 @@ sudo bash scripts/00-install.sh workers
 sudo bash scripts/00-install.sh verify
 ~~~
 
-`etcd`、`control-plane` 和 `workers` 等组件阶段不会自动安装前置依赖或生成证书；执行前会检查所需证书及节点分发状态，缺失时提示先运行 `prepare` 并退出。`all` 会显式先运行预处理，再部署所有组件。入口和每个节点均有独立执行锁、完成/失败标记、脚本及配置指纹和日志。失败后修复问题，再次执行同一命令即可跳过已完成且健康的阶段，继续失败阶段。etcd 已有数据时不会重新初始化；CFSSL 已生成的 CA、证书和 ServiceAccount 密钥会复用，防止重跑覆盖密钥。
+`etcd`、`control-plane` 和 `workers` 等组件阶段不会自动安装前置依赖或生成证书；执行前会检查所需证书及节点分发状态，缺失时提示先运行 `prepare` 并退出。`control-plane` 完成后会逐个探测所有 Master 的 API `/readyz`，未全部就绪时不会启动 Worker；单独执行 `workers` / `calico` 也有相同门槛。`all` 会显式先运行预处理，再部署所有组件。入口和每个节点均有独立执行锁、完成/失败标记、脚本及配置指纹和日志。失败后修复问题，再次执行同一命令即可跳过已完成且健康的阶段，继续失败阶段。etcd 已有数据时不会重新初始化；CFSSL 已生成的 CA、证书和 ServiceAccount 密钥会复用，防止重跑覆盖密钥。
 
 详细说明见 [docs/UNIFIED-INSTALLER.md](docs/UNIFIED-INSTALLER.md)。`prepare` 完成后，`all` 会在 etcd 之前自动安装 Harbor 并导入基础镜像；也可单独运行 `sudo bash scripts/00-install.sh harbor`。当前 Harbor 默认通过 HTTP/80 访问，运行时配置为 insecure registry，而不是 TLS CA 证书信任。
 
@@ -163,6 +163,7 @@ sudo bash scripts/16-batch-exec.sh all 06-install-systemd.sh --parallel
 # 先并发启动全部 etcd Master，再启动全部 Master 控制平面
 sudo bash scripts/16-batch-exec.sh masters 07-bootstrap-etcd.sh --parallel
 sudo bash scripts/16-batch-exec.sh masters 08-start-control-plane.sh --parallel
+# 先确认每个 Master API /readyz 均正常，再启动 Worker
 
 # Worker 先安装 NGINX API 代理，再启动 kubelet/kube-proxy
 sudo bash scripts/16-batch-exec.sh workers 13-install-nginx-proxy.sh --parallel
@@ -176,11 +177,11 @@ sudo bash scripts/16-batch-exec.sh workers 09-start-worker.sh --parallel
 3. 执行网络、Service、NodePort、DNS 和故障切换验收。
 4. 使用 `kubectl get nodes -o wide` 检查节点状态。
 
-`scripts/12-build-nginx-binary.sh` 已保留为兼容提示入口，不再执行本地构建。NGINX 必须来自对应 Kubernetes Release。
+`scripts/12-build-nginx-binary.sh` 已保留为兼容提示入口，不再执行本地构建。NGINX 必须来自对应 Kubernetes Release 离线包。
 
-## 七、NGINX Release 下载与安装
+## 七、NGINX 离线安装
 
-NGINX 由 Actions 自动构建并作为独立 Release 资产发布。每台 Worker 只需准备项目脚本和 `config/cluster.env`，确保能访问 GitHub Release：
+NGINX 由 Actions 构建并纳入离线包 `offline/bin/nginx`，Worker 不需要访问 GitHub Release：
 
 ```bash
 sudo bash scripts/13-install-nginx-proxy.sh
@@ -188,9 +189,17 @@ sudo systemctl status nginx-k8s-api
 curl --cacert /etc/kubernetes/pki/k8s-ca.crt https://127.0.0.1:6443/readyz
 ```
 
-安装脚本根据 `K8S_VERSION` 和 `NGINX_VERSION` 计算 Release tag 和资产名称，下载 NGINX 及 SHA256 文件，校验成功后才安装。Worker 不需要 Docker/Podman，也不需要在节点上编译源码。
+安装脚本从节点已分发的离线包读取 `offline/bin/nginx`，与包内 SHA256 及配置版本核对后安装。Worker 不需要 Docker/Podman、外网访问，也不需要在节点上编译源码。
 
-## 八、常用检查\n\n完整从零部署、证书检查、etcd 健康检查、Calico 状态和 CoreDNS/网络验收请参阅 [docs/INSTALL-FROM-SCRATCH.md](docs/INSTALL-FROM-SCRATCH.md)。部署完成后可运行：\n\n```bash\nsudo bash scripts/18-verify-cluster.sh\n```\n
+## 八、常用检查
+
+完整从零部署、证书检查、etcd 健康检查、Calico 状态和 CoreDNS/网络验收请参阅 [docs/INSTALL-FROM-SCRATCH.md](docs/INSTALL-FROM-SCRATCH.md)。部署完成后可运行：
+
+```bash
+sudo bash scripts/18-verify-cluster.sh
+```
+
+常用运维检查：
 
 ```bash
 bash -n scripts/*.sh scripts/ci/*.sh

@@ -19,9 +19,10 @@ esac
 [[ "${IPVS_STRICT_ARP:-false}" == true || "${IPVS_STRICT_ARP:-false}" == false ]] || die "IPVS_STRICT_ARP 必须为 true/false"
 [[ "${NFTABLES_MASQUERADE_BIT:-14}" =~ ^([0-9]|[12][0-9]|3[01])$ ]] || die "NFTABLES_MASQUERADE_BIT 必须在 0-31 之间"
 
-OUT="${ROOT}/generated"
-rm -rf "$OUT"
-mkdir -p "$OUT"
+OUT_STAGE="$(mktemp -d "$ROOT/.generated-stage.XXXXXX")"
+cleanup() { [[ -z "$OUT_STAGE" ]] || rm -rf "$OUT_STAGE"; }
+trap cleanup EXIT
+OUT="$OUT_STAGE"
 COMMON="$OUT/common"
 mkdir -p "$COMMON/etc"
 cat > "$COMMON/etc/crictl.yaml" <<EOF
@@ -177,4 +178,14 @@ EOF
   chmod 0600 "$dir/etc/kubernetes/cluster.env" "$dir/etc/kubernetes/runtime.env"
   log "已生成 ${node}（${ip}）的 kubelet/kube-proxy/运行时配置"
 done
-ok "本地配置生成完成：$OUT；下一步运行 scripts/15-distribute-node-configs.sh。"
+OLD_OUT="$ROOT/.generated-previous.$"
+[[ ! -e "$OLD_OUT" ]] || die "发现未清理的配置备份目录：$OLD_OUT"
+if [[ -e "$ROOT/generated" ]]; then mv "$ROOT/generated" "$OLD_OUT"; fi
+if mv "$OUT_STAGE" "$ROOT/generated"; then
+  OUT_STAGE=""
+  rm -rf "$OLD_OUT"
+else
+  [[ ! -e "$OLD_OUT" ]] || mv "$OLD_OUT" "$ROOT/generated"
+  die "切换 generated/ 配置目录失败；已尝试恢复旧版本"
+fi
+ok "本地配置生成完成：$ROOT/generated；下一步运行 scripts/15-distribute-node-configs.sh。"
