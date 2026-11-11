@@ -46,7 +46,7 @@ vi config/cluster.env
 - API_DNS 必须解析到可达 Master IP。当前没有 VIP/LB，DNS 解析不提供高可用。
 - RUNTIME_TYPE=containerd 或 RUNTIME_TYPE=docker。Docker 模式必须使用 cri-dockerd。
 - KUBE_PROXY_MODE=nftables 或 ipvs。Kubernetes 1.37 新部署推荐 nftables；IPVS 已弃用，使用前应确认内核模块和 kube-proxy 支持。
-- `HARBOR_NODE_IP` 必须是 `NODE_IPS` 中的一个节点；`HARBOR_HOST` 使用 `harbor.<HARBOR_NODE_IP>.nip.io`，`HARBOR_URL` 使用 `http://`。
+- `HARBOR_NODE_IP` 可以是集群节点，也可以是独立 Rocky Linux 9 Harbor 主机；`HARBOR_HOST` 使用 `harbor.<HARBOR_NODE_IP>.nip.io`，`HARBOR_URL` 使用 `http://`。
 - `PRIVATE_REGISTRY` 默认设置为 `${HARBOR_HOST}/library`；`COREDNS_IMAGE`、`PAUSE_IMAGE`、`CALICO_NODE_IMAGE`、`NODE_LOCAL_DNS_IMAGE` 指向 Harbor 中对应镜像。
 - `SSH_USER`、`SSH_PASSWORD`、`SSH_PORT` 控制公钥分发；非 root SSH 账号必须具备免密 sudo。
 - KUBERNETES_SERVICE_IP 必须是 SERVICE_CIDR 中 Kubernetes API Service 使用的 IP，默认 10.96.0.1，并进入 apiserver 证书 SAN。
