@@ -29,7 +29,7 @@ Worker 本机 NGINX 只做 TCP 转发，不解密 TLS。Master 上的 kube-apise
 1. 准备六台 Rocky Linux 9 x86_64 主机，主机名为 `master-01`～`master-03`、`worker-01`～`worker-03`。
 2. 配置固定 IP、DNS、NTP、路由、MTU、磁盘和防火墙策略。
 3. 确认 `POD_CIDR`、`SERVICE_CIDR` 与现有网络无重叠。
-4. 将 `config/cluster.env.example` 复制为 `config/cluster.env`，填写真实 IP、API DNS、版本和镜像仓库。
+4. 将 `config/cluster.env.example` 复制为 `config/cluster.env`，按顺序填写 `NODE_NAMES`、`NODE_IPS` 两个节点数组（前三项 Master、后三项 Worker），并配置 API DNS、版本和镜像仓库；当前 `MASTER_COUNT=3` 固定不变。
 5. 对照 `docs/PARAMETER-REFERENCE.md` 复核参数。
 
 ## 四、通过 GitHub Actions 构建离线 Release
