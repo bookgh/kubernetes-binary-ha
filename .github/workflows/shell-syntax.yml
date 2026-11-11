@@ -5,6 +5,9 @@ on:
     paths:
       - "scripts/**/*.sh"
       - "scripts/*.sh"
+      - "config/**/*.json"
+      - "nginx/Dockerfile"
+      - ".editorconfig"
       - ".github/workflows/shell-syntax.yml"
   pull_request:
     paths:
@@ -29,3 +32,9 @@ jobs:
             echo "Checking $script"
             bash -n "$script"
           done < <(find scripts -type f -name '*.sh' -print0 | sort -z)
+      - name: Test dynamic inventory
+        shell: bash
+        run: bash scripts/tests/test-dynamic-inventory.sh
+      - name: Validate JSON formatting
+        shell: bash
+        run: bash scripts/tests/check-json-format.sh
