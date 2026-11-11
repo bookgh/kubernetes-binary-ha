@@ -180,6 +180,9 @@ copy_file "$HARBOR_NODE_IP" \
 copy_file "$HARBOR_NODE_IP" \
   "$ROOT/offline/images/kubernetes-images-linux-amd64.tar" \
   "$REMOTE_ROOT/offline/images/kubernetes-images-linux-amd64.tar"
+copy_file "$HARBOR_NODE_IP" \
+  "$ROOT/offline/images/IMAGE-REFERENCES.txt" \
+  "$REMOTE_ROOT/offline/images/IMAGE-REFERENCES.txt"
 copy_file "$HARBOR_NODE_IP" "$ROOT/offline/SHA256SUMS" "$REMOTE_ROOT/offline/SHA256SUMS"
 
 install -d -m 0700 "$HOME/.kube"
