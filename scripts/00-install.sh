@@ -126,7 +126,7 @@ verify_cluster() { local_step verify 18-verify-cluster.sh; }
 case "$TARGET" in
   download) prepare_download ;;
   ssh) prepare_ssh ;;
-  certs) prepare_ssh; prepare_certs ;;
+  certs) prepare_download; prepare_ssh; prepare_certs ;;
   system) prepare_system ;;
   etcd) prepare_etcd ;;
   control-plane) prepare_control_plane ;;
