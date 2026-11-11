@@ -16,10 +16,10 @@ sudo bash scripts/00-install.sh all
 ## 阶段 0：站点准备
 
 - 核对六台主机名、静态 IP、DNS、MTU、路由、NTP、磁盘和时间同步。
-- 确认 Pod CIDR/Service CIDR 不与现有网络重叠。
+- 确认 Pod CIDR/Service CIDR 不与现有网络重叠；`NODE_LOCAL_DNS_IP` 默认 `169.254.20.10`，确保该地址不冲突，并允许节点本机 Pod 到该地址的 UDP/TCP 53。
 - 确认 Worker 到所有 Master 的 TCP/6443 可达；Master 间 TCP/2379、2380 可达。
 - 在 GitHub Actions 中构建 k8s-vX.Y.Z-rN Release，确认完整离线包、RPM、CFSSL/Helm/Calicoctl/Docker/Compose、离线 NGINX 二进制及 SHA256 已上传。
-- 准备 pause、Calico、CoreDNS 和业务容器镜像。
+- 准备 pause、Calico、CoreDNS、NodeLocal DNSCache、BusyBox 网络验收镜像和业务容器镜像。
 - 配置部署机到六台节点的 root SSH 免密登录。
 
 ## 阶段 1：部署机本地生成与批量分发
@@ -107,6 +107,7 @@ NGINX 只做 TCP/TLS 透传，不终止 TLS。检查本机 `127.0.0.1:6443` 可�
 ~~~bash
 sudo bash scripts/19-install-calico.sh
 sudo bash scripts/20-install-coredns.sh
+sudo bash scripts/25-install-node-local-dns.sh
 sudo bash scripts/18-verify-cluster.sh
 ~~~
 
