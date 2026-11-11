@@ -106,13 +106,13 @@ install -m 0755 "$WORK/linux-amd64/helm" "$OUT/bin/helm"
 
 # Download the exact upstream Helm charts used by the offline installers.
 mkdir -p "$OUT/helm" "$OUT/manifests/helm-rendered"
-"$OUT/bin/helm" pull projectcalico/projectcalico.org.v3 \
+"$OUT/bin/helm" pull projectcalico.org.v3 \
   --repo https://docs.tigera.io/calico/charts \
   --version "$CALICO_CHART_VERSION" --destination "$OUT/helm"
-"$OUT/bin/helm" pull projectcalico/tigera-operator \
+"$OUT/bin/helm" pull tigera-operator \
   --repo https://docs.tigera.io/calico/charts \
   --version "$CALICO_CHART_VERSION" --destination "$OUT/helm"
-"$OUT/bin/helm" pull coredns/coredns \
+"$OUT/bin/helm" pull coredns \
   --repo https://coredns.github.io/helm \
   --version "$COREDNS_CHART_VERSION" --destination "$OUT/helm"
 
@@ -135,7 +135,7 @@ done
   > "$OUT/manifests/helm-rendered/calico-operator.yaml"
 "$OUT/bin/helm" template coredns "$COREDNS_CHART" \
   --namespace kube-system \
-  --set image.repository=registry.k8s.io/coredns/coredns \
+  --set image.repository=registry.k8s.io/coredns \
   --set-string "image.tag=${COREDNS_VERSION#v}" \
   --set-string "service.clusterIP=${DNS_SERVICE_IP}" \
   --set service.name=kube-dns \
@@ -291,7 +291,10 @@ containerd=${CONTAINERD_VERSION}
 runc=v${RUNC_VERSION}
 CNI_PLUGINS=${CNI_VERSION}
 crictl=${CRICTL_VERSION}
+CalicoChart=${CALICO_CHART_VERSION}
 Calico=${CALICO_VERSION}
+TigeraOperator=${TIGERA_OPERATOR_VERSION}
+CoreDNSChart=${COREDNS_CHART_VERSION}
 CoreDNS=${COREDNS_VERSION}
 Pause=${PAUSE_VERSION}
 NodeLocalDNS=${NODE_LOCAL_DNS_VERSION}
