@@ -12,7 +12,7 @@ require_cmd sha256sum
 K8S_VERSION="${K8S_VERSION#v}"
 TAG="k8s-v${K8S_VERSION}-r${RELEASE_REVISION}"
 ASSET="nginx-${NGINX_VERSION}-linux-amd64"
-RELEASE_URL="https://github.com/bookgh/kubernetes-binary-ha/releases/download/${TAG}"
+RELEASE_URL="${GITHUB_RELEASE_BASE_URL:?请在 config/cluster.env 设置 GITHUB_RELEASE_BASE_URL}/${TAG}"
 TMP="$(mktemp -d)"
 cleanup() { rm -rf "$TMP"; }
 trap cleanup EXIT
