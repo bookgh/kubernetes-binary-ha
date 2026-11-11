@@ -18,6 +18,15 @@ fingerprint() {
   local script="$1"
   {
     sha256sum "$ROOT/scripts/$script" "$ROOT/config/cluster.env" "$ROOT/config/release-versions.env"
+    if [[ "$script" == "24-install-harbor.sh" ]]; then
+      for artifact in \
+        "$ROOT/offline/harbor/harbor-offline-installer-v${HARBOR_VERSION}-amd64.tgz" \
+        "$ROOT/offline/harbor/SHA256SUMS" \
+        "$ROOT/offline/images/kubernetes-images-linux-amd64.tar" \
+        "$ROOT/offline/images/IMAGE-REFERENCES.txt"; do
+        [[ ! -s "$artifact" ]] || sha256sum "$artifact"
+      done
+    fi
     find "$ROOT/scripts" -maxdepth 1 -type f -name "*.sh" -print0 | sort -z | xargs -0 -r sha256sum
     find "$ROOT/config" "$ROOT/manifests" "$ROOT/systemd" -type f -print0 2>/dev/null | sort -z | xargs -0 -r sha256sum
   } | sha256sum | awk '{print $1}'

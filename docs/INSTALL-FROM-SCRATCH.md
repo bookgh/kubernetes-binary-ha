@@ -62,7 +62,7 @@ GitHub Actions 的离线 Release workflow 使用 scripts/ci/build-offline-releas
 - CFSSL 和 cfssljson、Helm、Calicoctl；
 - Docker Engine 静态二进制、cri-dockerd、Docker Compose CLI plugin；
 - NGINX stream 二进制及构建信息；
-- Rocky Linux 9 amd64 RPM 及依赖、Calico CRD/Operator manifests、SHA256SUMS 和 ARTIFACTS.txt。
+- Rocky Linux 9 amd64 RPM 及依赖、Calico CRD/Operator Helm Charts、CoreDNS Helm Chart、渲染后的 manifests、SHA256SUMS 和 ARTIFACTS.txt。
 
 下载前检查 Release 资产和 SHA256。Release tag 不可覆盖；变更组件版本应发布新 tag。离线包包含 Harbor 离线安装器和项目基础镜像归档。
 

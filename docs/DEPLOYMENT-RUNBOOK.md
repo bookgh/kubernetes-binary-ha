@@ -92,7 +92,7 @@ sudo bash scripts/16-batch-exec.sh workers 09-start-worker.sh --parallel
 
 NGINX 只做 TCP/TLS 透传，不终止 TLS。检查本机 `127.0.0.1:6443` 可访问 API Server，随后确认 Worker 节点注册为 Ready。
 
-## 阶段 5：CNI、DNS 与验收
+## 阶段 6：CNI、DNS 与验收
 
 ~~~bash
 sudo bash scripts/19-install-calico.sh

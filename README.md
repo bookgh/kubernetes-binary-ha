@@ -171,7 +171,7 @@ sudo bash scripts/16-batch-exec.sh workers 09-start-worker.sh --parallel
 
 ### 6.3 后续集群组件
 
-1. 按 docs/INSTALL-FROM-SCRATCH.md 执行 scripts/19-install-calico.sh 和 scripts/20-install-coredns.sh；两个脚本只使用 offline/helm 内的本地 Chart。
+1. 确认 Harbor 已健康且离线镜像已导入，再执行 scripts/19-install-calico.sh 和 scripts/20-install-coredns.sh；两个脚本只使用 offline/helm 内的本地 Chart。
 2. 确认全部镜像已同步到私有仓库或导入节点。
 3. 执行网络、Service、NodePort、DNS 和故障切换验收。
 4. 使用 `kubectl get nodes -o wide` 检查节点状态。

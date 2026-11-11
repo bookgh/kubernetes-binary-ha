@@ -42,7 +42,7 @@ sudo bash scripts/00-install.sh all
 - `/var/lib/kubernetes-binary-ha-controller/steps/*.failed`
 - `/var/log/kubernetes-binary-ha-install/`
 
-每个本地阶段成功后写入 `.done`，失败写入 `.failed`。完成标记记录脚本、集群参数、Release 版本、CFSSL CSR/profile 和 manifests 的指纹。脚本或配置发生变化时，旧标记不再视为有效。
+每个本地阶段成功后写入 `.done`，失败写入 `.failed`。完成标记记录脚本、集群参数、Release 版本、CFSSL CSR/profile 和 manifests 的指纹；Harbor 阶段还会纳入 Harbor 离线安装器、镜像归档、镜像引用清单及 Harbor SHA256 清单。相关脚本、配置或镜像制品发生变化时，旧标记不再视为有效。
 
 ### 节点阶段标记
 

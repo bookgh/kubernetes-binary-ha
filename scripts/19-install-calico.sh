@@ -31,18 +31,27 @@ log "1/3 使用 Calico Helm Chart 安装 Kubernetes 1.36+ 原生 v3 CRD"
 log "2/3 安装/升级 Tigera Operator（镜像来自 Harbor）"
 "$KUBECTL" create namespace tigera-operator --dry-run=client -o yaml |
   "$KUBECTL" apply -f -
+VALUES="$(mktemp)"
+trap 'rm -f "$VALUES"' EXIT
+cat > "$VALUES" <<EOF
+tigeraOperator:
+  registry: "$HARBOR_HOST"
+  image: "library/tigera/operator"
+installation:
+  registry: "$HARBOR_HOST/"
+  imagePath: "library"
+  calicoNetwork:
+    bgp: "Disabled"
+    ipPools:
+      - blockSize: 26
+        cidr: "$POD_CIDR"
+        encapsulation: "VXLAN"
+        natOutgoing: "Enabled"
+        nodeSelector: "all()"
+EOF
 "$HELM" upgrade --install calico "$OPERATOR_CHART" \
   --namespace tigera-operator \
-  --set tigeraOperator.registry="$HARBOR_HOST" \
-  --set tigeraOperator.image=library/tigera/operator \
-  --set installation.registry="$HARBOR_HOST" \
-  --set installation.imagePath=library \
-  --set installation.calicoNetwork.bgp=Disabled \
-  --set 'installation.calicoNetwork.ipPools[0].blockSize=26' \
-  --set-string "installation.calicoNetwork.ipPools[0].cidr=$POD_CIDR" \
-  --set 'installation.calicoNetwork.ipPools[0].encapsulation=VXLAN' \
-  --set 'installation.calicoNetwork.ipPools[0].natOutgoing=Enabled' \
-  --set-string 'installation.calicoNetwork.ipPools[0].nodeSelector=all()' \
+  --values "$VALUES" \
   --take-ownership \
   --wait --timeout 10m
 

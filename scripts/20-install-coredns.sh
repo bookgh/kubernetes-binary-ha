@@ -33,5 +33,10 @@ log "使用 CoreDNS Helm Chart 和 CI 生成的默认值配置安装/升级 kube
 "$KUBECTL" -n kube-system rollout status deployment/coredns --timeout=300s
 "$KUBECTL" -n kube-system get deployment coredns
 "$KUBECTL" -n kube-system get service kube-dns
-"$KUBECTL" -n kube-system get endpoints kube-dns
-ok "CoreDNS Helm Chart 部署完成。请继续执行 DNS 与 Service 连通性验收。"
+SERVICE_IP="$("$KUBECTL" -n kube-system get service kube-dns -o jsonpath='{.spec.clusterIP}')"
+[[ "$SERVICE_IP" == "$DNS_SERVICE_IP" ]] ||
+  die "CoreDNS Service ClusterIP 不匹配：期望 $DNS_SERVICE_IP，实际 $SERVICE_IP"
+"$KUBECTL" -n kube-system get endpoints kube-dns -o json |
+  jq -e '[.subsets[]?.addresses[]?] | length > 0' >/dev/null ||
+  die "CoreDNS kube-dns Service 没有可用 Endpoints"
+ok "CoreDNS Helm Chart 部署完成，Service IP 和后端 Endpoints 均通过检查。"

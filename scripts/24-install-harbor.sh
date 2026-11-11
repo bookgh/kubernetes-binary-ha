@@ -7,6 +7,8 @@ source "$(dirname "$0")/lib.sh"
 source "$ROOT/config/release-versions.env"
 
 require_root
+[[ -f /etc/rocky-release ]] || die "Harbor 节点必须使用 Rocky Linux 9"
+[[ "$(uname -m)" == x86_64 ]] || die "Harbor 离线安装包仅支持 x86_64/amd64"
 require_cmd curl
 require_cmd openssl
 require_cmd tar

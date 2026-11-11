@@ -55,6 +55,7 @@ prepare_node_offline() {
   rsync -a \
     --exclude='/harbor/' \
     --exclude='/images/' \
+    --exclude='/helm/' \
     "$ROOT/offline/" "$NODE_OFFLINE/"
 
   rm -f "$NODE_OFFLINE/SHA256SUMS"

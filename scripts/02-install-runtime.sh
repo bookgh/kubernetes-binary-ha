@@ -19,9 +19,15 @@ else
 fi
 
 install -d -m 0755 /usr/local/bin /usr/local/sbin /opt/cni/bin /etc/kubernetes
-tar -xzf "$OFF/src/etcd.tar.gz" -C /tmp
-ETCD_DIR="$(find /tmp -maxdepth 1 -type d -name "etcd-${ETCD_VERSION}-linux-amd64" | head -1)"
-[[ -n "$ETCD_DIR" ]] || die "etcd 压缩包解压失败"
+ETCD_VERSION_NORMALIZED="${ETCD_VERSION#v}"
+[[ "$ETCD_VERSION_NORMALIZED" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] ||
+  die "ETCD_VERSION 格式无效：$ETCD_VERSION"
+ETCD_TMP="$(mktemp -d)"
+trap 'rm -rf "$ETCD_TMP"' EXIT
+tar -xzf "$OFF/src/etcd.tar.gz" -C "$ETCD_TMP"
+ETCD_DIR="$ETCD_TMP/etcd-${ETCD_VERSION_NORMALIZED}-linux-amd64"
+[[ -x "$ETCD_DIR/etcd" && -x "$ETCD_DIR/etcdctl" && -x "$ETCD_DIR/etcdutl" ]] ||
+  die "etcd ${ETCD_VERSION_NORMALIZED} 离线归档缺少 etcd/etcdctl/etcdutl"
 install -m 0755 "$ETCD_DIR/etcd" "$ETCD_DIR/etcdctl" "$ETCD_DIR/etcdutl" /usr/local/bin/
 install -m 0755 "$OFF"/bin/{kube-apiserver,kube-controller-manager,kube-scheduler,kubelet,kube-proxy,kubectl} /usr/local/bin/
 install -m 0755 "$OFF/bin/runc" /usr/local/sbin/runc
