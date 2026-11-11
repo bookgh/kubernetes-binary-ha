@@ -19,6 +19,15 @@ SSH_CONFIG="$SSH_DIR/config"
 
 install -d -m 0700 "$SSH_DIR"
 
+SSH_TARGET_IPS=("${ALL_IPS[@]}")
+HARBOR_IS_CLUSTER_NODE=0
+for ip in "${SSH_TARGET_IPS[@]}"; do
+  [[ "$ip" == "$HARBOR_NODE_IP" ]] && HARBOR_IS_CLUSTER_NODE=1
+done
+if (( HARBOR_IS_CLUSTER_NODE == 0 )); then
+  SSH_TARGET_IPS+=("$HARBOR_NODE_IP")
+fi
+
 check_access() {
   local ip="$1"
 
@@ -30,7 +39,7 @@ check_access() {
 }
 
 NEED_KEY=0
-for ip in "${ALL_IPS[@]}"; do
+for ip in "${SSH_TARGET_IPS[@]}"; do
   if ! check_access "$ip"; then
     NEED_KEY=1
   fi
@@ -50,7 +59,7 @@ if [[ "$NEED_KEY" -eq 1 ]]; then
   chmod 0600 "$SSH_KEY"
   chmod 0644 "$SSH_KEY.pub"
 
-  for ip in "${ALL_IPS[@]}"; do
+  for ip in "${SSH_TARGET_IPS[@]}"; do
     if check_access "$ip"; then
       continue
     fi
@@ -76,7 +85,7 @@ if [[ "$NEED_KEY" -eq 1 ]]; then
 
   {
     printf '%s\n' '# BEGIN KUBERNETES-BINARY-HA'
-    for ip in "${ALL_IPS[@]}"; do
+    for ip in "${SSH_TARGET_IPS[@]}"; do
       printf 'Host %s\n  User %s\n  Port %s\n  IdentityFile %s\n  IdentitiesOnly yes\n  StrictHostKeyChecking accept-new\n\n' \
         "$ip" "$SSH_USER" "$SSH_PORT" "$SSH_KEY"
     done
