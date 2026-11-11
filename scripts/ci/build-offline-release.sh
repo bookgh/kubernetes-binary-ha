@@ -90,7 +90,14 @@ for binary in kube-apiserver kube-controller-manager kube-scheduler kubelet kube
   verify_k8s_binary "$binary"
 done
 
-download "https://github.com/etcd-io/etcd/releases/download/v${ETCD_VERSION}/etcd-v${ETCD_VERSION}-linux-amd64.tar.gz" "$OUT/src/etcd.tar.gz"
+# etcd 官方安装文档优先使用 Google Cloud Storage；GitHub Releases 作为回退源。
+ETCD_ARCHIVE="etcd-v${ETCD_VERSION}-linux-amd64.tar.gz"
+if ! curl --fail --location --retry 2 --retry-all-errors --silent --show-error \
+  "https://storage.googleapis.com/etcd/v${ETCD_VERSION}/${ETCD_ARCHIVE}" \
+  -o "$OUT/src/etcd.tar.gz"; then
+  log "etcd GCS 下载失败，回退到 GitHub Releases"
+  download "https://github.com/etcd-io/etcd/releases/download/v${ETCD_VERSION}/${ETCD_ARCHIVE}" "$OUT/src/etcd.tar.gz"
+fi
 download "https://github.com/containerd/containerd/releases/download/v${CONTAINERD_VERSION}/containerd-${CONTAINERD_VERSION}-linux-amd64.tar.gz" "$OUT/src/containerd.tar.gz"
 download "https://github.com/opencontainers/runc/releases/download/v${RUNC_VERSION}/runc.amd64" "$OUT/bin/runc"
 chmod 0755 "$OUT/bin/runc"
