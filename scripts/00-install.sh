@@ -50,7 +50,14 @@ local_step() {
     ok "跳过本地阶段 $id（标记、指纹和健康状态均匹配）"; return 0
   fi
   log "开始本地阶段 $id：$script"
-  if bash "$ROOT/scripts/$script" >>"$step_log" 2>&1; then
+  run_local_script() {
+    if [[ "$script" == "05-configure-ssh.sh" ]]; then
+      bash "$ROOT/scripts/$script" 2>&1 | tee -a "$step_log"
+    else
+      bash "$ROOT/scripts/$script" >>"$step_log" 2>&1
+    fi
+  }
+  if run_local_script; then
     printf '%s\n' "$fp" > "$marker"; chmod 0600 "$marker"
     rm -f "$STATE/steps/$id.failed"
     tail -n 10 "$step_log" | while IFS= read -r line; do printf '  %s\n' "$line"; done
