@@ -41,10 +41,10 @@ log "2/3 安装/升级 Tigera Operator（镜像来自 Harbor）"
   --set installation.registry="$HARBOR_HOST" \
   --set installation.imagePath=library \
   --set installation.calicoNetwork.bgp=Disabled \
-  --set installation.calicoNetwork.ipPools[0].blockSize=26 \
+  --set 'installation.calicoNetwork.ipPools[0].blockSize=26' \
   --set-string "installation.calicoNetwork.ipPools[0].cidr=$POD_CIDR" \
-  --set installation.calicoNetwork.ipPools[0].encapsulation=VXLAN \
-  --set installation.calicoNetwork.ipPools[0].natOutgoing=Enabled \
+  --set 'installation.calicoNetwork.ipPools[0].encapsulation=VXLAN' \
+  --set 'installation.calicoNetwork.ipPools[0].natOutgoing=Enabled' \
   --set-string 'installation.calicoNetwork.ipPools[0].nodeSelector=all()' \
   --wait --timeout 10m
 
