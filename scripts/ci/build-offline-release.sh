@@ -6,7 +6,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 VERSION_FILE="${ROOT}/config/release-versions.env"
 CLUSTER_CONFIG="${ROOT}/config/cluster.env.example"
 [[ -f "$VERSION_FILE" && -f "$CLUSTER_CONFIG" ]] || {
-  printf '[错误] 缺少版本配置：%s 或 %s\\n' "$VERSION_FILE" "$CLUSTER_CONFIG" >&2
+  printf '[错误] 缺少版本配置：%s 或 %s\n' "$VERSION_FILE" "$CLUSTER_CONFIG" >&2
   exit 1
 }
 
@@ -129,6 +129,9 @@ done
   > "$OUT/manifests/helm-rendered/calico-crds.yaml"
 "$OUT/bin/helm" template calico "$CALICO_OPERATOR_CHART" \
   --namespace tigera-operator \
+  --set tigeraOperator.image=tigera/operator \
+  --set tigeraOperator.registry=quay.io \
+  --set-string "tigeraOperator.version=$TIGERA_OPERATOR_VERSION" \
   > "$OUT/manifests/helm-rendered/calico-operator.yaml"
 "$OUT/bin/helm" template coredns "$COREDNS_CHART" \
   --namespace kube-system \
@@ -157,7 +160,7 @@ spec:
 EOF
   index=0
   for image_ref in "${OFFLINE_EXTRA_IMAGE_REFS[@]}"; do
-    printf '  - name: image-%03d\\n    image: "%s"\\n' "$index" "$image_ref"
+    printf '  - name: image-%03d\n    image: "%s"\n' "$index" "$image_ref"
     index=$((index + 1))
   done
 } > "$OUT/manifests/image-inventory.yaml"
@@ -197,7 +200,7 @@ EOF
   while IFS= read -r image_ref; do
     [[ "$image_ref" =~ ^[A-Za-z0-9][A-Za-z0-9._:/@+-]*$ ]] || continue
     [[ "$image_ref" == */* && "$image_ref" == *:* ]] || continue
-    printf '  - name: calico-image-%03d\\n    image: "%s"\\n' "$index" "$image_ref"
+    printf '  - name: calico-image-%03d\n    image: "%s"\n' "$index" "$image_ref"
     index=$((index + 1))
   done < "$WORK/calico-operator-images.txt"
 } > "$OUT/manifests/calico-dynamic-image-inventory.yaml"
