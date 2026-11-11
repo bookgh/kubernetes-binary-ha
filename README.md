@@ -78,6 +78,28 @@ sudo bash scripts/15-distribute-node-configs.sh
 
 > Release 已包含本项目所需的 Rocky Linux 9 RPM 包及其依赖，但不包含完整系统仓库快照和 OCI 容器镜像。Calico、CoreDNS、pause 及业务镜像需要按目标版本单独同步到私有仓库或制作 OCI 归档。
 
+## 统一安装入口（一条命令部署）
+
+在填写 `config/cluster.env`、确认 GitHub Release 资源可下载、完成私有镜像仓库准备后，部署机使用 root 执行：
+
+~~~bash
+sudo bash scripts/00-install.sh all
+~~~
+
+统一入口会按依赖顺序完成离线资源下载与校验、部署机工具安装、SSH 公钥配置、CFSSL 证书、kubeconfig、节点配置生成与分发、六节点系统优化、运行时、etcd、控制平面、Worker、NGINX、Calico、CoreDNS 和最终验收。
+
+支持按阶段执行：`download`、`ssh`、`certs`、`system`、`etcd`、`control-plane`、`workers`、`calico`、`coredns`、`verify`、`status`。例如：
+
+~~~bash
+sudo bash scripts/00-install.sh etcd
+sudo bash scripts/00-install.sh workers
+sudo bash scripts/00-install.sh verify
+~~~
+
+入口和每个节点均有独立执行锁、完成/失败标记、脚本及配置指纹和日志。失败后修复问题，再次执行同一命令即可跳过已完成且健康的阶段，继续失败阶段。etcd 已有数据时不会重新初始化；CFSSL 已生成的 CA、证书和 ServiceAccount 密钥会复用，防止重跑覆盖密钥。
+
+详细说明见 [docs/UNIFIED-INSTALLER.md](docs/UNIFIED-INSTALLER.md)。注意：Release 不含 OCI 容器镜像；运行 `all` 前仍需把 Calico、CoreDNS、pause 等镜像同步到节点可访问的私有仓库。
+
 ## 五、集中式部署与配置分发
 
 项目采用“部署端生成配置、批量分发、节点端安装执行”的模式。先在部署机完成 `config/cluster.env`，配置节点 IP、`RUNTIME_TYPE` 与 `KUBE_PROXY_MODE`，然后执行：
