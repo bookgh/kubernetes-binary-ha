@@ -8,6 +8,35 @@ if [[ ! -f "$CONFIG" ]]; then
 fi
 # shellcheck disable=SC1090
 source "$CONFIG"
+# SSH 和 Release 下载参数统一从 cluster.env 读取。
+SSH_USER="${SSH_USER:-root}"
+SSH_PORT="${SSH_PORT:-22}"
+SSH_PASSWORD="${SSH_PASSWORD:-}"
+GITHUB_REPOSITORY_URL="${GITHUB_REPOSITORY_URL:-}"
+GITHUB_RELEASE_BASE_URL="${GITHUB_RELEASE_BASE_URL:-}"
+
+[[ "$SSH_USER" =~ ^[a-z_][a-zA-Z0-9_.-]*[$]?$ ]] || {
+  printf '[错误] SSH_USER 格式无效。\\n' >&2
+  exit 1
+}
+[[ "$SSH_PORT" =~ ^[1-9][0-9]{0,4}$ ]] && (( SSH_PORT <= 65535 )) || {
+  printf '[错误] SSH_PORT 必须是 1-65535 之间的端口。\\n' >&2
+  exit 1
+}
+
+ssh_remote() {
+  local ip="$1"
+  local command="$2"
+  local quoted
+
+  if [[ "$SSH_USER" == root ]]; then
+    ssh -p "$SSH_PORT" -o BatchMode=yes "$SSH_USER@$ip" "$command"
+  else
+    printf -v quoted '%q' "$command"
+    ssh -p "$SSH_PORT" -o BatchMode=yes "$SSH_USER@$ip" "sudo -n bash -c $quoted"
+  fi
+}
+
 # 统一日志格式；非交互终端和 NO_COLOR 环境下不输出颜色控制符。
 if [[ -t 1 && -z "${NO_COLOR:-}" ]]; then
   C_RESET=$'\033[0m'; C_INFO=$'\033[1;36m'; C_OK=$'\033[1;32m'
@@ -61,6 +90,20 @@ derive_inventory() {
   done
 
   MASTER_NAMES=("${NODE_NAMES[@]:0:master_count}")
+  : "${HARBOR_NODE_IP:=${MASTER_IPS[0]}}"
+  : "${HARBOR_HOST:=harbor.${HARBOR_NODE_IP}.nip.io}"
+  : "${HARBOR_URL:=http://${HARBOR_HOST}}"
+  : "${HARBOR_HTTP_PORT:=80}"
+  local harbor_ip_found=0
+  for ip in "${NODE_IPS[@]}"; do
+    [[ "$ip" == "$HARBOR_NODE_IP" ]] && harbor_ip_found=1
+  done
+  (( harbor_ip_found == 1 )) || die "HARBOR_NODE_IP 必须属于 NODE_IPS 节点清单"
+  [[ "$HARBOR_HOST" == "harbor.${HARBOR_NODE_IP}.nip.io" ]] ||
+    die "HARBOR_HOST 必须为 harbor.${HARBOR_NODE_IP}.nip.io"
+  [[ "$HARBOR_URL" == "http://${HARBOR_HOST}" ]] ||
+    die "当前 HTTP 模式下 HARBOR_URL 必须为 http://${HARBOR_HOST}"
+
   MASTER_IPS=("${NODE_IPS[@]:0:master_count}")
   WORKER_NAMES=("${NODE_NAMES[@]:master_count}")
   WORKER_IPS=("${NODE_IPS[@]:master_count}")
