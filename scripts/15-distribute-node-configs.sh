@@ -14,7 +14,8 @@ PKI="$ROOT/pki"
 KCFG="$ROOT/kubeconfigs"
 REMOTE_ROOT="/opt/kubernetes-binary-ha"
 NODE_OFFLINE="$(mktemp -d)"
-trap 'rm -rf "$NODE_OFFLINE"' EXIT
+PROJECT_STAGE="$(mktemp -d)"
+trap 'rm -rf "$NODE_OFFLINE" "$PROJECT_STAGE"' EXIT
 
 [[ -d "$GEN" ]] || die "缺少 generated/；请先运行 scripts/14-render-node-configs.sh"
 [[ -s "$GEN/common/etc/modules-load.d/10-kubernetes.conf" ]] ||
@@ -67,6 +68,23 @@ prepare_node_offline() {
 
 prepare_node_offline
 
+prepare_project_stage() {
+  rsync -a \
+    --exclude='.git/' \
+    --exclude='generated/' \
+    --exclude='pki/' \
+    --exclude='kubeconfigs/' \
+    --exclude='offline/' \
+    --exclude='config/cluster.env' \
+    "$ROOT/" "$PROJECT_STAGE/"
+
+  install -m 0600 "$ROOT/config/cluster.env" "$PROJECT_STAGE/config/cluster.env"
+  sed -i -E 's#^export SSH_PASSWORD=.*#export SSH_PASSWORD=""#' \
+    "$PROJECT_STAGE/config/cluster.env"
+}
+
+prepare_project_stage
+
 NODES=("${ALL_NAMES[@]}")
 IPS=("${ALL_IPS[@]}")
 
@@ -90,14 +108,9 @@ for i in "${!NODES[@]}"; do
     "install -d -m 0755 '$REMOTE_ROOT/offline' && cp -a /tmp/k8s-ha-offline/. '$REMOTE_ROOT/offline/' && rm -rf /tmp/k8s-ha-offline"
 
   rsync -az --delete -e "ssh -p $SSH_PORT" \
-    --exclude='.git/' \
-    --exclude='generated/' \
-    --exclude='pki/' \
-    --exclude='kubeconfigs/' \
-    --exclude='offline/' \
-    "$ROOT/" "$SSH_USER@$ip:/tmp/k8s-ha-project/"
+    "$PROJECT_STAGE/" "$SSH_USER@$ip:/tmp/k8s-ha-project/"
   remote_exec "$ip" \
-    "install -d -m 0755 '$REMOTE_ROOT' && cp -a /tmp/k8s-ha-project/. '$REMOTE_ROOT/' && rm -rf /tmp/k8s-ha-project && sed -i -E 's#^export SSH_PASSWORD=.*#export SSH_PASSWORD=""#' '$REMOTE_ROOT/config/cluster.env'"
+    "install -d -m 0755 '$REMOTE_ROOT' && cp -a /tmp/k8s-ha-project/. '$REMOTE_ROOT/' && rm -rf /tmp/k8s-ha-project"
 
   remote_exec "$ip" "install -d -m 0755 /etc/kubernetes/pki /etc/etcd/pki /etc/kubernetes /var/lib/kubelet /var/lib/kube-proxy"
 
