@@ -184,19 +184,40 @@ for i in "${!NODES[@]}"; do
   ok "$node 项目、离线资源、运行时配置和所需凭据分发完成"
 done
 
-# Harbor 及集中镜像归档体积较大，只分发到指定 Harbor 节点。
+# Harbor 可部署在独立 Rocky Linux 9 主机；若不在 NODE_IPS 中，单独分发项目和所需 RPM。
+HARBOR_IS_CLUSTER_NODE=0
+for ip in "${ALL_IPS[@]}"; do
+  [[ "$ip" == "$HARBOR_NODE_IP" ]] && HARBOR_IS_CLUSTER_NODE=1
+done
+
+if (( HARBOR_IS_CLUSTER_NODE == 0 )); then
+  log "Harbor 使用独立节点 $HARBOR_NODE_IP，准备其基础依赖和安装脚本。"
+  remote_exec "$HARBOR_NODE_IP" "rm -rf /tmp/k8s-ha-rpms && install -d -m 0755 /tmp/k8s-ha-rpms"
+  scp -P "$SSH_PORT" "$ROOT"/offline/rpms/*.rpm "$SSH_USER@$HARBOR_NODE_IP:/tmp/k8s-ha-rpms/"
+  remote_exec "$HARBOR_NODE_IP" \
+    "dnf install -y --disablerepo='*' /tmp/k8s-ha-rpms/*.rpm && rm -rf /tmp/k8s-ha-rpms"
+
+  rsync -az --delete -e "ssh -p $SSH_PORT" \
+    "$PROJECT_STAGE/" "$SSH_USER@$HARBOR_NODE_IP:/tmp/k8s-ha-project/"
+  remote_exec "$HARBOR_NODE_IP" \
+    "install -d -m 0755 '$REMOTE_ROOT' && cp -a /tmp/k8s-ha-project/. '$REMOTE_ROOT/' && rm -rf /tmp/k8s-ha-project"
+fi
+
+# Harbor 与镜像归档只分发到指定 Harbor 节点，不复制到其他 Kubernetes 节点。
 remote_exec "$HARBOR_NODE_IP" \
-  "install -d -m 0755 '$REMOTE_ROOT/offline/harbor' '$REMOTE_ROOT/offline/images'"
+  "install -d -m 0755 '$REMOTE_ROOT/offline/docker' '$REMOTE_ROOT/offline/harbor' '$REMOTE_ROOT/offline/images'"
+copy_file "$HARBOR_NODE_IP" "$ROOT/offline/docker/docker.tgz" "$REMOTE_ROOT/offline/docker/docker.tgz"
+copy_file "$HARBOR_NODE_IP" "$ROOT/offline/docker/docker-compose" "$REMOTE_ROOT/offline/docker/docker-compose"
 copy_file "$HARBOR_NODE_IP" \
   "$ROOT/offline/harbor/harbor-offline-installer-v${HARBOR_VERSION}-amd64.tgz" \
   "$REMOTE_ROOT/offline/harbor/harbor-offline-installer-v${HARBOR_VERSION}-amd64.tgz"
+copy_file "$HARBOR_NODE_IP" "$ROOT/offline/harbor/SHA256SUMS" "$REMOTE_ROOT/offline/harbor/SHA256SUMS"
 copy_file "$HARBOR_NODE_IP" \
   "$ROOT/offline/images/kubernetes-images-linux-amd64.tar" \
   "$REMOTE_ROOT/offline/images/kubernetes-images-linux-amd64.tar"
 copy_file "$HARBOR_NODE_IP" \
   "$ROOT/offline/images/IMAGE-REFERENCES.txt" \
   "$REMOTE_ROOT/offline/images/IMAGE-REFERENCES.txt"
-copy_file "$HARBOR_NODE_IP" "$ROOT/offline/SHA256SUMS" "$REMOTE_ROOT/offline/SHA256SUMS"
 
 install -d -m 0700 "$HOME/.kube"
 install -m 0600 "$KCFG/admin.conf" "$HOME/.kube/config"
