@@ -8,9 +8,9 @@
 sudo bash scripts/00-install.sh all
 ~~~
 
-该入口按依赖顺序完成：Release 离线资源下载与校验、部署机 RPM/CLI 安装、SSH 公钥登录、CFSSL PKI、kubeconfig、节点配置渲染与分发、全部节点系统预检、容器运行时、systemd/内核参数、etcd、控制平面、Worker、NGINX、Calico、CoreDNS 和最终健康检查。
+该入口按依赖顺序完成：Release 离线资源下载与校验、部署机 RPM/CLI 安装、SSH 公钥登录、CFSSL PKI、kubeconfig、节点配置渲染与分发、全部节点系统预检、容器运行时、systemd/内核参数、**Harbor 离线部署与基础镜像导入**、etcd、控制平面、Worker、NGINX、Calico、CoreDNS 和最终健康检查。
 
-> 一条命令不代表跳过环境准备。首次运行前仍须填写 `config/cluster.env`，发布并确认对应 GitHub Release 资产可下载，并将 Kubernetes pause、Calico、CoreDNS 等 OCI 镜像推送到所有节点可访问的私有仓库；其中 `PAUSE_IMAGE` 和 `COREDNS_IMAGE` 必须以 `PRIVATE_REGISTRY/` 开头。当前 Release 不含 OCI 镜像。请先核验 SSH host key 指纹；首次配置公钥时脚本会逐台提示输入 root 密码；部署专用无口令密钥保存在部署机 `~/.ssh/kubernetes-binary-ha_ed25519`，并为节点 IP 写入 SSH config，供 SCP/rsync 和批量执行复用。
+> 一条命令不代表跳过环境准备。首次运行前须配置 `HARBOR_NODE_IP`、`HARBOR_HOST`、`HARBOR_URL`、`PRIVATE_REGISTRY` 和镜像引用；`HARBOR_NODE_IP` 必须属于 `NODE_IPS`。Release 已包含 Harbor 官方离线安装器和基础 Kubernetes/Calico 镜像归档。Harbor 在 `prepare` 完成后、etcd 启动前部署。当前默认使用 HTTP/80，因此运行时配置的是 HTTP insecure registry，而不是 TLS CA 证书信任。请先核验 SSH host key 指纹；SSH 用户、密码和端口从 `cluster.env` 读取。非 root SSH 用户必须具备免密 sudo 权限。
 
 ## 2. 安装参数
 
@@ -21,8 +21,8 @@ sudo bash scripts/00-install.sh all
 | `sudo bash scripts/00-install.sh download` | 仅下载 Release、校验离线包、安装部署机 RPM 和 CLI |
 | `sudo bash scripts/00-install.sh ssh` | 配置并验证全部节点 SSH 公钥登录 |
 | `sudo bash scripts/00-install.sh certs` | SSH 检查、生成/复用证书、kubeconfig、渲染和分发 |
-| `sudo bash scripts/00-install.sh system` | `prepare` 的兼容别名，执行完整预处理 |
-| `sudo bash scripts/00-install.sh etcd` | 仅检查本地/节点证书和配置已准备，再启动 etcd 并按 MASTER_COUNT 验证 etcd 成员和 quorum；缺少证书立即报错退出，不自动补装依赖 |
+| `sudo bash scripts/00-install.sh system` | `prepare` 的兼容别名，执行完整预处理 |\n| `sudo bash scripts/00-install.sh harbor` | 在 `HARBOR_NODE_IP` 指定节点部署 Harbor，并导入/推送离线镜像 |
+| `sudo bash scripts/00-install.sh etcd` | 检查 Harbor 健康、证书和节点配置，再启动 etcd 并按 MASTER_COUNT 验证成员和 quorum；缺少前置条件立即退出 |
 | `sudo bash scripts/00-install.sh control-plane` | 完成 etcd 后启动全部 Master 控制平面 |
 | `sudo bash scripts/00-install.sh workers` | 仅检查证书及节点配置已分发，再安装 Worker NGINX 并启动 kubelet/kube-proxy；不自动执行前置准备 |
 | `sudo bash scripts/00-install.sh calico` | 完成前置阶段后安装 Calico |
@@ -30,7 +30,7 @@ sudo bash scripts/00-install.sh all
 | `sudo bash scripts/00-install.sh verify` | 重新执行集群健康检查 |
 | `sudo bash scripts/00-install.sh status` | 查看部署机本地阶段标记 |
 
-`prepare` 是独立的预处理阶段。请先执行 `sudo bash scripts/00-install.sh prepare`，再按需执行 `etcd`、`control-plane`、`workers` 等组件阶段。组件阶段不会隐式下载资源、安装依赖或生成证书；若本地证书或节点证书分发缺失，会明确提示先执行 `prepare` 并退出。`all` 仍会显式按顺序执行预处理和完整部署。
+`prepare` 是独立的预处理阶段。请先执行 `sudo bash scripts/00-install.sh prepare`，再按需执行 `etcd`、`control-plane`、`workers` 等组件阶段。组件阶段不会隐式下载资源、安装依赖或生成证书；若本地证书或节点证书分发缺失，会明确提示先执行 `prepare` 并退出。`all` 会显式按顺序执行预处理、Harbor、etcd 和完整部署。单独执行 `etcd` 前必须先完成 `harbor`。
 
 ## 3. 幂等标记和断点续装
 
