@@ -13,7 +13,7 @@ KUBECTL="$ROOT/offline/bin/kubectl"
 KUBECONFIG="${KUBECONFIG:-$HOME/.kube/config}"
 export KUBECONFIG
 [[ -s "$KUBECONFIG" ]] || die "缺少管理员 kubeconfig"
-: "${COREDNS_CHART_VERSION:?请先将 config/cluster.env.example 中的 CoreDNS 版本变量同步到 config/cluster.env}"
+: "${COREDNS_CHART_VERSION:?请先将 config/cluster.env.example 中的 CoreDNS Chart 版本同步到 config/cluster.env}"
 : "${PRIVATE_REGISTRY:?请在 config/cluster.env 设置 PRIVATE_REGISTRY}"
 : "${CLUSTER_DOMAIN:?请在 config/cluster.env 设置 CLUSTER_DOMAIN}"
 : "${DNS_SERVICE_IP:?请在 config/cluster.env 设置 DNS_SERVICE_IP}"
