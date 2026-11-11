@@ -145,34 +145,28 @@ EOF
 }
 
 publish_images() {
-  local source_ref destination_ref
-  local -a image_map
+  local source_ref destination_ref repository_path
+  local references_file="$OFFLINE_DIR/images/IMAGE-REFERENCES.txt"
 
-  image_map=(
-    "registry.k8s.io/coredns/coredns:${COREDNS_VERSION}|${COREDNS_IMAGE}"
-    "registry.k8s.io/pause:${PAUSE_VERSION}|${PAUSE_IMAGE}"
-    "docker.io/calico/node:${CALICO_VERSION}|${CALICO_NODE_IMAGE}"
-    "docker.io/calico/cni:${CALICO_VERSION}|${PRIVATE_REGISTRY}/calico/cni:${CALICO_VERSION}"
-    "docker.io/calico/kube-controllers:${CALICO_VERSION}|${PRIVATE_REGISTRY}/calico/kube-controllers:${CALICO_VERSION}"
-    "docker.io/calico/pod2daemon-flexvol:${CALICO_VERSION}|${PRIVATE_REGISTRY}/calico/pod2daemon-flexvol:${CALICO_VERSION}"
-    "quay.io/tigera/operator:${CALICO_VERSION}|${PRIVATE_REGISTRY}/tigera/operator:${CALICO_VERSION}"
-    "registry.k8s.io/dns/k8s-dns-node-cache:${NODE_LOCAL_DNS_VERSION}|${NODE_LOCAL_DNS_IMAGE}"
-  )
-
-  log "导入统一 Kubernetes 镜像归档。"
+  [[ -s "$references_file" ]] || die "缺少镜像来源清单：$references_file"
+  log "导入 CI 根据离线部署制品提取的镜像归档。"
   docker load --input "$IMAGE_ARCHIVE"
-  printf '%s\n' "$HARBOR_ADMIN_PASSWORD" |
+  printf '%s\\n' "$HARBOR_ADMIN_PASSWORD" |
     docker login "$HARBOR_HOST" --username admin --password-stdin
 
-  for entry in "${image_map[@]}"; do
-    source_ref="${entry%%|*}"
-    destination_ref="${entry#*|}"
+  # Keep the source repository path under the Harbor library project.
+  while IFS=$'\\t' read -r source_ref _; do
+    [[ -n "$source_ref" ]] || continue
+    repository_path="${source_ref#*/}"
+    [[ "$repository_path" != "$source_ref" ]] ||
+      die "无法从镜像引用解析仓库路径：$source_ref"
+    destination_ref="${PRIVATE_REGISTRY}/${repository_path}"
     docker image inspect "$source_ref" >/dev/null ||
-      die "镜像归档缺少预期镜像：$source_ref"
+      die "镜像归档缺少清单中的镜像：$source_ref"
     docker tag "$source_ref" "$destination_ref"
     docker push "$destination_ref"
     log "已推送镜像：$destination_ref"
-  done
+  done < "$references_file"
 
   docker logout "$HARBOR_HOST" >/dev/null 2>&1 || true
 }
