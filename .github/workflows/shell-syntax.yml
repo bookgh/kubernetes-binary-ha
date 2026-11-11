@@ -13,6 +13,9 @@ on:
     paths:
       - "scripts/**/*.sh"
       - "scripts/*.sh"
+      - "config/**/*.json"
+      - "nginx/Dockerfile"
+      - ".editorconfig"
       - ".github/workflows/shell-syntax.yml"
 
 permissions:
