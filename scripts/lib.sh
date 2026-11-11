@@ -94,11 +94,14 @@ derive_inventory() {
   : "${HARBOR_HOST:=harbor.${HARBOR_NODE_IP}.nip.io}"
   : "${HARBOR_URL:=http://${HARBOR_HOST}}"
   : "${HARBOR_HTTP_PORT:=80}"
-  local harbor_ip_found=0
-  for ip in "${NODE_IPS[@]}"; do
-    [[ "$ip" == "$HARBOR_NODE_IP" ]] && harbor_ip_found=1
+  local -a harbor_octets
+  IFS='.' read -r -a harbor_octets <<< "$HARBOR_NODE_IP"
+  [[ ${#harbor_octets[@]} -eq 4 ]] || die "HARBOR_NODE_IP 必须是有效 IPv4 地址"
+  for octet in "${harbor_octets[@]}"; do
+    [[ "$octet" =~ ^(0|[1-9][0-9]{0,2})$ ]] &&
+      (( 10#$octet <= 255 )) ||
+      die "HARBOR_NODE_IP 必须是有效 IPv4 地址"
   done
-  (( harbor_ip_found == 1 )) || die "HARBOR_NODE_IP 必须属于 NODE_IPS 节点清单"
   [[ "$HARBOR_HOST" == "harbor.${HARBOR_NODE_IP}.nip.io" ]] ||
     die "HARBOR_HOST 必须为 harbor.${HARBOR_NODE_IP}.nip.io"
   [[ "$HARBOR_URL" == "http://${HARBOR_HOST}" ]] ||
