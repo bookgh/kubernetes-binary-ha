@@ -117,7 +117,7 @@ require_certificates() {
     "$ROOT/kubeconfigs/admin.conf" \
     "$ROOT/kubeconfigs/kube-proxy.conf"; do
     if [[ ! -s "$file" ]]; then
-      printf '  - %s\\n' "$file" >&2
+      printf '  - %s\n' "$file" >&2
       missing=1
     fi
   done
