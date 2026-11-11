@@ -17,19 +17,20 @@ sudo bash scripts/00-install.sh all
 | 命令 | 执行内容 |
 |---|---|
 | `sudo bash scripts/00-install.sh all` | 从下载到最终验收的完整流程 |
-| `sudo bash scripts/00-install.sh download` | 下载 Release、校验离线包、安装部署机 RPM 和 CLI |
+| `sudo bash scripts/00-install.sh prepare` | 显式执行预处理：下载资源、安装部署机工具、配置 SSH、生成证书/kubeconfig、渲染分发配置，并完成节点预检、运行时和 systemd 准备 |
+| `sudo bash scripts/00-install.sh download` | 仅下载 Release、校验离线包、安装部署机 RPM 和 CLI |
 | `sudo bash scripts/00-install.sh ssh` | 配置并验证六节点 SSH 公钥登录 |
 | `sudo bash scripts/00-install.sh certs` | SSH 检查、生成/复用证书、kubeconfig、渲染和分发 |
-| `sudo bash scripts/00-install.sh system` | 完成基础准备、六节点预检、运行时和系统服务 |
-| `sudo bash scripts/00-install.sh etcd` | 依赖准备、启动 etcd 并验证三成员 quorum |
+| `sudo bash scripts/00-install.sh system` | `prepare` 的兼容别名，执行完整预处理 |
+| `sudo bash scripts/00-install.sh etcd` | 仅检查本地/节点证书和配置已准备，再启动 etcd 并验证三成员 quorum；缺少证书立即报错退出，不自动补装依赖 |
 | `sudo bash scripts/00-install.sh control-plane` | 完成 etcd 后启动三台 Master 控制平面 |
-| `sudo bash scripts/00-install.sh workers` | 安装 Worker NGINX 并启动 kubelet/kube-proxy |
+| `sudo bash scripts/00-install.sh workers` | 仅检查证书及节点配置已分发，再安装 Worker NGINX 并启动 kubelet/kube-proxy；不自动执行前置准备 |
 | `sudo bash scripts/00-install.sh calico` | 完成前置阶段后安装 Calico |
 | `sudo bash scripts/00-install.sh coredns` | 完成前置阶段后安装 CoreDNS |
 | `sudo bash scripts/00-install.sh verify` | 重新执行集群健康检查 |
 | `sudo bash scripts/00-install.sh status` | 查看部署机本地阶段标记 |
 
-每个目标会自动执行其依赖阶段。例如 `etcd` 会先准备离线资源、SSH、证书、配置分发和系统运行时，不要求手动记住前置步骤。
+`prepare` 是独立的预处理阶段。请先执行 `sudo bash scripts/00-install.sh prepare`，再按需执行 `etcd`、`control-plane`、`workers` 等组件阶段。组件阶段不会隐式下载资源、安装依赖或生成证书；若本地证书或节点证书分发缺失，会明确提示先执行 `prepare` 并退出。`all` 仍会显式按顺序执行预处理和完整部署。
 
 ## 3. 幂等标记和断点续装
 
