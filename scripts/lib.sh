@@ -29,7 +29,7 @@ derive_inventory() {
   ips_decl="$(declare -p NODE_IPS 2>/dev/null || true)"
   [[ "$names_decl" == "declare -a NODE_NAMES="* ]] || die "配置缺少 NODE_NAMES 索引数组，请按 config/cluster.env.example 更新节点清单"
   [[ "$ips_decl" == "declare -a NODE_IPS="* ]] || die "配置缺少 NODE_IPS 索引数组，请按 config/cluster.env.example 更新节点清单"
-  [[ "${MASTER_COUNT:-}" =~ ^[0-9]+$ ]] || die "MASTER_COUNT 必须设置为正整数"
+  [[ "${MASTER_COUNT:-}" =~ ^(0|[1-9][0-9]*)$ ]] || die "MASTER_COUNT 必须设置为正整数"
   master_count=$((10#$MASTER_COUNT))
   total=${#NODE_NAMES[@]}
   (( master_count >= 1 )) || die "MASTER_COUNT 至少为 1"
