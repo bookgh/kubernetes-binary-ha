@@ -7,6 +7,10 @@ NGINX="$ROOT/scripts/13-install-nginx-proxy.sh"
 OFFLINE="$ROOT/scripts/01-prepare-offline.sh"
 RENDER="$ROOT/scripts/14-render-node-configs.sh"
 VERIFY="$ROOT/scripts/18-verify-cluster.sh"
+NODE_LOCAL="$ROOT/scripts/25-install-node-local-dns.sh"
+NETWORK_VERIFY="$ROOT/scripts/26-verify-network.sh"
+RELEASE="$ROOT/config/release-versions.env"
+RENDER="$ROOT/scripts/14-render-node-configs.sh"
 
 contains() {
   local file="$1" text="$2"
@@ -32,4 +36,15 @@ contains "$VERIFY" 'Node 数量与配置不一致'
 contains "$VERIFY" 'CoreDNS kube-dns Service 没有可用 Endpoints'
 contains "$ROOT/scripts/11-upgrade-node.sh" '当前版本暂不支持'
 
-echo "Installer flow and offline quick-install tests passed."
+contains "$INSTALL" 'local_step node-local-dns 25-install-node-local-dns.sh'
+contains "$INSTALL" 'node-local-dns|nodelocaldns) prepare_node_local_dns ;;'
+contains "$NODE_LOCAL" 'image: ${NODE_LOCAL_DNS_IMAGE}'
+contains "$NODE_LOCAL" 'forward . ${DNS_SERVICE_IP}'
+contains "$NODE_LOCAL" 'rollout status daemonset/node-local-dns'
+contains "$RENDER" 'NODE_LOCAL_DNS_IP'
+contains "$NETWORK_VERIFY" 'imagePullPolicy: Always'
+contains "$NETWORK_VERIFY" 'nslookup kubernetes.default.svc.cluster.local'
+contains "$NETWORK_VERIFY" 'cross-node-network-ok'
+contains "$VERIFY" 'bash "$ROOT/scripts/26-verify-network.sh"'
+contains "$RELEASE" 'docker.io/library/busybox:1.36.1'
+echo "Installer flow, NodeLocal DNS, Harbor image-pull and cross-node network tests passed."
