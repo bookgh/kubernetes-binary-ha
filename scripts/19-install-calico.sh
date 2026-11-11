@@ -13,17 +13,16 @@ KUBECTL="$ROOT/offline/bin/kubectl"
 KUBECONFIG="${KUBECONFIG:-$HOME/.kube/config}"
 export KUBECONFIG
 [[ -s "$KUBECONFIG" ]] || die "缺少管理员 kubeconfig"
+: "${CALICO_CHART_VERSION:?请先将 config/cluster.env.example 中的 Calico 版本变量同步到 config/cluster.env}"
+: "${TIGERA_OPERATOR_VERSION:?请先将 config/cluster.env.example 中的 TIGERA_OPERATOR_VERSION 同步到 config/cluster.env}"
+: "${PRIVATE_REGISTRY:?请在 config/cluster.env 设置 PRIVATE_REGISTRY}"
+: "${HARBOR_HOST:?请在 config/cluster.env 设置 HARBOR_HOST}"
 
 CRD_CHART="$ROOT/offline/helm/projectcalico.org.v3-${CALICO_CHART_VERSION}.tgz"
 OPERATOR_CHART="$ROOT/offline/helm/tigera-operator-${CALICO_CHART_VERSION}.tgz"
 for chart in "$CRD_CHART" "$OPERATOR_CHART"; do
   [[ -s "$chart" ]] || die "缺少 Calico Helm Chart：$chart；请先运行 scripts/01-prepare-offline.sh"
 done
-
-: "${PRIVATE_REGISTRY:?请在 config/cluster.env 设置 PRIVATE_REGISTRY}"
-: "${HARBOR_HOST:?请在 config/cluster.env 设置 HARBOR_HOST}"
-: "${CALICO_CHART_VERSION:?请在 config/cluster.env 设置 CALICO_CHART_VERSION}"
-: "${TIGERA_OPERATOR_VERSION:?请在 config/cluster.env 设置 TIGERA_OPERATOR_VERSION}"
 
 log "1/3 使用 Calico Helm Chart 安装 Kubernetes 1.36+ 原生 v3 CRD"
 "$HELM" template calico-crds "$CRD_CHART" \
