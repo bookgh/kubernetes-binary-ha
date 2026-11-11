@@ -49,6 +49,22 @@ if [[ "${RUNTIME_TYPE:-containerd}" == containerd ]]; then
   else
     die "containerd 2.x 默认配置中未找到 pinned_images.sandbox 字段"
   fi
+  if grep -qE "^[[:space:]]*config_path[[:space:]]*=" "$COMMON/etc/containerd/config.toml"; then
+    sed -i -E 's#^[[:space:]]*config_path[[:space:]]*=.*#  config_path = "/etc/containerd/certs.d"#' "$COMMON/etc/containerd/config.toml"
+  else
+    cat >> "$COMMON/etc/containerd/config.toml" <<'EOF'
+
+[plugins.'io.containerd.cri.v1.images'.registry]
+  config_path = "/etc/containerd/certs.d"
+EOF
+  fi
+  install -d -m 0755 "$COMMON/etc/containerd/certs.d/${HARBOR_HOST}"
+  cat > "$COMMON/etc/containerd/certs.d/${HARBOR_HOST}/hosts.toml" <<EOF
+server = "http://${HARBOR_HOST}"
+
+[host."http://${HARBOR_HOST}"]
+  capabilities = ["pull", "resolve", "push"]
+EOF
   rm -rf "$TMP_CONTAINERD"
 elif [[ "${RUNTIME_TYPE:-containerd}" == docker ]]; then
   install -d -m 0755 "$COMMON/etc/docker"
@@ -58,7 +74,8 @@ elif [[ "${RUNTIME_TYPE:-containerd}" == docker ]]; then
   "data-root": "${DOCKER_DATA_ROOT}",
   "storage-driver": "overlay2",
   "log-driver": "json-file",
-  "log-opts": {"max-size": "100m", "max-file": "5"}
+  "log-opts": {"max-size": "100m", "max-file": "5"},
+    "insecure-registries": ["${HARBOR_HOST}"]
 }
 EOF
 fi
