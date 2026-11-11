@@ -18,6 +18,7 @@ fingerprint() {
   local script="$1"
   {
     sha256sum "$ROOT/scripts/$script" "$ROOT/config/cluster.env" "$ROOT/config/release-versions.env"
+    find "$ROOT/scripts" -maxdepth 1 -type f -name "*.sh" -print0 | sort -z | xargs -0 -r sha256sum
     find "$ROOT/config/cfssl" "$ROOT/manifests" -type f -print0 2>/dev/null | sort -z | xargs -0 -r sha256sum
   } | sha256sum | awk '{print $1}'
 }
@@ -85,13 +86,13 @@ prepare_workers() {
   remote_step workers 09-start-worker.sh
 }
 prepare_calico() {
-  prepare_workers
   [[ "$PRIVATE_REGISTRY" != *example* && "$PAUSE_IMAGE" != *example* ]] || die "请先在 config/cluster.env 配置真实可访问的 PRIVATE_REGISTRY 和 PAUSE_IMAGE"
+  prepare_workers
   local_step calico 19-install-calico.sh
 }
 prepare_coredns() {
-  prepare_calico
   [[ "$COREDNS_IMAGE" != *example* ]] || die "请先在 config/cluster.env 配置真实可访问的 COREDNS_IMAGE"
+  prepare_calico
   local_step coredns 20-install-coredns.sh
 }
 verify_cluster() { local_step verify 18-verify-cluster.sh; }
@@ -106,7 +107,11 @@ case "$TARGET" in
   calico) prepare_calico ;;
   coredns) prepare_coredns ;;
   verify) verify_cluster ;;
-  all) prepare_download; prepare_ssh; prepare_certs; remote_step all 00-preflight.sh; remote_step all 02-install-runtime.sh; remote_step all 06-install-systemd.sh; remote_step masters 07-bootstrap-etcd.sh; local_step etcd-health 21-verify-etcd.sh; remote_step masters 08-start-control-plane.sh; remote_step workers 13-install-nginx-proxy.sh; remote_step workers 09-start-worker.sh; [[ "$PRIVATE_REGISTRY" != *example* && "$PAUSE_IMAGE" != *example* && "$COREDNS_IMAGE" != *example* ]] || die "请先配置真实私有镜像仓库和 COREDNS_IMAGE/PAUSE_IMAGE"; local_step calico 19-install-calico.sh; local_step coredns 20-install-coredns.sh; verify_cluster ;;
+  status)\n    printf "本地阶段标记：%s
+" "$STATE/steps"\n    find "$STATE/steps" -maxdepth 1 -type f -printf "%f
+" | sort\n    printf "远程节点标记位置：/var/lib/kubernetes-binary-ha/steps/（每台节点独立保存）
+" ;;
+  all) [[ "$PRIVATE_REGISTRY" != *example* && "$PAUSE_IMAGE" != *example* && "$COREDNS_IMAGE" != *example* ]] || die "请先配置真实私有镜像仓库和 COREDNS_IMAGE/PAUSE_IMAGE"; prepare_download; prepare_ssh; prepare_certs; remote_step all 00-preflight.sh; remote_step all 02-install-runtime.sh; remote_step all 06-install-systemd.sh; remote_step masters 07-bootstrap-etcd.sh; local_step etcd-health 21-verify-etcd.sh; remote_step masters 08-start-control-plane.sh; remote_step workers 13-install-nginx-proxy.sh; remote_step workers 09-start-worker.sh; [[ "$PRIVATE_REGISTRY" != *example* && "$PAUSE_IMAGE" != *example* && "$COREDNS_IMAGE" != *example* ]] || die "请先配置真实私有镜像仓库和 COREDNS_IMAGE/PAUSE_IMAGE"; local_step calico 19-install-calico.sh; local_step coredns 20-install-coredns.sh; verify_cluster ;;
   *) die "用法：$0 {all|download|ssh|certs|system|etcd|control-plane|workers|calico|coredns|verify}" ;;
 esac
 ok "目标阶段 $TARGET 执行结束。安装日志：$LOG"
