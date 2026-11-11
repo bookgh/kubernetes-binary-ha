@@ -70,7 +70,12 @@ for i in "${!ALL_NAMES[@]}"; do
 done
 cat "$PKI/k8s-ca.crt" "$PKI/cluster-signer.crt" > "$PKI/k8s-ca-bundle.crt"
 # Service-account JWT signing keys are not X.509 certificates.
-openssl genrsa -out "$PKI/sa.key" 2048
-openssl rsa -in "$PKI/sa.key" -pubout -out "$PKI/sa.pub"
+if [[ -s "$PKI/sa.key" && -s "$PKI/sa.pub" ]]; then
+  log "复用已有 ServiceAccount JWT 密钥对"
+else
+  [[ ! -e "$PKI/sa.key" && ! -e "$PKI/sa.pub" ]] || die "ServiceAccount 密钥对不完整；拒绝覆盖。"
+  openssl genrsa -out "$PKI/sa.key" 2048
+  openssl rsa -in "$PKI/sa.key" -pubout -out "$PKI/sa.pub"
+fi
 chmod 0600 "$PKI"/*.key
 ok "CFSSL PKI generated; every leaf certificate was signed with explicit -hostname DNS/IP SAN values."
