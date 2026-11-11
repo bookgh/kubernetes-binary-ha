@@ -33,7 +33,7 @@ if [[ "$PARALLEL" == --parallel ]]; then
   for i in "${!NODES[@]}"; do
     node="${NODES[$i]}"; ip="${IPS[$i]}"
     log "并行执行 $SCRIPT -> $node ($ip)"
-    ssh -o BatchMode=yes "root@$ip" "bash '$REMOTE_ROOT/scripts/$SCRIPT'" &
+    ssh_remote "$ip" "bash '$REMOTE_ROOT/scripts/$SCRIPT'" &
     PIDS+=("$!")
   done
   for i in "${!PIDS[@]}"; do
@@ -44,7 +44,7 @@ else
   for i in "${!NODES[@]}"; do
     node="${NODES[$i]}"; ip="${IPS[$i]}"
     log "执行 $SCRIPT -> $node ($ip)"
-    ssh -o BatchMode=yes "root@$ip" "bash '$REMOTE_ROOT/scripts/$SCRIPT'"
+    ssh_remote "$ip" "bash '$REMOTE_ROOT/scripts/$SCRIPT'"
     ok "$node 执行完成"
   done
 fi
