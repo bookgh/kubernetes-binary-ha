@@ -17,7 +17,7 @@ mkdir -p "$ROOT/generated"
 sed "s#quay.io/tigera#${PRIVATE_REGISTRY}/tigera#g" "$ROOT/offline/manifests/tigera-operator.yaml" > "$ROOT/generated/tigera-operator.yaml"
 "$KUBECTL" apply -f "$ROOT/generated/tigera-operator.yaml"
 "$KUBECTL" wait --for=condition=Available deployment/tigera-operator -n tigera-operator --timeout=300s
-sed -e "s#__POD_CIDR__#${POD_CIDR}#g" -e "s#__PRIVATE_REGISTRY__#${PRIVATE_REGISTRY}#g" "$ROOT/manifests/calico-installation.yaml.template" > "$ROOT/generated/calico-installation.yaml"
+sed -e "s#__POD_CIDR__#${POD_CIDR}#g" -e "s#__PRIVATE_REGISTRY__#${PRIVATE_REGISTRY}#g" "$ROOT/offline/manifests/calico-installation.yaml.template" > "$ROOT/generated/calico-installation.yaml"
 "$KUBECTL" apply -f "$ROOT/generated/calico-installation.yaml"
 for attempt in {1..60}; do
   "$KUBECTL" -n calico-system get ds calico-node >/dev/null 2>&1 && break
