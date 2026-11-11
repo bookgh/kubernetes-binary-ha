@@ -245,7 +245,7 @@ EOF
     # This release targets Linux/amd64. The operator also lists Windows-only
     # images (for example calico/cni-windows), which cannot be pulled for this archive.
     if [[ "${image_ref,,}" == *windows* ]]; then
-      log "跳过非目标平台镜像：$image_ref"
+      printf '[信息] 跳过非目标平台镜像：%s\n' "$image_ref" >&2
       continue
     fi
     # Operator output is authoritative: preserve registry, repository and tag/digest.
