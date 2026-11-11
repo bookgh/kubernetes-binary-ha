@@ -99,8 +99,6 @@ ensure_host_rpms() {
 validate_image_config() {
   [[ -n "$PRIVATE_REGISTRY" && "$PRIVATE_REGISTRY" != *example* ]] || die "请在 config/cluster.env 设置真实 PRIVATE_REGISTRY"
   [[ "$PAUSE_IMAGE" == "${PRIVATE_REGISTRY}/"* ]] || die "PAUSE_IMAGE 必须先镜像到 PRIVATE_REGISTRY：当前为 $PAUSE_IMAGE"
-  [[ "$COREDNS_IMAGE" == "${PRIVATE_REGISTRY}/"* ]] || die "COREDNS_IMAGE 必须先镜像到 PRIVATE_REGISTRY：当前为 $COREDNS_IMAGE"
-  [[ "$CALICO_NODE_IMAGE" == "${PRIVATE_REGISTRY}/"* ]] || die "CALICO_NODE_IMAGE 必须指向 PRIVATE_REGISTRY：当前为 $CALICO_NODE_IMAGE"
   [[ "$NODE_LOCAL_DNS_IMAGE" == "${PRIVATE_REGISTRY}/"* ]] || die "NODE_LOCAL_DNS_IMAGE 必须指向 PRIVATE_REGISTRY：当前为 $NODE_LOCAL_DNS_IMAGE"
   [[ "$PRIVATE_REGISTRY" == "${HARBOR_HOST}/library" ]] || die "PRIVATE_REGISTRY 必须设置为 ${HARBOR_HOST}/library"
 }
