@@ -6,7 +6,8 @@ GitHub Actions 负责触发，仓库脚本负责实现。构建逻辑、下载 U
 
 - Workflow：只做 Issue/手动触发过滤、checkout、传入事件上下文并调用构建脚本。
 - `config/release-versions.env`：统一维护 etcd、containerd、runc、CNI、crictl、Calico、CoreDNS、pause、NodeLocal DNS、Harbor、NGINX 版本及校验值。
-- `scripts/ci/build-offline-release.sh`：唯一构建入口，完成版本提取、下载、校验、镜像拉取与归档、NGINX 源码构建和 Release 发布。
+- `scripts/ci/build-offline-release.sh`：唯一构建入口，先下载实际部署 manifests/Helm Chart，再提取镜像、拉取归档、构建 NGINX 并发布 Release。
+- `scripts/ci/extract-image-refs.py`：从 YAML/JSON manifests 和 Helm 渲染结果提取、规范化、去重、排序镜像引用。
 - `nginx/Dockerfile`：唯一 NGINX 编译定义。
 - `scripts/13-install-nginx-proxy.sh`：Worker 从配置的 Release base URL 下载 NGINX 二进制和校验文件，验证后安装。
 
@@ -17,7 +18,7 @@ GitHub Actions 负责触发，仓库脚本负责实现。构建逻辑、下载 U
 3. Actions 提取第一个符合 `X.Y.Z` 或 `vX.Y.Z` 的版本号。
 4. 构建脚本下载 Kubernetes 和配套组件，并对 Kubernetes 官方 SHA256 文件执行校验。
 5. 下载 Harbor 官方 offline installer，并按 `HARBOR_SHA256` 校验。
-6. 拉取固定为 `linux/amd64` 的 CoreDNS、pause、Calico、Tigera Operator 和 NodeLocal DNSCache 镜像，生成单个 OCI 镜像归档与 RepoDigest 清单。
+6. 下载实际部署 manifests；如存在 Helm Chart 则使用 Helm 渲染；从 manifests、渲染结果及运行时/Operator 动态镜像声明中提取镜像引用，校验、去重、排序后拉取 linux/amd64 镜像并生成归档与 RepoDigest 清单。Harbor 自身镜像仅由官方离线安装器提供。
 7. 使用 `nginx/Dockerfile` 构建 NGINX 源码，导出独立二进制及 SHA256。
 8. 发布 `k8s-vX.Y.Z-rN` Release。
 
@@ -28,7 +29,7 @@ GitHub Actions 负责触发，仓库脚本负责实现。构建逻辑、下载 U
 - `nginx-<NGINX_VERSION>-linux-amd64`：NGINX 独立二进制。
 - 对应 `.sha256`：NGINX 独立二进制校验文件。
 
-归档内的 Harbor 文件单独放在 `harbor/`，Harbor 自身镜像由官方 offline installer 包含。其余基础 OCI 镜像合并为 `images/kubernetes-images-linux-amd64.tar`，来源和 RepoDigest 记录在 `images/IMAGE-REFERENCES.txt`。内部 `SHA256SUMS` 覆盖两个大文件。
+归档内的 Harbor 文件单独放在 `harbor/`，Harbor 自身镜像由官方 offline installer 包含。其余镜像由部署制品提取后合并为 `images/kubernetes-images-linux-amd64.tar`，来源和 RepoDigest 记录在 `images/IMAGE-REFERENCES.txt`；Harbor 导入端消费同一清单，不再维护独立映射。内部 `SHA256SUMS` 覆盖两个大文件。
 
 ## 4. 版本与下载加速
 
