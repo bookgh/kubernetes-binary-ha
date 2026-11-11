@@ -18,6 +18,7 @@ source "$CLUSTER_CONFIG"
 : "${CALICO_CHART_VERSION:?请在 config/cluster.env.example 定义 CALICO_CHART_VERSION}"
 : "${COREDNS_CHART_VERSION:?请在 config/cluster.env.example 定义 COREDNS_CHART_VERSION}"
 : "${CALICO_VERSION:?请在 config/cluster.env.example 定义 CALICO_VERSION}"
+: "${TIGERA_OPERATOR_VERSION:?请在 config/cluster.env.example 定义 TIGERA_OPERATOR_VERSION}"
 : "${COREDNS_VERSION:?请在 config/cluster.env.example 定义 COREDNS_VERSION}"
 
 log() {
