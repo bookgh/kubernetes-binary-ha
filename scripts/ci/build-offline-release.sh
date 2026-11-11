@@ -242,6 +242,12 @@ EOF
   index=0
   while IFS= read -r image_ref; do
     [[ "$image_ref" =~ ^[A-Za-z0-9][A-Za-z0-9._:/@+-]*$ ]] || continue
+    # This release targets Linux/amd64. The operator also lists Windows-only
+    # images (for example calico/cni-windows), which cannot be pulled for this archive.
+    if [[ "${image_ref,,}" == *windows* ]]; then
+      log "跳过非目标平台镜像：$image_ref"
+      continue
+    fi
     # Operator output is authoritative: preserve registry, repository and tag/digest.
     # Never synthesize image tags from separately maintained component versions.
     [[ "$image_ref" == */* && ( "$image_ref" == *:* || "$image_ref" == *@* ) ]] || continue
