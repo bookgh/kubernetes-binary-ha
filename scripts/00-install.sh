@@ -28,7 +28,10 @@ local_healthy() {
     download) [[ -s "$ROOT/offline/SHA256SUMS" && -x "$ROOT/offline/bin/kubectl" && -x "$ROOT/offline/bin/cfssl" ]] && (cd "$ROOT/offline" && sha256sum -c SHA256SUMS >/dev/null 2>&1) ;;
     cli-tools) command -v helm >/dev/null && command -v calicoctl >/dev/null && command -v crictl >/dev/null && command -v cfssl >/dev/null ;;
     ssh-key)
-      for ip in "${ALL_IPS[@]}"; do ssh_remote "$ip" true >/dev/null 2>&1 || return 1; done
+      for ip in "${ALL_IPS[@]}"; do
+        ssh_remote "$ip" true >/dev/null 2>&1 || return 1
+      done
+      ssh_remote "$HARBOR_NODE_IP" true >/dev/null 2>&1 || return 1
       ;;
     pki)
       [[ -s "$ROOT/pki/k8s-ca.crt" && -s "$ROOT/pki/k8s-ca.key" && -s "$ROOT/pki/apiserver.crt" && -s "$ROOT/pki/etcd-ca.crt" && -s "$ROOT/pki/sa.key" && -s "$ROOT/pki/sa.pub" ]] || return 1
