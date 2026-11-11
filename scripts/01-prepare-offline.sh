@@ -5,6 +5,12 @@ source "$(dirname "$0")/lib.sh"
 require_root
 # shellcheck disable=SC1090
 source "$ROOT/config/release-versions.env"
+
+: "${CALICO_CHART_VERSION:?请先将 config/cluster.env.example 中的 Calico 版本变量同步到 config/cluster.env}"
+: "${TIGERA_OPERATOR_VERSION:?请先将 config/cluster.env.example 中的 TIGERA_OPERATOR_VERSION 同步到 config/cluster.env}"
+: "${COREDNS_CHART_VERSION:?请先将 config/cluster.env.example 中的 CoreDNS 版本变量同步到 config/cluster.env}"
+: "${CALICO_VERSION:?请在 config/cluster.env 设置 CALICO_VERSION}"
+: "${COREDNS_VERSION:?请在 config/cluster.env 设置 COREDNS_VERSION}"
 [[ -f /etc/rocky-release ]] || die "请在 Rocky Linux 9 暂存机运行"
 [[ "$(uname -m)" == x86_64 ]] || die "暂存机 CPU 架构必须为 x86_64"
 for cmd in curl tar sha256sum; do command -v "$cmd" >/dev/null 2>&1 || { printf "missing required command: %s\n" "$cmd" >&2; exit 1; }; done
