@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 部署端：检查或配置到六台节点的 SSH 公钥登录。
+# 部署端：检查或配置到全部节点的 SSH 公钥登录。
 set -Eeuo pipefail
 source "$(dirname "$0")/lib.sh"
 require_root
@@ -46,4 +46,4 @@ for i in "${!ALL_NAMES[@]}"; do
   ssh -o BatchMode=yes -o ConnectTimeout=8 -o StrictHostKeyChecking=accept-new "root@${ALL_IPS[$i]}" "test -n \"\$(hostname -s)\"" >/dev/null
   ok "${ALL_NAMES[$i]} SSH 免密登录正常"
 done
-ok "六台节点 SSH 公钥登录配置完成。"
+ok "全部节点 SSH 公钥登录配置完成。"
