@@ -4,12 +4,11 @@ Harbor 自身只使用官方 Harbor offline installer；Harbor 服务镜像不�
 
 ## Helm Chart 与版本来源
 
-Calico、Tigera Operator 和 CoreDNS 的版本统一在 `config/cluster.env` 中定义（仓库默认值维护在 `config/cluster.env.example`）：
+Calico 与 CoreDNS 的 Helm Chart 版本统一在 `config/cluster.env` 中定义（仓库默认值维护在 `config/cluster.env.example`）：
 
-- `CALICO_VERSION`：Calico 应用/镜像版本；`CALICO_CHART_VERSION`：Calico Helm Chart 版本（默认与应用版本一致）。
-- `TIGERA_OPERATOR_VERSION`：Tigera Operator 镜像版本。
-- `COREDNS_VERSION`：CoreDNS 应用镜像版本。
-- `COREDNS_CHART_VERSION`：CoreDNS Helm Chart 版本。
+- `CALICO_CHART_VERSION`：Calico `projectcalico.org.v3` CRD Chart 与 `tigera-operator` Chart 版本；当前两者均为 `v3.33.0`。
+- `COREDNS_CHART_VERSION`：CoreDNS Chart 版本，当前为 `1.50.4`。
+- 应用镜像版本由 Chart 默认 values 和 Operator 镜像清单决定；CI 与部署脚本只覆盖私有仓库地址，不再独立指定镜像 tag。
 
 GitHub Actions 无法读取部署机未提交的 `config/cluster.env`，因此构建时读取仓库中的 `config/cluster.env.example`。升级组件时，应同步更新该示例配置中的版本；部署机再将其复制为 `config/cluster.env`。
 
@@ -18,7 +17,7 @@ GitHub Actions 无法读取部署机未提交的 `config/cluster.env`，因此�
 CI 不再维护 Calico/CoreDNS 的独立镜像数组，构建流程如下：
 
 1. 下载指定版本的 Calico 原生 `projectcalico.org.v3` CRD Chart、`tigera-operator` Chart 和 CoreDNS Chart，全部保存到 Release 的 `helm/` 目录。
-2. 使用 Release 内的 Helm 二进制渲染这三个 Chart；CoreDNS 渲染时应用与部署一致的镜像版本、Service IP、集群域名和 kube-dns 标签。
+2. 使用 Release 内的 Helm 二进制渲染这三个 Chart；CoreDNS 渲染时仅覆盖镜像仓库地址以及 Service IP、集群域名和 kube-dns 标签，镜像 tag 使用 Chart 默认值。
 3. 从渲染后的 YAML 自动提取镜像引用，定位 Chart 实际引用的 Tigera Operator 镜像并拉取。
 4. 调用该 Operator 的 `--print-images=list`，获取其版本对应的 Calico 工作负载镜像清单。将该清单转成仅供提取使用的 YAML，不会 kubectl apply。
 5. 将 pause、NodeLocal DNS 等运行时镜像声明与 Chart/Operator 清单合并，通过 `scripts/ci/extract-image-refs.py` 校验 tag/digest、规范化、去重并排序。
