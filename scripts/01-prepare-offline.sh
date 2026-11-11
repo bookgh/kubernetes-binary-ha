@@ -76,4 +76,10 @@ EOF
 log "离线资源准备完成：$OUT"
 [[ -s "$OUT/harbor/harbor-offline-installer-v${HARBOR_VERSION}-amd64.tgz" ]] || die "缺少 Harbor 离线安装器"
 [[ -s "$OUT/images/kubernetes-images-linux-amd64.tar" ]] || die "缺少 Kubernetes 镜像归档"
+for chart in \
+  "$OUT/helm/projectcalico.org.v3-${CALICO_CHART_VERSION}.tgz" \
+  "$OUT/helm/tigera-operator-${CALICO_CHART_VERSION}.tgz" \
+  "$OUT/helm/coredns-${COREDNS_CHART_VERSION}.tgz"; do
+  [[ -s "$chart" ]] || die "Release 中缺少 Helm Chart：$chart"
+done
 log "Release 二进制、RPM、Harbor 安装器及 Kubernetes 镜像归档均已校验。"
