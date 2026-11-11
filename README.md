@@ -38,7 +38,7 @@ NGINX 不再由运维人员在暂存机手动构建。所有二进制资源（�
 
 ### 新版 Release 内容与证书方式
 
-当前离线发布修订号由 config/release-versions.env 的 RELEASE_REVISION 控制，当前修订使用 tag `k8s-v1.37.2-r5`。离线归档包含 CFSSL/cfssljson、Helm、Calicoctl、crictl、etcd、containerd、CNI plugins、Docker Engine、cri-dockerd、Docker Compose、Rocky Linux 9 RPM 及依赖；另含 Harbor 官方离线安装器、Calico/CoreDNS Helm Charts，以及 pause、Calico 和 NodeLocal DNSCache 镜像归档。完整清单见归档内 `ARTIFACTS.txt`、`IMAGE-REFERENCES.txt` 和 `SHA256SUMS`。
+当前离线发布修订号由 config/release-versions.env 的 RELEASE_REVISION 控制，当前修订使用 tag `k8s-v1.37.2-r6`。离线归档包含 CFSSL/cfssljson、Helm、Calicoctl、crictl、etcd、containerd、CNI plugins、Docker Engine、cri-dockerd、Docker Compose、Rocky Linux 9 RPM 及依赖；另含 Harbor 官方离线安装器、Calico/CoreDNS Helm Charts，以及 pause、Calico 和 NodeLocal DNSCache 镜像归档。完整清单见归档内 `ARTIFACTS.txt`、`IMAGE-REFERENCES.txt` 和 `SHA256SUMS`。
 
 证书配置模板统一存放在 config/cfssl/，scripts/03-generate-pki.sh 使用 CFSSL 签发 X.509 证书，并为节点证书通过 -hostname 传入节点主机名和内网 IP。实际私钥与签发证书保留在部署机 pki/，不得提交到仓库。
 
@@ -62,7 +62,7 @@ sudo bash scripts/15-distribute-node-configs.sh
 3. Actions 自动调用 `scripts/ci/build-offline-release.sh`。
 4. 脚本读取 `config/release-versions.env` 和 `config/cluster.env.example` 中的组件版本，统一下载 Kubernetes、etcd、containerd、runc、CNI、crictl、CFSSL、Helm、Calicoctl、Docker Engine、cri-dockerd、Docker Compose、Harbor offline installer，并在 Rocky Linux 9 容器中解析下载 RPM 依赖；CI 下载 Calico CRD/Operator（v3.33.0）与 CoreDNS（1.50.4）Helm Charts，渲染后从 Chart 默认配置和 Tigera Operator 动态清单提取全部镜像并打包。
 5. 脚本通过 `nginx/Dockerfile` 在 Rocky Linux 9 容器构建环境源码编译 NGINX stream 二进制。
-6. 发布 `k8s-vX.Y.Z-rN` Release，包含离线资源包、NGINX 独立二进制和 SHA256 文件；当前修订号为 r5。
+6. 发布 `k8s-vX.Y.Z-rN` Release，包含离线资源包、NGINX 独立二进制和 SHA256 文件；当前修订号为 r6。
 
 ### 手动触发
 
