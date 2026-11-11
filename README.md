@@ -151,7 +151,7 @@ sudo bash scripts/15-distribute-node-configs.sh
 
 ### 6.2 远程节点批量执行
 
-部署机需配置 root SSH 免密登录。使用统一批量执行入口，支持 `all`、`masters`、`workers` 节点组；`--parallel` 表示并发执行，任一节点失败会返回失败状态：
+部署机需按 `SSH_USER`、`SSH_PASSWORD`、`SSH_PORT` 配置 SSH 公钥登录；非 root 账号需免密 sudo。使用统一批量执行入口，支持 `all`、`masters`、`workers` 节点组；`--parallel` 表示并发执行，任一节点失败会返回失败状态：
 
 ```bash
 # 全部节点系统预检、运行时安装和 systemd 安装
