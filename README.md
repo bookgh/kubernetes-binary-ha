@@ -60,7 +60,7 @@ sudo bash scripts/15-distribute-node-configs.sh
 1. 在仓库创建 Issue，标题或正文填写 Kubernetes 版本，例如 `v1.37.2`。
 2. 为 Issue 添加 `build-offline` 标签。
 3. Actions 自动调用 `scripts/ci/build-offline-release.sh`。
-4. 脚本读取 `config/release-versions.env` 和 `config/cluster.env.example` 中的组件版本，统一下载 Kubernetes、etcd、containerd、runc、CNI、crictl、CFSSL、Helm、Calicoctl、Docker Engine、cri-dockerd、Docker Compose、Harbor offline installer，并在 Rocky Linux 9 容器中解析下载 RPM 依赖；CI 下载 Calico CRD/Operator 与 CoreDNS Helm Charts，渲染后从 Chart 和 Tigera Operator 动态清单提取全部镜像并打包。
+4. 脚本读取 `config/release-versions.env` 和 `config/cluster.env.example` 中的组件版本，统一下载 Kubernetes、etcd、containerd、runc、CNI、crictl、CFSSL、Helm、Calicoctl、Docker Engine、cri-dockerd、Docker Compose、Harbor offline installer，并在 Rocky Linux 9 容器中解析下载 RPM 依赖；CI 下载 Calico CRD/Operator（v3.33.0）与 CoreDNS（1.50.4）Helm Charts，渲染后从 Chart 默认配置和 Tigera Operator 动态清单提取全部镜像并打包。
 5. 脚本通过 `nginx/Dockerfile` 在 Rocky Linux 9 容器构建环境源码编译 NGINX stream 二进制。
 6. 发布 `k8s-vX.Y.Z-rN` Release，包含离线资源包、NGINX 独立二进制和 SHA256 文件；当前修订号为 r5。
 
@@ -71,7 +71,7 @@ sudo bash scripts/15-distribute-node-configs.sh
 ### 版本维护原则
 
 - Kubernetes 版本由 Issue 或手动输入提供。
-- etcd、containerd、runc、CNI、crictl、pause、NodeLocal DNS 和 NGINX 等版本在 `config/release-versions.env` 中维护；Calico、Tigera Operator、CoreDNS 应用版本和 Helm Chart 版本只在 `config/cluster.env` 中维护（仓库默认值位于 `config/cluster.env.example`，CI 从该示例配置读取）。
+- etcd、containerd、runc、CNI、crictl、pause、NodeLocal DNS 和 NGINX 等版本在 `config/release-versions.env` 中维护；Calico（CRD 与 Operator）及 CoreDNS Helm Chart 版本只在 `config/cluster.env` 中维护（仓库默认值位于 `config/cluster.env.example`，CI 从该示例配置读取）；组件镜像 tag 由 Chart 默认值决定。
 - 下载地址、校验、构建和 Release 上传只在 `scripts/ci/build-offline-release.sh` 中维护。
 - Workflow YAML 只负责事件过滤、checkout 和调用仓库脚本，不重复维护 URL、版本矩阵或构建命令。
 - 修改构建流程时优先修改脚本和配置，不要在 Workflow 中复制构建实现。
