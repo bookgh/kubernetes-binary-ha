@@ -21,8 +21,9 @@ write_inventory() {
 }
 
 assert_topology() {
-  local masters="$1" workers="$2" dir="$TMP/${masters}m-${workers}w"
+  local masters="$1" workers="$2" dir
   local last_master_var last_worker_var
+  dir="$TMP/${masters}m-${workers}w"
   write_inventory "$dir" "$masters" "$workers"
   (
     source "$dir/scripts/lib.sh"
