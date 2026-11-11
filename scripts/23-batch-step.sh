@@ -28,7 +28,7 @@ REMOTE_ROOT="/opt/kubernetes-binary-ha"
 run_one() {
   local node="$1" ip="$2"
   log "执行 $STEP -> $node ($ip)"
-  ssh -o BatchMode=yes -o ConnectTimeout=15 -o StrictHostKeyChecking=accept-new "root@$ip" "bash '$REMOTE_ROOT/scripts/22-node-step.sh' '$SCRIPT' '$STEP'"
+  ssh_remote "$ip" "bash '$REMOTE_ROOT/scripts/22-node-step.sh' '$SCRIPT' '$STEP'"
 }
 FAILED=0
 if [[ "$PARALLEL" == --parallel ]]; then
