@@ -92,6 +92,51 @@ download "https://github.com/containernetworking/plugins/releases/download/${CNI
 download "https://github.com/kubernetes-sigs/cri-tools/releases/download/${CRICTL_VERSION}/crictl-${CRICTL_VERSION}-linux-amd64.tar.gz" "$OUT/src/crictl.tar.gz"
 download "https://raw.githubusercontent.com/projectcalico/calico/${CALICO_VERSION}/manifests/tigera-operator.yaml" "$OUT/manifests/tigera-operator.yaml"
 download "https://raw.githubusercontent.com/projectcalico/calico/${CALICO_VERSION}/manifests/v3_projectcalico_org.yaml" "$OUT/manifests/calico-crds.yaml"
+download "https://get.helm.sh/helm-v${HELM_VERSION}-linux-amd64.tar.gz" "$OUT/src/helm.tar.gz"
+tar -xzf "$OUT/src/helm.tar.gz" -C "$WORK"
+install -m 0755 "$WORK/linux-amd64/helm" "$OUT/bin/helm"
+
+# Package the exact local manifests consumed by the offline installer.
+install -m 0644 "$ROOT/manifests/calico-installation.yaml.template" "$OUT/manifests/calico-installation.yaml.template"
+install -m 0644 "$ROOT/manifests/coredns.yaml.template" "$OUT/manifests/coredns.yaml.template"
+
+# Runtime and operator-generated images are declared for discovery only; never kubectl-apply this file.
+{
+  cat <<EOF
+apiVersion: v1
+kind: Pod
+metadata:
+  name: offline-image-inventory
+spec:
+  containers:
+EOF
+  index=0
+  for image_ref in "${OFFLINE_EXTRA_IMAGE_REFS[@]}" "registry.k8s.io/coredns/coredns:${COREDNS_VERSION}"; do
+    printf '  - name: image-%03d\n    image: "%s"\n' "$index" "$image_ref"
+    index=$((index + 1))
+  done
+} > "$OUT/manifests/image-inventory.yaml"
+
+# Render optional packaged Helm charts before image extraction.
+mkdir -p "$OUT/helm" "$OUT/manifests/helm-rendered" "$WORK/charts"
+if [[ -d "$ROOT/helm" ]]; then
+  while IFS= read -r -d '' chart_archive; do
+    chart_name="$(basename "$chart_archive" .tgz)"
+    chart_dir="$WORK/charts/$chart_name"
+    mkdir -p "$chart_dir"
+    tar -xzf "$chart_archive" -C "$chart_dir"
+    chart_root="$(find "$chart_dir" -mindepth 1 -maxdepth 2 -type f -name Chart.yaml -printf '%h\n' | head -n1)"
+    [[ -n "$chart_root" ]] || die "Helm 包中缺少 Chart.yaml：$chart_archive"
+    cp "$chart_archive" "$OUT/helm/"
+    rendered="$OUT/manifests/helm-rendered/$chart_name.yaml"
+    if [[ -s "$chart_root/values-offline.yaml" ]]; then
+      "$OUT/bin/helm" template "$chart_name" "$chart_root" -f "$chart_root/values-offline.yaml" > "$rendered"
+    else
+      "$OUT/bin/helm" template "$chart_name" "$chart_root" > "$rendered"
+    fi
+    [[ -s "$rendered" ]] || die "Helm Chart 渲染结果为空：$chart_name"
+  done < <(find "$ROOT/helm" -maxdepth 1 -type f -name '*.tgz' -print0 | sort -z)
+fi
 
 # Harbor 官方离线安装器已包含 Harbor 自身所需的 OCI 镜像。
 HARBOR_ASSET="harbor-offline-installer-v${HARBOR_VERSION}-amd64.tgz"
@@ -101,42 +146,32 @@ printf '%s  %s\n' "$HARBOR_SHA256" "$OUT/harbor/$HARBOR_ASSET" |
   sha256sum --check --status ||
   die "Harbor ${HARBOR_VERSION} 离线安装器 SHA256 校验失败。"
 
-# Kubernetes/Calico 镜像集中保存为一个归档，版本由 release-versions.env 统一管理。
-IMAGE_REFS=(
-  "registry.k8s.io/coredns/coredns:${COREDNS_VERSION}"
-  "registry.k8s.io/pause:${PAUSE_VERSION}"
-  "docker.io/calico/node:${CALICO_VERSION}"
-  "docker.io/calico/cni:${CALICO_VERSION}"
-  "docker.io/calico/kube-controllers:${CALICO_VERSION}"
-  "docker.io/calico/pod2daemon-flexvol:${CALICO_VERSION}"
-  "quay.io/tigera/operator:${CALICO_VERSION}"
-  "registry.k8s.io/dns/k8s-dns-node-cache:${NODE_LOCAL_DNS_VERSION}"
-)
+# Extract the complete image set from deployment manifests and rendered Helm charts.
+log "从离线 manifests/Helm 渲染结果提取镜像引用。"
+python3 "$ROOT/scripts/ci/extract-image-refs.py" --root "$OUT/manifests" --output "$OUT/images/IMAGE-REFERENCES.txt"
+mapfile -t IMAGE_REFS < "$OUT/images/IMAGE-REFERENCES.txt"
+(("${#IMAGE_REFS[@]}" > 0)) || die "未从部署制品中提取到任何镜像引用"
 
-log "拉取 linux/amd64 Kubernetes 与 Calico 镜像。"
+log "拉取 linux/amd64 离线镜像（${#IMAGE_REFS[@]} 个）。"
 for image_ref in "${IMAGE_REFS[@]}"; do
-  docker pull --platform linux/amd64 "$image_ref"
+  docker pull --platform linux/amd64 "$image_ref" ||
+    die "镜像拉取失败：$image_ref；请检查部署制品中的镜像引用和上游 tag。"
 done
 
 IMAGE_ARCHIVE="$OUT/images/kubernetes-images-linux-amd64.tar"
 docker save --output "$IMAGE_ARCHIVE" "${IMAGE_REFS[@]}"
-
 {
-  printf 'Platform=linux/amd64\n'
-  printf 'Harbor installer images are bundled separately in harbor/.\n'
-  for image_ref in "${IMAGE_REFS[@]}"; do
+  while IFS= read -r image_ref; do
     digest="$(docker image inspect --format '{{index .RepoDigests 0}}' "$image_ref")"
-    printf '%s\t%s\n' "$image_ref" "$digest"
-  done
-} > "$OUT/images/IMAGE-REFERENCES.txt"
+    printf '%s\\t%s\\n' "$image_ref" "$digest"
+  done < "$OUT/images/IMAGE-REFERENCES.txt"
+} > "$OUT/images/IMAGE-REFERENCES.txt.tmp"
+mv "$OUT/images/IMAGE-REFERENCES.txt.tmp" "$OUT/images/IMAGE-REFERENCES.txt"
 
 # CFSSL、Helm、Calicoctl、Docker Engine 与 Compose 均作为 Release 离线资产。
 download "https://github.com/cloudflare/cfssl/releases/download/v${CFSSL_VERSION}/cfssl_${CFSSL_VERSION}_linux_amd64" "$OUT/bin/cfssl"
 download "https://github.com/cloudflare/cfssl/releases/download/v${CFSSL_VERSION}/cfssljson_${CFSSL_VERSION}_linux_amd64" "$OUT/bin/cfssljson"
 chmod 0755 "$OUT/bin/cfssl" "$OUT/bin/cfssljson"
-download "https://get.helm.sh/helm-v${HELM_VERSION}-linux-amd64.tar.gz" "$OUT/src/helm.tar.gz"
-tar -xzf "$OUT/src/helm.tar.gz" -C "$WORK"
-install -m 0755 "$WORK/linux-amd64/helm" "$OUT/bin/helm"
 download "https://github.com/projectcalico/calico/releases/download/${CALICOCTL_VERSION}/calicoctl-linux-amd64" "$OUT/bin/calicoctl"
 chmod 0755 "$OUT/bin/calicoctl"
 download "https://download.docker.com/linux/static/stable/x86_64/docker-${DOCKER_VERSION}.tgz" "$OUT/docker/docker.tgz"
