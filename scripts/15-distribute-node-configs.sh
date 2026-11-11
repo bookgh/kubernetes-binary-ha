@@ -1,77 +1,188 @@
 #!/usr/bin/env bash
-# 在部署机执行：批量同步项目、离线包、节点配置及按节点授权的凭据。
+# 部署端：分发节点所需资源；Harbor 与集中镜像归档只发送到 Harbor 节点。
 set -Eeuo pipefail
+
 source "$(dirname "$0")/lib.sh"
 require_root
-require_cmd ssh
-require_cmd scp
-require_cmd rsync
-GEN="${ROOT}/generated"
-PKI="${ROOT}/pki"
-KCFG="${ROOT}/kubeconfigs"
+
+for cmd in ssh scp rsync; do
+  require_cmd "$cmd"
+done
+
+GEN="$ROOT/generated"
+PKI="$ROOT/pki"
+KCFG="$ROOT/kubeconfigs"
+REMOTE_ROOT="/opt/kubernetes-binary-ha"
+NODE_OFFLINE="$(mktemp -d)"
+trap 'rm -rf "$NODE_OFFLINE"' EXIT
+
 [[ -d "$GEN" ]] || die "缺少 generated/；请先运行 scripts/14-render-node-configs.sh"
-[[ -s "$GEN/common/etc/modules-load.d/10-kubernetes.conf" && -s "$GEN/common/etc/sysctl.d/95-kubernetes.conf" ]] || die "缺少本地生成的内核模块/sysctl 配置；请重新运行 scripts/14-render-node-configs.sh"
-[[ -d "$ROOT/offline/rpms" && -s "$ROOT/offline/SHA256SUMS" ]] || die "缺少 offline/ 离线资源；请先运行 scripts/01-prepare-offline.sh"
-[[ -s "$PKI/k8s-ca.crt" && -s "$PKI/k8s-ca-bundle.crt" ]] || die "缺少 PKI；请先运行 scripts/03-generate-pki.sh"
-[[ -s "$KCFG/admin.conf" && -s "$KCFG/kube-proxy.conf" ]] || die "缺少 kubeconfig；请先运行 scripts/04-make-kubeconfigs.sh"
+[[ -s "$GEN/common/etc/modules-load.d/10-kubernetes.conf" ]] ||
+  die "缺少内核模块配置；请重新运行 scripts/14-render-node-configs.sh"
+[[ -s "$ROOT/offline/SHA256SUMS" ]] || die "缺少 offline/SHA256SUMS"
+[[ -d "$ROOT/offline/rpms" ]] || die "缺少离线 RPM"
+[[ -s "$PKI/k8s-ca.crt" && -s "$PKI/k8s-ca-bundle.crt" ]] || die "缺少 PKI"
+[[ -s "$KCFG/admin.conf" && -s "$KCFG/kube-proxy.conf" ]] || die "缺少 kubeconfig"
+
+remote_exec() {
+  local ip="$1"
+  local command="$2"
+  local quoted
+
+  if [[ "$SSH_USER" == root ]]; then
+    ssh -p "$SSH_PORT" -o BatchMode=yes "$SSH_USER@$ip" "$command"
+  else
+    printf -v quoted '%q' "$command"
+    ssh -p "$SSH_PORT" -o BatchMode=yes "$SSH_USER@$ip" "sudo -n bash -c $quoted"
+  fi
+}
+
+copy_file() {
+  local ip="$1"
+  local source_file="$2"
+  local destination="$3"
+  local mode="${4:-0644}"
+  local temporary="/tmp/k8s-ha-$(basename "$source_file")"
+
+  scp -P "$SSH_PORT" "$source_file" "$SSH_USER@$ip:$temporary"
+  remote_exec "$ip" "install -m $mode '$temporary' '$destination' && rm -f '$temporary'"
+}
+
+prepare_node_offline() {
+  rm -rf "$NODE_OFFLINE"
+  mkdir -p "$NODE_OFFLINE"
+  rsync -a \
+    --exclude='/harbor/' \
+    --exclude='/images/' \
+    "$ROOT/offline/" "$NODE_OFFLINE/"
+
+  rm -f "$NODE_OFFLINE/SHA256SUMS"
+  (
+    cd "$NODE_OFFLINE"
+    find bin src manifests checksums tools docker rpms -type f -print0 |
+      sort -z |
+      xargs -0 sha256sum > SHA256SUMS
+  )
+}
+
+prepare_node_offline
 
 NODES=("${ALL_NAMES[@]}")
 IPS=("${ALL_IPS[@]}")
-REMOTE_ROOT="/opt/kubernetes-binary-ha"
+
 for i in "${!NODES[@]}"; do
-  node="${NODES[$i]}"; ip="${IPS[$i]}"; src="$GEN/$node"
-  [[ -d "$src" ]] || die "缺少节点配置目录：$src"
-  log "同步项目文件、离线包和节点配置到 $node ($ip)"
-  ssh -o BatchMode=yes "root@$ip" "install -d -m 0755 $REMOTE_ROOT /etc/kubernetes/pki /etc/etcd/pki"
-  # 先用 SCP 发送离线 RPM，再在目标节点安装 rsync 等传输依赖。
-  scp -r "$ROOT/offline" "root@$ip:$REMOTE_ROOT/"
-  ssh -o BatchMode=yes "root@$ip" "cd $REMOTE_ROOT/offline && sha256sum -c SHA256SUMS && dnf install -y --disablerepo='*' $REMOTE_ROOT/offline/rpms/*.rpm"
-  # 根 CA 私钥、etcd CA 私钥和管理员 kubeconfig 不会分发到节点。
-  rsync -az --delete \
-    --exclude='.git/' --exclude='generated/' --exclude='pki/' --exclude='kubeconfigs/' --exclude='offline/' \
-    "$ROOT/" "root@$ip:$REMOTE_ROOT/"
-  ssh -o BatchMode=yes "root@$ip" "install -d -m 0755 /etc/kubernetes /var/lib/kubelet /var/lib/kube-proxy"
-  scp "$src/var/lib/kubelet/config.yaml" "root@$ip:/var/lib/kubelet/config.yaml"
-  scp "$src/var/lib/kube-proxy/config.yaml" "root@$ip:/var/lib/kube-proxy/config.yaml"
-  scp "$src/etc/kubernetes/cluster.env" "root@$ip:/etc/kubernetes/cluster.env"
-  scp "$src/etc/kubernetes/runtime.env" "root@$ip:/etc/kubernetes/runtime.env"
+  node="${NODES[$i]}"
+  ip="${IPS[$i]}"
+  source_dir="$GEN/$node"
+
+  [[ -d "$source_dir" ]] || die "缺少节点配置目录：$source_dir"
+
+  log "准备分发到 $node ($ip)"
+
+  # 先通过 SCP 传输 RPM，安装 rsync 后再同步其余离线资源。
+  scp -P "$SSH_PORT" -r "$ROOT/offline/rpms" "$SSH_USER@$ip:/tmp/k8s-ha-rpms"
+  remote_exec "$ip" "dnf install -y --disablerepo='*' /tmp/k8s-ha-rpms/*.rpm && rm -rf /tmp/k8s-ha-rpms"
+
+  rsync -az --delete -e "ssh -p $SSH_PORT" \
+    "$NODE_OFFLINE/" "$SSH_USER@$ip:/tmp/k8s-ha-offline/"
+  remote_exec "$ip" \
+    "install -d -m 0755 '$REMOTE_ROOT/offline' && cp -a /tmp/k8s-ha-offline/. '$REMOTE_ROOT/offline/' && rm -rf /tmp/k8s-ha-offline"
+
+  rsync -az --delete -e "ssh -p $SSH_PORT" \
+    --exclude='.git/' \
+    --exclude='generated/' \
+    --exclude='pki/' \
+    --exclude='kubeconfigs/' \
+    --exclude='offline/' \
+    "$ROOT/" "$SSH_USER@$ip:/tmp/k8s-ha-project/"
+  remote_exec "$ip" \
+    "install -d -m 0755 '$REMOTE_ROOT' && cp -a /tmp/k8s-ha-project/. '$REMOTE_ROOT/' && rm -rf /tmp/k8s-ha-project && sed -i -E 's#^export SSH_PASSWORD=.*#export SSH_PASSWORD=""#' '$REMOTE_ROOT/config/cluster.env'"
+
+  remote_exec "$ip" "install -d -m 0755 /etc/kubernetes/pki /etc/etcd/pki /etc/kubernetes /var/lib/kubelet /var/lib/kube-proxy"
+
+  copy_file "$ip" "$source_dir/var/lib/kubelet/config.yaml" /var/lib/kubelet/config.yaml
+  copy_file "$ip" "$source_dir/var/lib/kube-proxy/config.yaml" /var/lib/kube-proxy/config.yaml
+  copy_file "$ip" "$source_dir/etc/kubernetes/cluster.env" /etc/kubernetes/cluster.env 0600
+  copy_file "$ip" "$source_dir/etc/kubernetes/runtime.env" /etc/kubernetes/runtime.env 0600
+
   if [[ "$node" == worker-* ]]; then
-    ssh -o BatchMode=yes "root@$ip" "install -d -m 0755 /etc/nginx"
-    scp "$src/etc/nginx/nginx.conf" "root@$ip:/etc/nginx/nginx.conf"
+    remote_exec "$ip" "install -d -m 0755 /etc/nginx"
+    copy_file "$ip" "$source_dir/etc/nginx/nginx.conf" /etc/nginx/nginx.conf
   fi
-  scp "$GEN/common/etc/crictl.yaml" "root@$ip:/etc/crictl.yaml"
-  ssh -o BatchMode=yes "root@$ip" "install -d -m 0755 /etc/modules-load.d /etc/sysctl.d"
-  scp "$GEN/common/etc/modules-load.d/10-kubernetes.conf" "root@$ip:/etc/modules-load.d/10-kubernetes.conf"
-  scp "$GEN/common/etc/sysctl.d/95-kubernetes.conf" "root@$ip:/etc/sysctl.d/95-kubernetes.conf"
+
+  copy_file "$ip" "$GEN/common/etc/crictl.yaml" /etc/crictl.yaml
+  copy_file "$ip" "$GEN/common/etc/modules-load.d/10-kubernetes.conf" /etc/modules-load.d/10-kubernetes.conf
+  copy_file "$ip" "$GEN/common/etc/sysctl.d/95-kubernetes.conf" /etc/sysctl.d/95-kubernetes.conf
+
   if [[ "${RUNTIME_TYPE:-containerd}" == containerd ]]; then
-    ssh -o BatchMode=yes "root@$ip" "install -d -m 0755 /etc/containerd"
-    scp "$GEN/common/etc/containerd/config.toml" "root@$ip:/etc/containerd/config.toml"
+    remote_exec "$ip" "install -d -m 0755 /etc/containerd /etc/containerd/certs.d/$HARBOR_HOST"
+    copy_file "$ip" "$GEN/common/etc/containerd/config.toml" /etc/containerd/config.toml
+    copy_file "$ip" "$GEN/common/etc/containerd/certs.d/$HARBOR_HOST/hosts.toml" \
+      "/etc/containerd/certs.d/$HARBOR_HOST/hosts.toml"
   else
-    ssh -o BatchMode=yes "root@$ip" "install -d -m 0755 /etc/docker"
-    scp "$GEN/common/etc/docker/daemon.json" "root@$ip:/etc/docker/daemon.json"
+    remote_exec "$ip" "install -d -m 0755 /etc/docker"
+    copy_file "$ip" "$GEN/common/etc/docker/daemon.json" /etc/docker/daemon.json
   fi
-  scp "$PKI/k8s-ca.crt" "$PKI/k8s-ca-bundle.crt" "root@$ip:/etc/kubernetes/pki/"
-  scp "$KCFG/kubelet-$node.conf" "root@$ip:/etc/kubernetes/kubelet.conf"
-  scp "$KCFG/kube-proxy.conf" "root@$ip:/etc/kubernetes/kube-proxy.conf"
+
+  copy_file "$ip" "$PKI/k8s-ca.crt" /etc/kubernetes/pki/k8s-ca.crt
+  copy_file "$ip" "$PKI/k8s-ca-bundle.crt" /etc/kubernetes/pki/k8s-ca-bundle.crt
+  copy_file "$ip" "$KCFG/kubelet-$node.conf" /etc/kubernetes/kubelet.conf 0600
+  copy_file "$ip" "$KCFG/kube-proxy.conf" /etc/kubernetes/kube-proxy.conf 0600
 
   if [[ "$node" == master-* ]]; then
-    MASTER_PKI=(apiserver.crt apiserver.key apiserver-kubelet-client.crt apiserver-kubelet-client.key front-proxy-ca.crt front-proxy-client.crt front-proxy-client.key apiserver-etcd-client.crt apiserver-etcd-client.key cluster-signer.crt cluster-signer.key sa.key sa.pub)
+    MASTER_PKI=(
+      apiserver.crt
+      apiserver.key
+      apiserver-kubelet-client.crt
+      apiserver-kubelet-client.key
+      front-proxy-ca.crt
+      front-proxy-client.crt
+      front-proxy-client.key
+      apiserver-etcd-client.crt
+      apiserver-etcd-client.key
+      cluster-signer.crt
+      cluster-signer.key
+      sa.key
+      sa.pub
+    )
+
     for file in "${MASTER_PKI[@]}"; do
       [[ -s "$PKI/$file" ]] || die "缺少 Master 凭据：$PKI/$file"
-      scp "$PKI/$file" "root@$ip:/etc/kubernetes/pki/$file"
+      copy_file "$ip" "$PKI/$file" "/etc/kubernetes/pki/$file" 0600
     done
-    scp "$KCFG/controller-manager.conf" "root@$ip:/etc/kubernetes/controller-manager.conf"
-    scp "$KCFG/scheduler.conf" "root@$ip:/etc/kubernetes/scheduler.conf"
+
+    copy_file "$ip" "$KCFG/controller-manager.conf" /etc/kubernetes/controller-manager.conf 0600
+    copy_file "$ip" "$KCFG/scheduler.conf" /etc/kubernetes/scheduler.conf 0600
+
     for file in etcd-ca.crt "etcd-$node-server.crt" "etcd-$node-server.key" "etcd-$node-peer.crt" "etcd-$node-peer.key"; do
       [[ -s "$PKI/$file" ]] || die "缺少 etcd 凭据：$PKI/$file"
-      scp "$PKI/$file" "root@$ip:/etc/etcd/pki/$file"
+      copy_file "$ip" "$PKI/$file" "/etc/etcd/pki/$file" 0600
     done
-    ssh -o BatchMode=yes "root@$ip" "id etcd >/dev/null 2>&1 || useradd --system --home-dir /var/lib/etcd --shell /sbin/nologin etcd"
-    ssh -o BatchMode=yes "root@$ip" "chown -R etcd:etcd /etc/etcd/pki && chmod 0750 /etc/etcd/pki && chmod 0640 /etc/etcd/pki/*.key"
+
+    remote_exec "$ip" \
+      "id etcd >/dev/null 2>&1 || useradd --system --home-dir /var/lib/etcd --shell /sbin/nologin etcd"
+    remote_exec "$ip" "chown -R etcd:etcd /etc/etcd/pki && chmod 0750 /etc/etcd/pki"
   fi
-  ssh -o BatchMode=yes "root@$ip" "chmod 0600 /etc/kubernetes/cluster.env /etc/kubernetes/runtime.env /etc/kubernetes/*.conf && find /etc/kubernetes/pki -type f -name '*.key' -exec chmod 0600 {} +"
-  ok "$node 项目、节点配置和所需凭据分发完成"
+
+  remote_exec "$ip" \
+    "chmod 0600 /etc/kubernetes/cluster.env /etc/kubernetes/runtime.env /etc/kubernetes/*.conf && find /etc/kubernetes/pki -type f -name '*.key' -exec chmod 0600 {} +"
+
+  ok "$node 项目、离线资源、运行时配置和所需凭据分发完成"
 done
+
+# Harbor 及集中镜像归档体积较大，只分发到指定 Harbor 节点。
+remote_exec "$HARBOR_NODE_IP" \
+  "install -d -m 0755 '$REMOTE_ROOT/offline/harbor' '$REMOTE_ROOT/offline/images'"
+copy_file "$HARBOR_NODE_IP" \
+  "$ROOT/offline/harbor/harbor-offline-installer-v${HARBOR_VERSION}-amd64.tgz" \
+  "$REMOTE_ROOT/offline/harbor/harbor-offline-installer-v${HARBOR_VERSION}-amd64.tgz"
+copy_file "$HARBOR_NODE_IP" \
+  "$ROOT/offline/images/kubernetes-images-linux-amd64.tar" \
+  "$REMOTE_ROOT/offline/images/kubernetes-images-linux-amd64.tar"
+copy_file "$HARBOR_NODE_IP" "$ROOT/offline/SHA256SUMS" "$REMOTE_ROOT/offline/SHA256SUMS"
+
 install -d -m 0700 "$HOME/.kube"
 install -m 0600 "$KCFG/admin.conf" "$HOME/.kube/config"
-ok "管理员 kubeconfig 已安装到部署机 $HOME/.kube/config；CA 根私钥仍保留在部署机 PKI 目录。"
+
+ok "节点离线资源分发完成；Harbor 安装器与镜像归档仅发送到 $HARBOR_NODE_IP。"
+ok "管理员 kubeconfig 已安装到部署机 $HOME/.kube/config。"
