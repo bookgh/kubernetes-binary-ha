@@ -13,7 +13,7 @@ KUBECTL="$ROOT/offline/bin/kubectl"
 KUBECONFIG="${KUBECONFIG:-$HOME/.kube/config}"
 export KUBECONFIG
 [[ -s "$KUBECONFIG" ]] || die "缺少管理员 kubeconfig"
-: "${CALICO_CHART_VERSION:?请先将 config/cluster.env.example 中的 Calico 版本变量同步到 config/cluster.env}"
+: "${CALICO_CHART_VERSION:?请先将 config/cluster.env.example 中的 Calico Chart 版本同步到 config/cluster.env}"
 : "${PRIVATE_REGISTRY:?请在 config/cluster.env 设置 PRIVATE_REGISTRY}"
 : "${HARBOR_HOST:?请在 config/cluster.env 设置 HARBOR_HOST}"
 
