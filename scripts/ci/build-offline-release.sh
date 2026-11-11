@@ -248,6 +248,12 @@ EOF
       printf '[信息] 跳过非目标平台镜像：%s\n' "$image_ref" >&2
       continue
     fi
+    # The operator's exhaustive list also contains Calico Enterprise images
+    # (for example v3.24.0-1.0). They are not required by the OSS Calico chart.
+    if [[ "$image_ref" =~ ^quay\.io/tigera/[^:]+:v[0-9]+\.[0-9]+\.[0-9]+-[0-9]+\.[0-9]+$ ]]; then
+      printf '[信息] 跳过非 OSS Enterprise 镜像：%s\n' "$image_ref" >&2
+      continue
+    fi
     # Operator output is authoritative: preserve registry, repository and tag/digest.
     # Never synthesize image tags from separately maintained component versions.
     [[ "$image_ref" == */* && ( "$image_ref" == *:* || "$image_ref" == *@* ) ]] || continue
