@@ -107,7 +107,10 @@ prepare_download() {
   ensure_host_rpms
   local_step cli-tools 17-install-cli-tools.sh
 }
-prepare_ssh() { local_step ssh-key 05-configure-ssh.sh; }
+prepare_ssh() {
+  ensure_host_rpms
+  local_step ssh-key 05-configure-ssh.sh
+}
 prepare_certs() {
   local_step pki 03-generate-pki.sh
   local_step kubeconfigs 04-make-kubeconfigs.sh
@@ -202,14 +205,17 @@ ensure_harbor_ready() {
 }
 
 prepare_harbor() {
+  local fp marker
   validate_image_config
+  fp="$(fingerprint 24-install-harbor.sh)"
+  marker="$STATE/steps/harbor.done"
   [[ -s "$ROOT/offline/harbor/harbor-offline-installer-v${HARBOR_VERSION}-amd64.tgz" ]] ||
     die "缺少 Harbor 离线安装器；请先执行 download/prepare"
   [[ -s "$ROOT/offline/images/kubernetes-images-linux-amd64.tar" ]] ||
     die "缺少 Kubernetes 镜像归档；请先执行 download/prepare"
 
-  if local_healthy harbor; then
-    ok "跳过 Harbor 阶段（远程标记和 API 健康检查均匹配）"
+  if [[ -s "$marker" && "$(cat "$marker")" == "$fp" ]] && local_healthy harbor; then
+    ok "跳过 Harbor 阶段（本地指纹、远程标记和 API 健康检查均匹配）"
     return 0
   fi
 
@@ -221,6 +227,8 @@ prepare_harbor() {
       die "Harbor 部署失败；修复后运行 scripts/00-install.sh harbor 重试"
     }
   ensure_harbor_ready
+  printf '%s\\n' "$fp" > "$marker"
+  chmod 0600 "$marker"
   ok "Harbor 部署和基础镜像导入完成"
 }
 
