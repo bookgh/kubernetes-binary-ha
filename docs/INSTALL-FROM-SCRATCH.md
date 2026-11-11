@@ -47,7 +47,7 @@ vi config/cluster.env
 - RUNTIME_TYPE=containerd 或 RUNTIME_TYPE=docker。Docker 模式必须使用 cri-dockerd。
 - KUBE_PROXY_MODE=nftables 或 ipvs。Kubernetes 1.37 新部署推荐 nftables；IPVS 已弃用，使用前应确认内核模块和 kube-proxy 支持。
 - `HARBOR_NODE_IP` 可以是集群节点，也可以是独立 Rocky Linux 9 Harbor 主机；`HARBOR_HOST` 使用 `harbor.<HARBOR_NODE_IP>.nip.io`，`HARBOR_URL` 使用 `http://`。
-- `PRIVATE_REGISTRY` 默认设置为 `${HARBOR_HOST}/library`；`COREDNS_IMAGE`、`PAUSE_IMAGE`、`CALICO_NODE_IMAGE`、`NODE_LOCAL_DNS_IMAGE` 指向 Harbor 中对应镜像。
+- `PRIVATE_REGISTRY` 默认设置为 `${HARBOR_HOST}/library`；`PAUSE_IMAGE`、`NODE_LOCAL_DNS_IMAGE` 指向 Harbor 中对应镜像。CoreDNS 和 Calico 镜像由各自 Chart/Operator 的版本清单决定，不再单独配置镜像 tag。
 - `SSH_USER`、`SSH_PASSWORD`、`SSH_PORT` 控制公钥分发；非 root SSH 账号必须具备免密 sudo。
 - KUBERNETES_SERVICE_IP 必须是 SERVICE_CIDR 中 Kubernetes API Service 使用的 IP，默认 10.96.0.1，并进入 apiserver 证书 SAN。
 
@@ -188,13 +188,13 @@ Worker NGINX 是 TLS passthrough，监听本机 127.0.0.1:6443，向全部 Maste
 
 ### 9.1 镜像准备与验收
 
-CoreDNS、pause、Calico Node/CNI/kube-controllers、Tigera Operator 和 NodeLocal DNSCache 已由 Actions 打包，并在 Harbor 阶段自动导入/推送。无需再手工执行 docker pull/tag/push。可在 Harbor UI 或 API 中确认以下镜像路径：
+CoreDNS、pause、Calico Operator/数据面和 NodeLocal DNSCache 镜像已由 Actions 从 Helm Chart 渲染结果、Operator 动态清单及运行时镜像声明中提取，并在 Harbor 阶段自动导入/推送。无需再手工执行 docker pull/tag/push。可根据 `offline/images/IMAGE-REFERENCES.txt` 核对源镜像及对应 tag，并在 Harbor 中确认以下目标路径：
 
-- `$COREDNS_IMAGE`
+- `$PRIVATE_REGISTRY/coredns/coredns:<Chart 默认 tag>`
 - `$PAUSE_IMAGE`
-- `$CALICO_NODE_IMAGE`
+- `$PRIVATE_REGISTRY/calico/node:<Operator 清单 tag>`
+- `$PRIVATE_REGISTRY/tigera/operator:<Chart 默认 tag>`
 - `$NODE_LOCAL_DNS_IMAGE`
-- `$PRIVATE_REGISTRY/tigera/operator:$CALICO_VERSION`
 
 NodeLocal DNSCache 镜像目前只纳入离线归档并推送到 Harbor；本仓库尚未新增 NodeLocal DNSCache DaemonSet 部署阶段。业务镜像及其他未列入基础归档的依赖仍需自行准备。
 
@@ -204,7 +204,7 @@ NodeLocal DNSCache 镜像目前只纳入离线归档并推送到 Harbor；本仓
 sudo bash scripts/19-install-calico.sh
 ~~~
 
-脚本依次应用 Release 中的 CRD、Tigera Operator，并生成含 POD_CIDR 和私有 Registry 的 Installation CR。默认 VXLAN、BGP Disabled；因此正常情况下不应把 BGP Peering 列表为空当作故障。节点地址自动探测默认 firstFound，多网卡节点需在安装前根据实际网卡调整 manifests/calico-installation.yaml.template 的 nodeAddressAutodetectionV4。
+脚本依次应用 Release 中的 CRD、Tigera Operator，并生成含 POD_CIDR 和私有 Registry 的 Installation CR。默认 VXLAN、BGP Disabled；因此正常情况下不应把 BGP Peering 列表为空当作故障。节点地址自动探测使用 Operator/Installation 的默认配置；多网卡节点应在安装前按实际网卡规划，在 `scripts/19-install-calico.sh` 的 Helm values 中显式配置 `installation.calicoNetwork.nodeAddressAutodetectionV4`。
 
 检查：
 
@@ -220,7 +220,7 @@ calicoctl get ippools -o wide
 
 ### 9.3 安装 CoreDNS
 
-先确保 config/cluster.env 的 COREDNS_IMAGE 是已推送的私有镜像地址，然后执行：
+CoreDNS Chart 的默认镜像 tag 已随 Chart 固定，部署脚本只将镜像仓库地址指向 Harbor；确认 `offline/images/IMAGE-REFERENCES.txt` 中的 CoreDNS 镜像已成功推送后执行：
 
 ~~~bash
 sudo bash scripts/20-install-coredns.sh
