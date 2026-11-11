@@ -132,7 +132,7 @@ for i in "${!NODES[@]}"; do
   dir="$OUT/$node"
   install -d -m 0700 "$dir/etc/kubernetes" "$dir/var/lib/kubelet" "$dir/var/lib/kube-proxy"
   sed -e "s#clusterDomain: .*#clusterDomain: ${CLUSTER_DOMAIN}#" \
-      -e "s#  - 10.96.0.10#  - ${DNS_SERVICE_IP}#" \
+      -e "s#  - 10.96.0.10#  - ${NODE_LOCAL_DNS_IP}#" \
       "$ROOT/config/kubelet-config.yaml" > "$dir/var/lib/kubelet/config.yaml"
   sed -e "s#clusterCIDR: .*#clusterCIDR: ${POD_CIDR}#" \
       -e "s#mode: .*#mode: ${KUBE_PROXY_MODE}#" \
