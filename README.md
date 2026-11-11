@@ -1,15 +1,15 @@
 # Kubernetes v1.37.2 二进制高可用集群部署项目
 
-基于 **Rocky Linux 9 / x86_64（amd64）**，使用 Kubernetes 官方二进制文件部署三 Master、三 Worker 集群，不使用 kubeadm。当前 API 入口采用 **Master 本机回环访问 + Worker 本机 NGINX TCP 代理**，暂不部署外部负载均衡器、Keepalived 或 VIP。
+基于 **Rocky Linux 9 / x86_64（amd64）**，使用 Kubernetes 官方二进制文件部署 Master 数量可配置的集群（示例默认三 Master、三 Worker），不使用 kubeadm。当前 API 入口采用 **Master 本机回环访问 + Worker 本机 NGINX TCP 代理**，暂不部署外部负载均衡器、Keepalived 或 VIP。
 
-> **生产提示：** 本仓库仍在持续完善。生产部署前必须在 Rocky Linux 9 六节点预演环境完成证书、镜像、网络、故障切换、备份恢复和升级验证。
+> **生产提示：** 本仓库仍在持续完善。生产部署前必须在 Rocky Linux 9 目标拓扑预演环境完成证书、镜像、网络、故障切换、备份恢复和升级验证。
 
 ## 一、架构与访问路径
 
 | 节点 | 组件 | API 访问方式 |
 |---|---|---|
 | master-01～03 | kube-apiserver、controller-manager、scheduler、etcd | 本机组件访问 `https://127.0.0.1:6443` |
-| worker-01～03 | kubelet、kube-proxy、NGINX stream | 本机访问 `https://127.0.0.1:6443`，由 NGINX 转发到三台 Master |
+| worker-01～03 | kubelet、kube-proxy、NGINX stream | 本机访问 `https://127.0.0.1:6443`，由 NGINX 转发到全部 Master |
 | 运维终端 | kubectl、管理员 kubeconfig | `https://${API_DNS}:6443`；当前无 LB，DNS 应指向可达 Master |
 
 Worker 本机 NGINX 只做 TCP 转发，不解密 TLS。Master 上的 kube-apiserver 必须监听 `0.0.0.0:6443`，以便 Worker 通过 Master 节点 IP 访问。
@@ -26,10 +26,10 @@ Worker 本机 NGINX 只做 TCP 转发，不解密 TLS。Master 上的 kube-apise
 
 ## 三、部署前准备
 
-1. 准备六台 Rocky Linux 9 x86_64 主机，主机名为 `master-01`～`master-03`、`worker-01`～`worker-03`。
+1. 准备至少两台 Rocky Linux 9 x86_64 主机；先列出全部 Master（`master-*`），再列出至少一台 Worker（`worker-*`）。示例默认 3+3。
 2. 配置固定 IP、DNS、NTP、路由、MTU、磁盘和防火墙策略。
 3. 确认 `POD_CIDR`、`SERVICE_CIDR` 与现有网络无重叠。
-4. 将 `config/cluster.env.example` 复制为 `config/cluster.env`，按顺序填写 `NODE_NAMES`、`NODE_IPS` 两个节点数组（前三项 Master、后三项 Worker），并配置 API DNS、版本和镜像仓库；当前 `MASTER_COUNT=3` 固定不变。
+4. 将 `config/cluster.env.example` 复制为 `config/cluster.env`，按顺序填写 `NODE_NAMES`、`NODE_IPS` 两个节点数组，并设置 `MASTER_COUNT`；前 `MASTER_COUNT` 项为 Master，其余自动成为 Worker。示例默认 `MASTER_COUNT=3`，生产环境建议采用奇数 etcd 成员。
 5. 对照 `docs/PARAMETER-REFERENCE.md` 复核参数。
 
 ## 四、通过 GitHub Actions 构建离线 Release
@@ -86,7 +86,7 @@ sudo bash scripts/15-distribute-node-configs.sh
 sudo bash scripts/00-install.sh all
 ~~~
 
-统一入口会按依赖顺序完成离线资源下载与校验、部署机工具安装、SSH 公钥配置、CFSSL 证书、kubeconfig、节点配置生成与分发、六节点系统优化、运行时、etcd、控制平面、Worker、NGINX、Calico、CoreDNS 和最终验收。
+统一入口会按依赖顺序完成离线资源下载与校验、部署机工具安装、SSH 公钥配置、CFSSL 证书、kubeconfig、节点配置生成与分发、全部节点系统优化、运行时、etcd、控制平面、Worker、NGINX、Calico、CoreDNS 和最终验收。
 
 支持按阶段执行：`prepare`（预处理）、`download`、`ssh`、`certs`、`system`、`etcd`、`control-plane`、`workers`、`calico`、`coredns`、`verify`、`status`。先执行预处理，再执行组件安装：
 
@@ -154,13 +154,13 @@ sudo bash scripts/15-distribute-node-configs.sh
 部署机需配置 root SSH 免密登录。使用统一批量执行入口，支持 `all`、`masters`、`workers` 节点组；`--parallel` 表示并发执行，任一节点失败会返回失败状态：
 
 ```bash
-# 六节点系统预检、运行时安装和 systemd 安装
+# 全部节点系统预检、运行时安装和 systemd 安装
 sudo bash scripts/16-batch-exec.sh all 00-preflight.sh --parallel
 sudo bash scripts/16-batch-exec.sh all 02-install-runtime.sh --parallel
 sudo bash scripts/16-batch-exec.sh all 06-install-systemd.sh --parallel
 # 06 阶段会按选择加载 IPVS 或 nftables 内核模块，并应用生成的 sysctl 配置
 
-# 先并发启动三台 etcd，再启动三台控制平面
+# 先并发启动全部 etcd Master，再启动全部 Master 控制平面
 sudo bash scripts/16-batch-exec.sh masters 07-bootstrap-etcd.sh --parallel
 sudo bash scripts/16-batch-exec.sh masters 08-start-control-plane.sh --parallel
 
