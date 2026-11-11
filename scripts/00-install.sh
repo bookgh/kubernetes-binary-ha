@@ -124,7 +124,7 @@ require_certificates() {
   for node in "${MASTER_NAMES[@]}"; do
     for suffix in server.crt server.key peer.crt peer.key; do
       file="$ROOT/pki/etcd-$node-$suffix"
-      if [[ ! -s "$file" ]]; then printf '  - %s\\n' "$file" >&2; missing=1; fi
+      if [[ ! -s "$file" ]]; then printf '  - %s\n' "$file" >&2; missing=1; fi
     done
   done
   (( missing == 0 )) || die "缺少一个或多个 Master 的 etcd 成员证书/私钥。请先执行：sudo bash scripts/00-install.sh prepare"
