@@ -12,7 +12,7 @@ for cmd in curl tar sha256sum; do command -v "$cmd" >/dev/null 2>&1 || { printf 
 VERSION="${K8S_VERSION#v}"
 TAG="k8s-v${VERSION}-r${RELEASE_REVISION}"
 ARCHIVE_NAME="offline-kubernetes-v${VERSION}-rocky9-amd64.tar.gz"
-ASSET_BASE="https://github.com/bookgh/kubernetes-binary-ha/releases/download/${TAG}"
+ASSET_BASE="${GITHUB_RELEASE_BASE_URL:?请在 config/cluster.env 设置 GITHUB_RELEASE_BASE_URL}/${TAG}"
 WORK="$(mktemp -d)"
 cleanup() { rm -rf "$WORK"; }
 trap cleanup EXIT
@@ -46,7 +46,7 @@ esac
 log "使用 Release 内置 Rocky Linux 9 RPM 依赖包"
 
 rm -f "$OUT/SHA256SUMS"
-(cd "$OUT" && find bin src manifests checksums tools docker rpms -type f -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS)
+(cd "$OUT" && find bin src manifests checksums tools docker rpms harbor images -type f -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS)
 cat >"$OUT/ARTIFACTS.txt" <<EOF
 Kubernetes=${K8S_VERSION}
 etcd=${ETCD_VERSION}
@@ -61,6 +61,11 @@ Calicoctl=${CALICOCTL_VERSION}
 Docker=${DOCKER_VERSION}
 cri-dockerd=${CRI_DOCKERD_VERSION}
 DockerCompose=${DOCKER_COMPOSE_VERSION}
+Harbor=${HARBOR_VERSION}
+CoreDNS=${COREDNS_VERSION}
+Pause=${PAUSE_VERSION}
+Calico=${CALICO_VERSION}
+NodeLocalDNS=${NODE_LOCAL_DNS_VERSION}
 Runtime=${RUNTIME_TYPE:-containerd}
 KubeProxyMode=${KUBE_PROXY_MODE:-nftables}
 RockyLinux9_RPMs=Included
@@ -69,4 +74,6 @@ OS=Rocky Linux 9
 Source=GitHub Release ${TAG}
 EOF
 log "离线资源准备完成：$OUT"
-log "Release 二进制资源与 RPM 依赖已校验。容器镜像需单独准备。"
+[[ -s "$OUT/harbor/harbor-offline-installer-v${HARBOR_VERSION}-amd64.tgz" ]] || die "缺少 Harbor 离线安装器"
+[[ -s "$OUT/images/kubernetes-images-linux-amd64.tar" ]] || die "缺少 Kubernetes 镜像归档"
+log "Release 二进制、RPM、Harbor 安装器及 Kubernetes 镜像归档均已校验。"
