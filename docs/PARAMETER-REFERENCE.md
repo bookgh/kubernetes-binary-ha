@@ -11,7 +11,8 @@
 - `NGINX_VERSION`：由 GitHub Actions 按该版本源码编译并发布到 Kubernetes Release 的 NGINX 版本，启用 stream 模块。
 - `POD_CIDR`：必须与 controller-manager `--cluster-cidr` 和 Calico IPPool 一致。
 - `SERVICE_CIDR`：必须与 API Server `--service-cluster-ip-range` 一致。
-- `DNS_SERVICE_IP`：CoreDNS `kube-dns` Service ClusterIP；NodeLocal DNSCache 将集群域名请求转发到此地址。\n- `NODE_LOCAL_DNS_IP`：NodeLocal DNSCache 节点本地监听地址，默认 `169.254.20.10`；必须确保不与主机地址/路由冲突，kubelet `clusterDNS` 应指向此地址。
+- `DNS_SERVICE_IP`：CoreDNS `kube-dns` Service ClusterIP；NodeLocal DNSCache 将集群域名请求转发到此地址。
+- `NODE_LOCAL_DNS_IP`：NodeLocal DNSCache 节点本地监听地址，默认 `169.254.20.10`；必须确保不与主机地址/路由冲突，kubelet `clusterDNS` 应指向此地址。
 - `KUBERNETES_SERVICE_IP`：Kubernetes API Service 的 ClusterIP，必须是 SERVICE_CIDR 中的首个 Service IP，并进入 API Server 证书 SAN。
 - `MASTER_COUNT`：Master 数量；必须为正整数且小于节点总数，前 `MASTER_COUNT` 项为 Master，其余自动成为 Worker。单 Master 不具备成员故障容忍能力；建议生产环境使用奇数成员（3/5/7）。偶数成员会由 `lib.sh` 警告，因为 etcd 需要多数派。至少保留一个 Worker。
 - `NODE_NAMES`：所有节点主机名的唯一清单，前 `MASTER_COUNT` 项必须是 `master-*`，其余必须是 `worker-*`。至少包含一个 Master 和一个 Worker。
@@ -24,7 +25,8 @@
 - `HARBOR_HTTP_PORT`：Harbor HTTP 端口，当前脚本固定要求 80。
 - `PRIVATE_REGISTRY`：Harbor project 路径，默认 `${HARBOR_HOST}/library`。
 - `PAUSE_IMAGE`：容器 sandbox/pause 镜像，containerd 和 Docker/cri-dockerd 均需可访问。
-- `NODE_LOCAL_DNS_IMAGE`：NodeLocal DNSCache 镜像在 Harbor 中的完整引用。\n- `NETWORK_TEST_IMAGE`：端到端网络验收用 BusyBox 镜像在 Harbor 中的完整引用，Release r7 起包含该镜像。
+- `NODE_LOCAL_DNS_IMAGE`：NodeLocal DNSCache 镜像在 Harbor 中的完整引用。
+- `NETWORK_TEST_IMAGE`：端到端网络验收用 BusyBox 镜像在 Harbor 中的完整引用，Release r7 起包含该镜像。
 
 ## SSH 与下载加速参数
 
