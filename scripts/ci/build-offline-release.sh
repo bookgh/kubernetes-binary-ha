@@ -155,7 +155,7 @@ docker run --rm -v "$OUT/rpms:/rpms" rockylinux:9 bash -lc '
   dnf -y download --resolve --alldeps --destdir=/rpms \
     chrony curl-minimal wget openssh-clients tar gzip jq openssl socat \
     conntrack-tools ipset ipvsadm iptables ebtables ethtool rsync \
-    policycoreutils-python-utils container-selinux nftables sshpass
+    policycoreutils-python-utils container-selinux nftables sshpass sudo
 '
 
 log "使用仓库 Dockerfile 构建 NGINX ${NGINX_VERSION}（启用 stream）。"
