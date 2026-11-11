@@ -80,6 +80,8 @@ install_docker_engine() {
 
 create_or_load_credentials() {
   if [[ ! -s "$CREDENTIAL_FILE" ]]; then
+    [[ ! -s "$HARBOR_HOME/harbor.yml" ]] ||
+      die "Harbor 已有配置但凭据文件丢失；拒绝生成新密码覆盖现有实例"
     local admin_password database_password
     admin_password="$(openssl rand -hex 24)"
     database_password="$(openssl rand -hex 24)"
