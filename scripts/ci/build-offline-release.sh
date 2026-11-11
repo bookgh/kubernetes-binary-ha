@@ -4,13 +4,21 @@ set -Eeuo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 VERSION_FILE="${ROOT}/config/release-versions.env"
-[[ -f "$VERSION_FILE" ]] || {
-  printf '[错误] 缺少版本配置：%s\n' "$VERSION_FILE" >&2
+CLUSTER_CONFIG="${ROOT}/config/cluster.env.example"
+[[ -f "$VERSION_FILE" && -f "$CLUSTER_CONFIG" ]] || {
+  printf '[错误] 缺少版本配置：%s 或 %s\\n' "$VERSION_FILE" "$CLUSTER_CONFIG" >&2
   exit 1
 }
 
 # shellcheck disable=SC1090
 source "$VERSION_FILE"
+# Calico/CoreDNS app and chart versions live with cluster configuration.
+# shellcheck disable=SC1090
+source "$CLUSTER_CONFIG"
+: "${CALICO_CHART_VERSION:?请在 config/cluster.env.example 定义 CALICO_CHART_VERSION}"
+: "${COREDNS_CHART_VERSION:?请在 config/cluster.env.example 定义 COREDNS_CHART_VERSION}"
+: "${CALICO_VERSION:?请在 config/cluster.env.example 定义 CALICO_VERSION}"
+: "${COREDNS_VERSION:?请在 config/cluster.env.example 定义 COREDNS_VERSION}"
 
 log() {
   printf '[信息] %s\n' "$*"
@@ -90,20 +98,53 @@ download "https://github.com/opencontainers/runc/releases/download/v${RUNC_VERSI
 chmod 0755 "$OUT/bin/runc"
 download "https://github.com/containernetworking/plugins/releases/download/${CNI_VERSION}/cni-plugins-linux-amd64-${CNI_VERSION}.tgz" "$OUT/src/cni-plugins.tgz"
 download "https://github.com/kubernetes-sigs/cri-tools/releases/download/${CRICTL_VERSION}/crictl-${CRICTL_VERSION}-linux-amd64.tar.gz" "$OUT/src/crictl.tar.gz"
-download "https://raw.githubusercontent.com/projectcalico/calico/${CALICO_VERSION}/manifests/tigera-operator.yaml" "$OUT/manifests/tigera-operator.yaml"
-download "https://raw.githubusercontent.com/projectcalico/calico/${CALICO_VERSION}/manifests/v3_projectcalico_org.yaml" "$OUT/manifests/calico-crds.yaml"
+
 download "https://get.helm.sh/helm-v${HELM_VERSION}-linux-amd64.tar.gz" "$OUT/src/helm.tar.gz"
 tar -xzf "$OUT/src/helm.tar.gz" -C "$WORK"
 install -m 0755 "$WORK/linux-amd64/helm" "$OUT/bin/helm"
 
-# Package the exact local manifests consumed by the offline installer.
-install -m 0644 "$ROOT/manifests/calico-installation.yaml.template" "$OUT/manifests/calico-installation.yaml.template"
-install -m 0644 "$ROOT/manifests/coredns.yaml.template" "$OUT/manifests/coredns.yaml.template"
-mkdir -p "$OUT/manifests/rendered"
-sed "s#__COREDNS_IMAGE__#registry.k8s.io/coredns/coredns:${COREDNS_VERSION}#g" \
-  "$OUT/manifests/coredns.yaml.template" > "$OUT/manifests/rendered/coredns.yaml"
+# Download the exact upstream Helm charts used by the offline installers.
+mkdir -p "$OUT/helm" "$OUT/manifests/helm-rendered"
+"$OUT/bin/helm" pull projectcalico/projectcalico.org.v3 \
+  --repo https://docs.tigera.io/calico/charts \
+  --version "$CALICO_CHART_VERSION" --destination "$OUT/helm"
+"$OUT/bin/helm" pull projectcalico/tigera-operator \
+  --repo https://docs.tigera.io/calico/charts \
+  --version "$CALICO_CHART_VERSION" --destination "$OUT/helm"
+"$OUT/bin/helm" pull coredns/coredns \
+  --repo https://coredns.github.io/helm \
+  --version "$COREDNS_CHART_VERSION" --destination "$OUT/helm"
 
-# Runtime and operator-generated images are declared for discovery only; never kubectl-apply this file.
+CALICO_CRD_CHART="$OUT/helm/projectcalico.org.v3-${CALICO_CHART_VERSION}.tgz"
+CALICO_OPERATOR_CHART="$OUT/helm/tigera-operator-${CALICO_CHART_VERSION}.tgz"
+COREDNS_CHART="$OUT/helm/coredns-${COREDNS_CHART_VERSION}.tgz"
+for chart in "$CALICO_CRD_CHART" "$CALICO_OPERATOR_CHART" "$COREDNS_CHART"; do
+  [[ -s "$chart" ]] || die "缺少已下载的 Helm Chart：$chart"
+done
+
+# Kubernetes 1.36+ uses Calico's native v3 CRD chart.
+"$OUT/bin/helm" template calico-crds "$CALICO_CRD_CHART" \
+  --api-versions admissionregistration.k8s.io/v1/MutatingAdmissionPolicy \
+  > "$OUT/manifests/helm-rendered/calico-crds.yaml"
+"$OUT/bin/helm" template calico "$CALICO_OPERATOR_CHART" \
+  --namespace tigera-operator \
+  > "$OUT/manifests/helm-rendered/calico-operator.yaml"
+"$OUT/bin/helm" template coredns "$COREDNS_CHART" \
+  --namespace kube-system \
+  --set image.repository=registry.k8s.io/coredns/coredns \
+  --set-string "image.tag=${COREDNS_VERSION#v}" \
+  --set-string "service.clusterIP=${DNS_SERVICE_IP}" \
+  --set service.name=kube-dns \
+  --set k8sAppLabelOverride=kube-dns \
+  --set replicaCount=2 \
+  --set-string "servers[0].plugins[3].parameters=${CLUSTER_DOMAIN} in-addr.arpa ip6.arpa" \
+  > "$OUT/manifests/helm-rendered/coredns.yaml"
+
+for rendered in "$OUT"/manifests/helm-rendered/*.yaml; do
+  [[ -s "$rendered" ]] || die "Helm Chart 渲染结果为空：$rendered"
+done
+
+# Runtime-only images are declared for discovery; Calico workload images come from the operator.
 {
   cat <<EOF
 apiVersion: v1
@@ -115,31 +156,10 @@ spec:
 EOF
   index=0
   for image_ref in "${OFFLINE_EXTRA_IMAGE_REFS[@]}"; do
-    printf '  - name: image-%03d\n    image: "%s"\n' "$index" "$image_ref"
+    printf '  - name: image-%03d\\n    image: "%s"\\n' "$index" "$image_ref"
     index=$((index + 1))
   done
 } > "$OUT/manifests/image-inventory.yaml"
-
-# Render optional packaged Helm charts before image extraction.
-mkdir -p "$OUT/helm" "$OUT/manifests/helm-rendered" "$WORK/charts"
-if [[ -d "$ROOT/helm" ]]; then
-  while IFS= read -r -d '' chart_archive; do
-    chart_name="$(basename "$chart_archive" .tgz)"
-    chart_dir="$WORK/charts/$chart_name"
-    mkdir -p "$chart_dir"
-    tar -xzf "$chart_archive" -C "$chart_dir"
-    chart_root="$(find "$chart_dir" -mindepth 1 -maxdepth 2 -type f -name Chart.yaml -printf '%h\n' | head -n1)"
-    [[ -n "$chart_root" ]] || die "Helm 包中缺少 Chart.yaml：$chart_archive"
-    cp "$chart_archive" "$OUT/helm/"
-    rendered="$OUT/manifests/helm-rendered/$chart_name.yaml"
-    if [[ -s "$chart_root/values-offline.yaml" ]]; then
-      "$OUT/bin/helm" template "$chart_name" "$chart_root" -f "$chart_root/values-offline.yaml" > "$rendered"
-    else
-      "$OUT/bin/helm" template "$chart_name" "$chart_root" > "$rendered"
-    fi
-    [[ -s "$rendered" ]] || die "Helm Chart 渲染结果为空：$chart_name"
-  done < <(find "$ROOT/helm" -maxdepth 1 -type f -name '*.tgz' -print0 | sort -z)
-fi
 
 # Harbor 官方离线安装器已包含 Harbor 自身所需的 OCI 镜像。
 HARBOR_ASSET="harbor-offline-installer-v${HARBOR_VERSION}-amd64.tgz"
@@ -149,8 +169,42 @@ printf '%s  %s\n' "$HARBOR_SHA256" "$OUT/harbor/$HARBOR_ASSET" |
   sha256sum --check --status ||
   die "Harbor ${HARBOR_VERSION} 离线安装器 SHA256 校验失败。"
 
-# Extract the complete image set from deployment manifests and rendered Helm charts.
-log "从离线 manifests/Helm 渲染结果提取镜像引用。"
+
+# Resolve Calico's dynamically generated workload images from the exact operator image
+# rendered by the downloaded chart. This avoids stale hard-coded refs such as calico/cni.
+log "从 Helm 渲染结果提取初始镜像引用。"
+python3 "$ROOT/scripts/ci/extract-image-refs.py" --root "$OUT/manifests" --output "$WORK/initial-image-refs.txt"
+OPERATOR_IMAGE="$(grep -E '/(tigera|calico)/operator:' "$WORK/initial-image-refs.txt" | head -n1 || true)"
+[[ -n "$OPERATOR_IMAGE" ]] || die "Calico Helm Chart 渲染结果中未找到 Tigera Operator 镜像"
+log "使用 Chart 实际引用的 Operator 获取 Calico 工作负载镜像清单：$OPERATOR_IMAGE"
+docker pull --platform linux/amd64 "$OPERATOR_IMAGE" ||
+  die "无法拉取 Calico Operator 镜像：$OPERATOR_IMAGE"
+docker run --rm --platform linux/amd64 "$OPERATOR_IMAGE" --print-images=list \
+  > "$WORK/calico-operator-images.txt" ||
+  die "Calico Operator 无法输出 --print-images=list 镜像清单"
+
+{
+  cat <<EOF
+apiVersion: v1
+kind: Pod
+metadata:
+  name: calico-dynamic-image-inventory
+spec:
+  containers:
+EOF
+  index=0
+  while IFS= read -r image_ref; do
+    [[ "$image_ref" =~ ^[A-Za-z0-9][A-Za-z0-9._:/@+-]*$ ]] || continue
+    [[ "$image_ref" == */* && "$image_ref" == *:* ]] || continue
+    printf '  - name: calico-image-%03d\\n    image: "%s"\\n' "$index" "$image_ref"
+    index=$((index + 1))
+  done < "$WORK/calico-operator-images.txt"
+} > "$OUT/manifests/calico-dynamic-image-inventory.yaml"
+
+grep -q 'image:' "$OUT/manifests/calico-dynamic-image-inventory.yaml" ||
+  die "Calico Operator 未返回有效的、带 tag 的镜像引用"
+
+log "从离线 Helm Chart 渲染结果和 Operator 动态清单提取全部镜像引用。"
 python3 "$ROOT/scripts/ci/extract-image-refs.py" --root "$OUT/manifests" --output "$OUT/images/IMAGE-REFERENCES.txt"
 mapfile -t IMAGE_REFS < "$OUT/images/IMAGE-REFERENCES.txt"
 (("${#IMAGE_REFS[@]}" > 0)) || die "未从部署制品中提取到任何镜像引用"
@@ -158,7 +212,7 @@ mapfile -t IMAGE_REFS < "$OUT/images/IMAGE-REFERENCES.txt"
 log "拉取 linux/amd64 离线镜像（${#IMAGE_REFS[@]} 个）。"
 for image_ref in "${IMAGE_REFS[@]}"; do
   docker pull --platform linux/amd64 "$image_ref" ||
-    die "镜像拉取失败：$image_ref；请检查部署制品中的镜像引用和上游 tag。"
+    die "镜像拉取失败：$image_ref；请检查 Helm Chart、Operator 镜像清单和上游 tag。"
 done
 
 IMAGE_ARCHIVE="$OUT/images/kubernetes-images-linux-amd64.tar"
