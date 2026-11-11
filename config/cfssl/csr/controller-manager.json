@@ -1,1 +1,13 @@
-{"CN":"system:kube-controller-manager","key":{"algo":"rsa","size":2048},"names":[{"O":"system:kube-controller-manager","OU":"Kubernetes Controller Manager"}]}
+{
+  "CN": "system:kube-controller-manager",
+  "key": {
+    "algo": "rsa",
+    "size": 2048
+  },
+  "names": [
+    {
+      "O": "system:kube-controller-manager",
+      "OU": "Kubernetes Controller Manager"
+    }
+  ]
+}
