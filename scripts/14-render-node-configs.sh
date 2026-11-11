@@ -123,7 +123,7 @@ for i in "${!NODES[@]}"; do
       index($0, "__MASTER_UPSTREAM_SERVERS__") {
         count = split(ips, addresses, ",")
         for (i = 1; i <= count; i++)
-          printf "        server %s:6443 max_fails=2 fail_timeout=5s;\\n", addresses[i]
+          printf "        server %s:6443 max_fails=2 fail_timeout=5s;\n", addresses[i]
         next
       }
       { print }
