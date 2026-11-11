@@ -14,7 +14,9 @@ sudo bash scripts/00-install.sh all
 
 
 
-> **拓扑变更边界：** `MASTER_COUNT` 动态决定新集群初始化时的 Master/Worker 分组。修改配置后必须重新执行 `prepare`，重新渲染并分发证书和节点配置。此配置不是运行中 etcd 集群的扩缩容接口；已有集群不得只修改 `MASTER_COUNT` 后重新执行 `etcd`。运行中成员增删必须单独使用 etcd member add/remove 流程，更新证书、控制平面和代理配置，并先备份、逐步验收。证书脚本会复用既有 CA/叶子证书并拒绝覆盖不完整文件；当拓扑变化导致 API Server SAN 不再匹配时，必须按证书轮换流程处理，不能删除 CA 或 etcd 数据目录来绕过检查。\n\n> **重要边界：** 本仓库自动化覆盖系统二进制、CFSSL、Helm、Calicoctl、crictl、Docker/Compose、RPM、etcd、Calico 安装清单和 CoreDNS 清单。Calico/CoreDNS/pause 等容器镜像仍需提前同步到所有节点可访问的私有镜像仓库；镜像不是 Release 中的二进制文件。当前 API 入口没有外部 LB/VIP，管理端 API_DNS 指向单台 Master，不具备入口层 HA。
+> **拓扑变更边界：** `MASTER_COUNT` 动态决定新集群初始化时的 Master/Worker 分组。修改配置后必须重新执行 `prepare`，重新渲染并分发证书和节点配置。此配置不是运行中 etcd 集群的扩缩容接口；已有集群不得只修改 `MASTER_COUNT` 后重新执行 `etcd`。运行中成员增删必须单独使用 etcd member add/remove 流程，更新证书、控制平面和代理配置，并先备份、逐步验收。证书脚本会复用既有 CA/叶子证书并拒绝覆盖不完整文件；当拓扑变化导致 API Server SAN 不再匹配时，必须按证书轮换流程处理，不能删除 CA 或 etcd 数据目录来绕过检查。
+
+> **重要边界：** 本仓库自动化覆盖系统二进制、CFSSL、Helm、Calicoctl、crictl、Docker/Compose、RPM、etcd、Calico 安装清单和 CoreDNS 清单。Calico/CoreDNS/pause 等容器镜像仍需提前同步到所有节点可访问的私有镜像仓库；镜像不是 Release 中的二进制文件。当前 API 入口没有外部 LB/VIP，管理端 API_DNS 指向单台 Master，不具备入口层 HA。
 
 ## 0. 部署拓扑与网络前置条件
 
@@ -39,7 +41,7 @@ vi config/cluster.env
 
 至少确认以下参数：
 
-- 在 `config/cluster.env` 中维护 `NODE_NAMES` 和 `NODE_IPS` 两个数组，顺序必须先列出全部 Master，再列出全部 Worker；`MASTER_COUNT` 设置为 Master 数量，前 `MASTER_COUNT` 项自动成为 Master，其余自动成为 Worker。至少需要一个 Master 和一个 Worker；生产环境建议使用奇数 Master（3/5/7），偶数成员会产生 etcd quorum 风险并触发警告。节点名称和 IP 按索引一一对应，脚本会在 `lib.sh` 中派生角色数组并校验数量、重复项、主机名角色及 IPv4 格式。
+- 在 `config/cluster.env` 中维护 `NODE_NAMES` 和 `NODE_IPS` 两个数组，顺序必须先列出全部 Master，再列出全部 Worker；`MASTER_COUNT` 设置为 Master 数量，前 `MASTER_COUNT` 项自动成为 Master，其余自动成为 Worker。至少需要一个 Master 和一个 Worker；单 Master 不具备成员故障容忍能力，生产环境建议使用奇数 Master（3/5/7），偶数成员会产生 etcd quorum 风险并触发警告。节点名称和 IP 按索引一一对应，脚本会在 `lib.sh` 中派生角色数组并校验数量、重复项、主机名角色及 IPv4 格式。
 - API_DNS 必须解析到可达 Master IP。当前没有 VIP/LB，DNS 解析不提供高可用。
 - RUNTIME_TYPE=containerd 或 RUNTIME_TYPE=docker。Docker 模式必须使用 cri-dockerd。
 - KUBE_PROXY_MODE=nftables 或 ipvs。Kubernetes 1.37 新部署推荐 nftables；IPVS 已弃用，使用前应确认内核模块和 kube-proxy 支持。
