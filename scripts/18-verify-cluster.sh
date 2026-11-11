@@ -49,10 +49,22 @@ fi
 if "$KUBECTL" --kubeconfig="$KUBECONFIG" get tigerastatus >/dev/null 2>&1; then
   "$KUBECTL" --kubeconfig="$KUBECONFIG" get tigerastatus
 fi
-log "5/5 检查 CoreDNS 与集群工作负载"
+log "5/6 检查 CoreDNS 与集群工作负载"
 "$KUBECTL" --kubeconfig="$KUBECONFIG" -n kube-system rollout status deployment/coredns --timeout=300s
 DNS_SERVICE_CLUSTER_IP="$("$KUBECTL" --kubeconfig="$KUBECONFIG" -n kube-system get service kube-dns -o jsonpath='{.spec.clusterIP}')"
 [[ "$DNS_SERVICE_CLUSTER_IP" == "$DNS_SERVICE_IP" ]] || die "CoreDNS Service ClusterIP 不匹配：期望 $DNS_SERVICE_IP，实际 $DNS_SERVICE_CLUSTER_IP"
 "$KUBECTL" --kubeconfig="$KUBECONFIG" -n kube-system get endpoints kube-dns -o json | jq -e '[.subsets[]?.addresses[]?] | length > 0' >/dev/null || die "CoreDNS kube-dns Service 没有可用 Endpoints"
 "$KUBECTL" --kubeconfig="$KUBECONFIG" get pods -A -o wide
-ok "etcd、API Server、Node、Calico 和 CoreDNS 检查完成。请继续执行 docs/INSTALL-FROM-SCRATCH.md 中的跨节点 Pod、Service、DNS 与 NodePort 验收。"
+log "6/6 检查 NodeLocal DNSCache 覆盖全部节点"
+: "${NODE_LOCAL_DNS_IMAGE:?请在 config/cluster.env 设置 NODE_LOCAL_DNS_IMAGE}"
+: "${NODE_LOCAL_DNS_IP:?请在 config/cluster.env 设置 NODE_LOCAL_DNS_IP}"
+NODE_LOCAL_JSON="$("$KUBECTL" --kubeconfig="$KUBECONFIG" -n kube-system get ds node-local-dns -o json)" ||
+  die "未发现 kube-system/node-local-dns DaemonSet"
+printf '%s\n' "$NODE_LOCAL_JSON" | jq -e --arg image "$NODE_LOCAL_DNS_IMAGE" --argjson nodes "${#ALL_NAMES[@]}" '
+  .spec.template.spec.containers[0].image == $image and
+  .status.desiredNumberScheduled == $nodes and
+  .status.numberReady == $nodes
+' >/dev/null || die "NodeLocal DNSCache 镜像、期望调度数或 Ready 数量不匹配"
+"$KUBECTL" --kubeconfig="$KUBECONFIG" -n kube-system get pods -l k8s-app=node-local-dns -o wide
+bash "$ROOT/scripts/26-verify-network.sh"
+ok "etcd、API Server、Node、Calico、CoreDNS、NodeLocal DNSCache、Harbor 镜像拉取、DNS 与跨节点网络自动验收完成。"
