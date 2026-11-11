@@ -28,7 +28,7 @@ local_healthy() {
     download) [[ -s "$ROOT/offline/SHA256SUMS" && -x "$ROOT/offline/bin/kubectl" && -x "$ROOT/offline/bin/cfssl" ]] && (cd "$ROOT/offline" && sha256sum -c SHA256SUMS >/dev/null 2>&1) ;;
     cli-tools) command -v helm >/dev/null && command -v calicoctl >/dev/null && command -v crictl >/dev/null && command -v cfssl >/dev/null ;;
     ssh-key)
-      for ip in "${ALL_IPS[@]}"; do ssh -o BatchMode=yes -o ConnectTimeout=5 "root@$ip" true >/dev/null 2>&1 || return 1; done
+      for ip in "${ALL_IPS[@]}"; do ssh_remote "$ip" true >/dev/null 2>&1 || return 1; done
       ;;
     pki)
       [[ -s "$ROOT/pki/k8s-ca.crt" && -s "$ROOT/pki/k8s-ca.key" && -s "$ROOT/pki/apiserver.crt" && -s "$ROOT/pki/etcd-ca.crt" && -s "$ROOT/pki/sa.key" && -s "$ROOT/pki/sa.pub" ]] || return 1
@@ -47,7 +47,7 @@ local_healthy() {
       done
       ;;
     distribute)
-      for ip in "${ALL_IPS[@]}"; do ssh -o BatchMode=yes -o ConnectTimeout=5 "root@$ip" "test -s /etc/kubernetes/cluster.env && test -s /opt/kubernetes-binary-ha/scripts/22-node-step.sh" >/dev/null 2>&1 || return 1; done
+      for ip in "${ALL_IPS[@]}"; do ssh_remote "$ip" "test -s /etc/kubernetes/cluster.env && test -s /opt/kubernetes-binary-ha/scripts/22-node-step.sh" >/dev/null 2>&1 || return 1; done
       ;;
     etcd-health) return 1 ;;
     calico) "$ROOT/offline/bin/kubectl" -n calico-system get ds calico-node >/dev/null 2>&1 && "$ROOT/offline/bin/kubectl" -n calico-system rollout status ds/calico-node --timeout=10s >/dev/null 2>&1 ;;
@@ -173,19 +173,19 @@ require_certificates() {
   for i in "${!ALL_IPS[@]}"; do
     ip="${ALL_IPS[$i]}"
     node="${ALL_NAMES[$i]}"
-    ssh -o BatchMode=yes -o ConnectTimeout=5 "root@$ip" \
-      "test -s /etc/kubernetes/pki/k8s-ca.crt && grep -Fxq 'ETCD_SERVERS=$expected_etcd_servers' /etc/kubernetes/cluster.env && grep -Fxq 'ETCD_INITIAL_CLUSTER=$expected_initial_cluster' /etc/kubernetes/cluster.env" \
+    ssh_remote "$ip" \
+      "test -s /etc/kubernetes/pki/k8s-ca.crt && grep -Fxq 'ETCD_SERVERS=$expected_etcd_servers' /etc/kubernetes/cluster.env && grep -Fxq 'ETCD_INITIAL_CLUSTER=$expected_initial_cluster' \
       >/dev/null 2>&1 || die "节点 $node ($ip) 的 Kubernetes CA 或动态 etcd 配置未更新。请先执行：sudo bash scripts/00-install.sh prepare"
     if [[ "$node" == worker-* ]]; then
       for master_ip in "${MASTER_IPS[@]}"; do
-        ssh -o BatchMode=yes -o ConnectTimeout=5 "root@$ip" "grep -Fq 'server $master_ip:6443' /etc/nginx/nginx.conf" >/dev/null 2>&1 || die "Worker $node 的 NGINX upstream 缺少 Master $master_ip；请先执行 prepare"
+        ssh_remote "$ip" "grep -Fq 'server $master_ip:6443' /etc/nginx/nginx.conf" >/dev/null 2>&1 || die "Worker $node 的 NGINX upstream 缺少 Master $master_ip；请先执行 prepare"
       done
     fi
   done
   for i in "${!MASTER_IPS[@]}"; do
     ip="${MASTER_IPS[$i]}"
     node="${MASTER_NAMES[$i]}"
-    ssh -o BatchMode=yes -o ConnectTimeout=5 "root@$ip" \
+    ssh_remote "$ip" \
       "test -s /etc/etcd/pki/etcd-ca.crt && test -s /etc/etcd/pki/etcd-$node-server.crt && test -s /etc/etcd/pki/etcd-$node-server.key && test -s /etc/etcd/pki/etcd-$node-peer.crt && test -s /etc/etcd/pki/etcd-$node-peer.key" \
       >/dev/null 2>&1 || die "Master $node ($ip) 尚未收到自己的 etcd server/peer 凭据。请先执行：sudo bash scripts/00-install.sh prepare"
   done
