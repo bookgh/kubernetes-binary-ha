@@ -107,11 +107,12 @@ case "$TARGET" in
   calico) prepare_calico ;;
   coredns) prepare_coredns ;;
   verify) verify_cluster ;;
-  status)\n    printf "本地阶段标记：%s
-" "$STATE/steps"\n    find "$STATE/steps" -maxdepth 1 -type f -printf "%f
-" | sort\n    printf "远程节点标记位置：/var/lib/kubernetes-binary-ha/steps/（每台节点独立保存）
-" ;;
-  all) [[ "$PRIVATE_REGISTRY" != *example* && "$PAUSE_IMAGE" != *example* && "$COREDNS_IMAGE" != *example* ]] || die "请先配置真实私有镜像仓库和 COREDNS_IMAGE/PAUSE_IMAGE"; prepare_download; prepare_ssh; prepare_certs; remote_step all 00-preflight.sh; remote_step all 02-install-runtime.sh; remote_step all 06-install-systemd.sh; remote_step masters 07-bootstrap-etcd.sh; local_step etcd-health 21-verify-etcd.sh; remote_step masters 08-start-control-plane.sh; remote_step workers 13-install-nginx-proxy.sh; remote_step workers 09-start-worker.sh; [[ "$PRIVATE_REGISTRY" != *example* && "$PAUSE_IMAGE" != *example* && "$COREDNS_IMAGE" != *example* ]] || die "请先配置真实私有镜像仓库和 COREDNS_IMAGE/PAUSE_IMAGE"; local_step calico 19-install-calico.sh; local_step coredns 20-install-coredns.sh; verify_cluster ;;
+  status)
+    printf '本地阶段标记目录：%s\n' "$STATE/steps"
+    find "$STATE/steps" -maxdepth 1 -type f -printf '%f\n' | sort
+    printf '远程节点标记位置：/var/lib/kubernetes-binary-ha/steps/（每台节点独立保存）\n'
+    ;;
+  all) [[ "$PRIVATE_REGISTRY" != *example* && "$PAUSE_IMAGE" != *example* && "$COREDNS_IMAGE" != *example* ]] || die "请先配置真实私有镜像仓库和 COREDNS_IMAGE/PAUSE_IMAGE"; prepare_download; prepare_ssh; prepare_certs; remote_step all 00-preflight.sh; remote_step all 02-install-runtime.sh; remote_step all 06-install-systemd.sh; remote_step masters 07-bootstrap-etcd.sh; local_step etcd-health 21-verify-etcd.sh; remote_step masters 08-start-control-plane.sh; remote_step workers 13-install-nginx-proxy.sh; remote_step workers 09-start-worker.sh; local_step calico 19-install-calico.sh; local_step coredns 20-install-coredns.sh; verify_cluster ;;
   *) die "用法：$0 {all|download|ssh|certs|system|etcd|control-plane|workers|calico|coredns|verify}" ;;
 esac
 ok "目标阶段 $TARGET 执行结束。安装日志：$LOG"
