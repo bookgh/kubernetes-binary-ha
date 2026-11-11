@@ -163,7 +163,7 @@ docker save --output "$IMAGE_ARCHIVE" "${IMAGE_REFS[@]}"
 {
   while IFS= read -r image_ref; do
     digest="$(docker image inspect --format '{{index .RepoDigests 0}}' "$image_ref")"
-    printf '%s\t%s\\n' "$image_ref" "$digest"
+    printf '%s\t%s\n' "$image_ref" "$digest"
   done < "$OUT/images/IMAGE-REFERENCES.txt"
 } > "$OUT/images/IMAGE-REFERENCES.txt.tmp"
 mv "$OUT/images/IMAGE-REFERENCES.txt.tmp" "$OUT/images/IMAGE-REFERENCES.txt"
