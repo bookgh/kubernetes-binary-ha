@@ -45,6 +45,7 @@ log "2/3 安装/升级 Tigera Operator（镜像来自 Harbor）"
   --set 'installation.calicoNetwork.ipPools[0].encapsulation=VXLAN' \
   --set 'installation.calicoNetwork.ipPools[0].natOutgoing=Enabled' \
   --set-string 'installation.calicoNetwork.ipPools[0].nodeSelector=all()' \
+  --take-ownership \
   --wait --timeout 10m
 
 "$KUBECTL" wait --for=condition=Available deployment/tigera-operator \
