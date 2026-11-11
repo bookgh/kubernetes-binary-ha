@@ -3,7 +3,6 @@
 set -Eeuo pipefail
 source "$(dirname "$0")/lib.sh"
 require_root
-require_cmd kubectl
 
 HELM="$ROOT/offline/bin/helm"
 [[ -x "$HELM" ]] || HELM="$(command -v helm || true)"
