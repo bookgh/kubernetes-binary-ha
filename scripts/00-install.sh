@@ -25,7 +25,7 @@ fingerprint() {
 local_healthy() {
   local id="$1"
   case "$id" in
-    download) [[ -s "$ROOT/offline/SHA256SUMS" && -x "$ROOT/offline/bin/kubectl" && -x "$ROOT/offline/bin/cfssl" ]] ;;
+    download) [[ -s "$ROOT/offline/SHA256SUMS" && -x "$ROOT/offline/bin/kubectl" && -x "$ROOT/offline/bin/cfssl" ]] && (cd "$ROOT/offline" && sha256sum -c SHA256SUMS >/dev/null 2>&1) ;;
     cli-tools) command -v helm >/dev/null && command -v calicoctl >/dev/null && command -v crictl >/dev/null && command -v cfssl >/dev/null ;;
     ssh-key)
       for ip in "${ALL_IPS[@]}"; do ssh -o BatchMode=yes -o ConnectTimeout=5 "root@$ip" true >/dev/null 2>&1 || return 1; done
