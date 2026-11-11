@@ -212,6 +212,9 @@ log "从离线 Helm Chart 渲染结果和 Operator 动态清单提取全部镜�
 python3 "$ROOT/scripts/ci/extract-image-refs.py" --root "$OUT/manifests" --output "$OUT/images/IMAGE-REFERENCES.txt"
 mapfile -t IMAGE_REFS < "$OUT/images/IMAGE-REFERENCES.txt"
 (("${#IMAGE_REFS[@]}" > 0)) || die "未从部署制品中提取到任何镜像引用"
+if grep -Eq '/calico/(cni|kube-controllers|pod2daemon-flexvol|typha|ctl|apiserver|goldmane|dikastes|csi|node-driver-registrar|key-cert-provisioner|flannel-migration-controller|whisker-backend):' "$OUT/images/IMAGE-REFERENCES.txt"; then
+  die "Calico 镜像清单仍包含 v3.33 已移除的旧镜像名，请检查 Operator 镜像版本。"
+fi
 
 log "拉取 linux/amd64 离线镜像（${#IMAGE_REFS[@]} 个）。"
 for image_ref in "${IMAGE_REFS[@]}"; do
