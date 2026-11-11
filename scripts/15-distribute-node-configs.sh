@@ -80,7 +80,8 @@ for i in "${!NODES[@]}"; do
   log "准备分发到 $node ($ip)"
 
   # 先通过 SCP 传输 RPM，安装 rsync 后再同步其余离线资源。
-  scp -P "$SSH_PORT" -r "$ROOT/offline/rpms" "$SSH_USER@$ip:/tmp/k8s-ha-rpms"
+  remote_exec "$ip" "rm -rf /tmp/k8s-ha-rpms && install -d -m 0755 /tmp/k8s-ha-rpms"
+  scp -P "$SSH_PORT" "$ROOT"/offline/rpms/*.rpm "$SSH_USER@$ip:/tmp/k8s-ha-rpms/"
   remote_exec "$ip" "dnf install -y --disablerepo='*' /tmp/k8s-ha-rpms/*.rpm && rm -rf /tmp/k8s-ha-rpms"
 
   rsync -az --delete -e "ssh -p $SSH_PORT" \
