@@ -5,7 +5,7 @@
 GitHub Actions 负责触发，仓库脚本负责实现。构建逻辑、下载 URL、版本号、校验和不重复写在 Workflow YAML 中。
 
 - Workflow：只做 Issue/手动触发过滤、checkout、传入事件上下文并调用构建脚本。
-- `config/release-versions.env`：统一维护 etcd、containerd、runc、CNI、crictl、pause、NodeLocal DNS、Harbor、NGINX 版本及校验值。Calico/CoreDNS Chart 和应用版本从 `config/cluster.env.example` 读取。
+- `config/release-versions.env`：统一维护 etcd、containerd、runc、CNI、crictl、pause、NodeLocal DNS、Harbor、NGINX 版本及校验值。Calico/CoreDNS Chart 版本从 `config/cluster.env.example` 读取，镜像版本由 Chart 默认配置决定。
 - `scripts/ci/build-offline-release.sh`：唯一构建入口，先下载实际部署 manifests/Helm Chart，再提取镜像、拉取归档、构建 NGINX 并发布 Release。
 - `scripts/ci/extract-image-refs.py`：从 YAML/JSON manifests 和 Helm 渲染结果提取、规范化、去重、排序镜像引用。
 - `nginx/Dockerfile`：唯一 NGINX 编译定义。
@@ -33,7 +33,7 @@ GitHub Actions 负责触发，仓库脚本负责实现。构建逻辑、下载 U
 
 ## 4. 版本与下载加速
 
-- etcd、运行时、Harbor、pause、NodeLocal DNS 等版本：编辑 `config/release-versions.env`；Calico、Tigera Operator、CoreDNS 应用和 Chart 版本：编辑 `config/cluster.env.example`，部署时同步到 `config/cluster.env`。
+- etcd、运行时、Harbor、pause、NodeLocal DNS 等版本：编辑 `config/release-versions.env`；Calico（CRD 与 Operator）及 CoreDNS Chart 版本：编辑 `config/cluster.env.example`，部署时同步到 `config/cluster.env`；镜像 tag 跟随 Chart 自身默认值。
 - Release 下载加速：编辑 `config/cluster.env` 中的 `GITHUB_REPOSITORY_URL` 和 `GITHUB_RELEASE_BASE_URL`。
 - 修改下载、校验、打包、发布步骤：编辑 `scripts/ci/build-offline-release.sh`。
 - 修改 NGINX 编译参数：编辑 `nginx/Dockerfile`。
