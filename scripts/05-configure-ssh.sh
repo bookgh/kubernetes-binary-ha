@@ -33,11 +33,11 @@ if [[ "$NEED_KEY" -eq 1 ]]; then
   chmod 0600 "$SSH_CONFIG"
   sed -i '/^# BEGIN KUBERNETES-BINARY-HA$/,/^# END KUBERNETES-BINARY-HA$/d' "$SSH_CONFIG"
   {
-    printf '%s\\n' '# BEGIN KUBERNETES-BINARY-HA'
+    printf '%s\n' '# BEGIN KUBERNETES-BINARY-HA'
     for ip in "${ALL_IPS[@]}"; do
-      printf 'Host %s\\n  User root\\n  IdentityFile %s\\n  IdentitiesOnly yes\\n  StrictHostKeyChecking accept-new\\n\\n' "$ip" "$SSH_KEY"
+      printf 'Host %s\n  User root\n  IdentityFile %s\n  IdentitiesOnly yes\n  StrictHostKeyChecking accept-new\n\n' "$ip" "$SSH_KEY"
     done
-    printf '%s\\n' '# END KUBERNETES-BINARY-HA'
+    printf '%s\n' '# END KUBERNETES-BINARY-HA'
   } >> "$SSH_CONFIG"
 fi
 for i in "${!ALL_NAMES[@]}"; do
