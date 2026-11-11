@@ -17,6 +17,8 @@ CFSSLJSON="$ROOT/offline/bin/cfssljson"
 "$CFSSL" version
 create_ca() {
   local name="$1" csr="$2"
+  if [[ -s "$PKI/$name.crt" && -s "$PKI/$name.key" ]]; then log "复用已存在 CA：$name"; return 0; fi
+  [[ ! -e "$PKI/$name.crt" && ! -e "$PKI/$name.key" ]] || die "CA $name 文件不完整；拒绝覆盖，请先备份并人工恢复。"
   "$CFSSL" gencert -initca "$CFSSL_DIR/$csr" | "$CFSSLJSON" -bare "$PKI/$name"
   mv "$PKI/$name.pem" "$PKI/$name.crt"
   mv "$PKI/$name-key.pem" "$PKI/$name.key"
@@ -25,6 +27,8 @@ create_ca() {
 issue() {
   local ca="$1" cn="$2" org="$3" hosts="$4" name="$5" profile="$6" template="${7:-generic}"
   local csr
+  if [[ -s "$PKI/$name.crt" && -s "$PKI/$name.key" ]]; then log "复用已存在服务证书：$name"; return 0; fi
+  [[ ! -e "$PKI/$name.crt" && ! -e "$PKI/$name.key" ]] || die "证书 $name 文件不完整；拒绝覆盖，请先备份并人工恢复。"
   csr="$(mktemp "$PKI/${name}.csr.XXXXXX.json")"
   jq --arg cn "$cn" --arg org "$org" 'if $org == "" then .CN=$cn else (.CN=$cn | .names[0].O=$org) end' "$CFSSL_DIR/csr/$template.json" > "$csr"
   "$CFSSL" gencert -ca="$PKI/$ca.crt" -ca-key="$PKI/$ca.key" -config="$CFSSL_DIR/ca-config.json" -profile="$profile" -hostname="$hosts" "$csr" | "$CFSSLJSON" -bare "$PKI/$name"
