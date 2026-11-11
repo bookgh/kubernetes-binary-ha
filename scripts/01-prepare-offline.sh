@@ -46,7 +46,7 @@ esac
 log "使用 Release 内置 Rocky Linux 9 RPM 依赖包"
 
 rm -f "$OUT/SHA256SUMS"
-(cd "$OUT" && find bin src manifests checksums tools docker rpms harbor images -type f -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS)
+(cd "$OUT" && find bin src manifests checksums tools docker rpms harbor images helm -type f -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS)
 cat >"$OUT/ARTIFACTS.txt" <<EOF
 Kubernetes=${K8S_VERSION}
 etcd=${ETCD_VERSION}
