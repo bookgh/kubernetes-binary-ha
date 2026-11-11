@@ -63,6 +63,8 @@ for i in "${!MASTER_NAMES[@]}"; do
   issue etcd-ca "etcd-$n" "" "$hosts" "etcd-$n-peer" peer etcd-peer
   openssl x509 -in "$PKI/etcd-$n-server.crt" -noout -checkhost "$n" >/dev/null
   openssl x509 -in "$PKI/etcd-$n-server.crt" -noout -checkip "$ip" >/dev/null
+  openssl x509 -in "$PKI/etcd-$n-peer.crt" -noout -checkhost "$n" >/dev/null
+  openssl x509 -in "$PKI/etcd-$n-peer.crt" -noout -checkip "$ip" >/dev/null
 done
 for i in "${!ALL_NAMES[@]}"; do
   n="${ALL_NAMES[$i]}"; ip="${ALL_IPS[$i]}"
