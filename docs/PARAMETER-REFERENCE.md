@@ -13,7 +13,7 @@
 - `SERVICE_CIDR`：必须与 API Server `--service-cluster-ip-range` 一致。
 - `DNS_SERVICE_IP`：CoreDNS ClusterIP，必须与 kubelet `clusterDNS` 一致。
 - `KUBERNETES_SERVICE_IP`：Kubernetes API Service 的 ClusterIP，必须是 SERVICE_CIDR 中的首个 Service IP，并进入 API Server 证书 SAN。
-- `MASTER_COUNT`：Master 数量；必须为正整数且小于节点总数，前 `MASTER_COUNT` 项为 Master，其余自动成为 Worker。建议生产环境使用奇数成员（3/5/7）；偶数成员会由 `lib.sh` 警告，因为 etcd 需要多数派。至少保留一个 Worker。
+- `MASTER_COUNT`：Master 数量；必须为正整数且小于节点总数，前 `MASTER_COUNT` 项为 Master，其余自动成为 Worker。单 Master 不具备成员故障容忍能力；建议生产环境使用奇数成员（3/5/7）。偶数成员会由 `lib.sh` 警告，因为 etcd 需要多数派。至少保留一个 Worker。
 - `NODE_NAMES`：所有节点主机名的唯一清单，前 `MASTER_COUNT` 项必须是 `master-*`，其余必须是 `worker-*`。至少包含一个 Master 和一个 Worker。
 - `NODE_IPS`：与 `NODE_NAMES` 按索引一一对应的 IPv4 地址；修改节点时同步修改这两个数组，并确保 `MASTER_COUNT` 与角色分界一致。
 - `MASTER_NAMES`/`MASTER_IPS`、`WORKER_NAMES`/`WORKER_IPS`、`ALL_NAMES`/`ALL_IPS`：由 `scripts/lib.sh` 根据上述两个数组自动派生，供现有部署脚本使用，不要在 `cluster.env` 中重复定义。
