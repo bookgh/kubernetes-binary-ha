@@ -204,6 +204,9 @@ EOF
   index=0
   while IFS= read -r image_ref; do
     [[ "$image_ref" =~ ^[A-Za-z0-9][A-Za-z0-9._:/@+-]*$ ]] || continue
+    case "$image_ref" in
+      calico/*|tigera/*) image_ref="quay.io/$image_ref" ;;
+    esac
     [[ "$image_ref" == */* && "$image_ref" == *:* ]] || continue
     printf '  - name: calico-image-%03d\n    image: "%s"\n' "$index" "$image_ref"
     index=$((index + 1))
