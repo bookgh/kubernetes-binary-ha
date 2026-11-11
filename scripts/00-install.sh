@@ -32,7 +32,7 @@ local_healthy() {
       ;;
     pki) [[ -s "$ROOT/pki/k8s-ca.crt" && -s "$ROOT/pki/k8s-ca.key" && -s "$ROOT/pki/apiserver.crt" && -s "$ROOT/pki/sa.key" && -s "$ROOT/pki/sa.pub" ]] ;;
     kubeconfigs) [[ -s "$ROOT/kubeconfigs/admin.conf" && -s "$ROOT/kubeconfigs/kube-proxy.conf" ]] ;;
-    render) [[ -s "$ROOT/generated/common/etc/modules-load.d/10-kubernetes.conf" && -s "$ROOT/generated/common/etc/sysctl.d/95-kubernetes.conf" && -s "$ROOT/generated/master-01/etc/kubernetes/cluster.env" ]] ;;
+    render) [[ -s "$ROOT/generated/common/etc/modules-load.d/10-kubernetes.conf" && -s "$ROOT/generated/common/etc/sysctl.d/95-kubernetes.conf" && -s "$ROOT/generated/${MASTER_NAMES[0]}/etc/kubernetes/cluster.env" ]] ;;
     distribute)
       for ip in "${ALL_IPS[@]}"; do ssh -o BatchMode=yes -o ConnectTimeout=5 "root@$ip" "test -s /etc/kubernetes/cluster.env && test -s /opt/kubernetes-binary-ha/scripts/22-node-step.sh" >/dev/null 2>&1 || return 1; done
       ;;
@@ -111,7 +111,6 @@ require_certificates() {
     "$ROOT/pki/k8s-ca.crt" \
     "$ROOT/pki/apiserver.crt" \
     "$ROOT/pki/etcd-ca.crt" \
-    "$ROOT/pki/etcd-master-01-server.crt" \
     "$ROOT/pki/sa.key" \
     "$ROOT/pki/sa.pub" \
     "$ROOT/kubeconfigs/admin.conf" \
@@ -122,15 +121,24 @@ require_certificates() {
     fi
   done
   (( missing == 0 )) || die "缺少必要证书或 kubeconfig。请先执行：sudo bash scripts/00-install.sh prepare（本命令不会自动生成证书或安装前置依赖）"
+  for node in "${MASTER_NAMES[@]}"; do
+    for suffix in server.crt server.key peer.crt peer.key; do
+      file="$ROOT/pki/etcd-$node-$suffix"
+      if [[ ! -s "$file" ]]; then printf '  - %s\\n' "$file" >&2; missing=1; fi
+    done
+  done
+  (( missing == 0 )) || die "缺少一个或多个 Master 的 etcd 成员证书/私钥。请先执行：sudo bash scripts/00-install.sh prepare"
   for ip in "${ALL_IPS[@]}"; do
     ssh -o BatchMode=yes -o ConnectTimeout=5 "root@$ip" \
       "test -s /etc/kubernetes/pki/k8s-ca.crt && test -s /etc/kubernetes/cluster.env" \
       >/dev/null 2>&1 || die "节点 $ip 尚未收到 Kubernetes CA 证书或集群配置。请先执行：sudo bash scripts/00-install.sh prepare"
   done
-  for ip in "${MASTER_IPS[@]}"; do
+  for i in "${!MASTER_IPS[@]}"; do
+    ip="${MASTER_IPS[$i]}"
+    node="${MASTER_NAMES[$i]}"
     ssh -o BatchMode=yes -o ConnectTimeout=5 "root@$ip" \
-      "test -s /etc/etcd/pki/etcd-ca.crt && test -s /etc/etcd/pki/etcd-master-01-server.crt" \
-      >/dev/null 2>&1 || die "Master $ip 尚未收到 etcd 证书。请先执行：sudo bash scripts/00-install.sh prepare"
+      "test -s /etc/etcd/pki/etcd-ca.crt && test -s /etc/etcd/pki/etcd-$node-server.crt && test -s /etc/etcd/pki/etcd-$node-server.key && test -s /etc/etcd/pki/etcd-$node-peer.crt && test -s /etc/etcd/pki/etcd-$node-peer.key" \
+      >/dev/null 2>&1 || die "Master $node ($ip) 尚未收到自己的 etcd server/peer 凭据。请先执行：sudo bash scripts/00-install.sh prepare"
   done
 }
 prepare_etcd() {
