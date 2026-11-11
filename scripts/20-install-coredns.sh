@@ -19,22 +19,14 @@ export KUBECONFIG
 : "${DNS_SERVICE_IP:?请在 config/cluster.env 设置 DNS_SERVICE_IP}"
 
 CHART="$ROOT/offline/helm/coredns-${COREDNS_CHART_VERSION}.tgz"
+VALUES="$ROOT/offline/helm/coredns-values.yaml"
 [[ -s "$CHART" ]] || die "缺少 CoreDNS Helm Chart：$CHART；请先运行 scripts/01-prepare-offline.sh"
-log "使用 CoreDNS Helm Chart 安装/升级 kube-system/coredns"
+[[ -s "$VALUES" ]] || die "缺少与 Chart 默认值合并的 CoreDNS 配置：$VALUES；请重新准备离线资源"
+log "使用 CoreDNS Helm Chart 和 CI 生成的默认值配置安装/升级 kube-system/coredns"
 "$HELM" upgrade --install coredns "$CHART" \
   --namespace kube-system \
+  --values "$VALUES" \
   --set image.repository="$PRIVATE_REGISTRY/coredns/coredns" \
-  --set-string "service.clusterIP=$DNS_SERVICE_IP" \
-  --set service.name=kube-dns \
-  --set k8sAppLabelOverride=kube-dns \
-  --set isClusterService=true \
-  --set replicaCount=2 \
-  --set priorityClassName=system-cluster-critical \
-  --set 'tolerations[0].key=CriticalAddonsOnly' \
-  --set 'tolerations[0].operator=Exists' \
-  --set 'tolerations[1].key=node-role.kubernetes.io/control-plane' \
-  --set 'tolerations[1].effect=NoSchedule' \
-  --set-string "servers[0].plugins[3].parameters=$CLUSTER_DOMAIN in-addr.arpa ip6.arpa" \
   --take-ownership \
   --wait --timeout 5m
 
