@@ -88,15 +88,16 @@ sudo bash scripts/00-install.sh all
 
 统一入口会按依赖顺序完成离线资源下载与校验、部署机工具安装、SSH 公钥配置、CFSSL 证书、kubeconfig、节点配置生成与分发、六节点系统优化、运行时、etcd、控制平面、Worker、NGINX、Calico、CoreDNS 和最终验收。
 
-支持按阶段执行：`download`、`ssh`、`certs`、`system`、`etcd`、`control-plane`、`workers`、`calico`、`coredns`、`verify`、`status`。例如：
+支持按阶段执行：`prepare`（预处理）、`download`、`ssh`、`certs`、`system`、`etcd`、`control-plane`、`workers`、`calico`、`coredns`、`verify`、`status`。先执行预处理，再执行组件安装：
 
 ~~~bash
+sudo bash scripts/00-install.sh prepare
 sudo bash scripts/00-install.sh etcd
 sudo bash scripts/00-install.sh workers
 sudo bash scripts/00-install.sh verify
 ~~~
 
-入口和每个节点均有独立执行锁、完成/失败标记、脚本及配置指纹和日志。失败后修复问题，再次执行同一命令即可跳过已完成且健康的阶段，继续失败阶段。etcd 已有数据时不会重新初始化；CFSSL 已生成的 CA、证书和 ServiceAccount 密钥会复用，防止重跑覆盖密钥。
+`etcd`、`control-plane` 和 `workers` 等组件阶段不会自动安装前置依赖或生成证书；执行前会检查所需证书及节点分发状态，缺失时提示先运行 `prepare` 并退出。`all` 会显式先运行预处理，再部署所有组件。入口和每个节点均有独立执行锁、完成/失败标记、脚本及配置指纹和日志。失败后修复问题，再次执行同一命令即可跳过已完成且健康的阶段，继续失败阶段。etcd 已有数据时不会重新初始化；CFSSL 已生成的 CA、证书和 ServiceAccount 密钥会复用，防止重跑覆盖密钥。
 
 详细说明见 [docs/UNIFIED-INSTALLER.md](docs/UNIFIED-INSTALLER.md)。注意：Release 不含 OCI 容器镜像；运行 `all` 前仍需把 Calico、CoreDNS、pause 等镜像同步到节点可访问的私有仓库。
 
