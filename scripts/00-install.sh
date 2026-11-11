@@ -52,6 +52,7 @@ local_step() {
   log "开始本地阶段 $id：$script"
   if bash "$ROOT/scripts/$script" >>"$step_log" 2>&1; then
     printf '%s\n' "$fp" > "$marker"; chmod 0600 "$marker"
+    rm -f "$STATE/steps/$id.failed"
     tail -n 10 "$step_log" | while IFS= read -r line; do printf '  %s\n' "$line"; done
     ok "本地阶段 $id 完成"
   else
