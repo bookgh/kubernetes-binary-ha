@@ -33,10 +33,10 @@ if [[ "${GITHUB_EVENT_NAME:-}" == "workflow_dispatch" ]]; then
   raw="${INPUT_VERSION:-}"
 else
   raw="$(printf '%s\n%s\n' "${ISSUE_TITLE:-}" "${ISSUE_BODY:-}" |
-    grep -Eo 'v?[0-9]+\\.[0-9]+\\.[0-9]+' | head -n1 || true)"
+    grep -Eo 'v?[0-9]+\.[0-9]+\.[0-9]+' | head -n1 || true)"
 fi
 
-[[ "$raw" =~ ^v?[0-9]+\\.[0-9]+\\.[0-9]+$ ]] ||
+[[ "$raw" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+$ ]] ||
   die "未找到有效版本号，格式应为 vX.Y.Z。"
 
 K8S_VERSION="${raw#v}"
@@ -126,7 +126,7 @@ docker save --output "$IMAGE_ARCHIVE" "${IMAGE_REFS[@]}"
   printf 'Harbor installer images are bundled separately in harbor/.\n'
   for image_ref in "${IMAGE_REFS[@]}"; do
     digest="$(docker image inspect --format '{{index .RepoDigests 0}}' "$image_ref")"
-    printf '%s\\t%s\n' "$image_ref" "$digest"
+    printf '%s\t%s\n' "$image_ref" "$digest"
   done
 } > "$OUT/images/IMAGE-REFERENCES.txt"
 
@@ -176,6 +176,17 @@ chmod 0755 "$WORK/$NGINX_ASSET"
 (cd "$WORK" && sha256sum "$NGINX_ASSET" > "$NGINX_ASSET.sha256")
 install -m 0755 "$WORK/$NGINX_ASSET" "$OUT/bin/nginx"
 install -m 0644 "$WORK/$NGINX_ASSET.sha256" "$OUT/checksums/nginx.sha256"
+
+# Harbor 节点独立校验清单只覆盖其安装所需的大体积资产。
+(
+  cd "$OUT"
+  sha256sum \
+    "docker/docker.tgz" \
+    "docker/docker-compose" \
+    "harbor/$HARBOR_ASSET" \
+    "images/kubernetes-images-linux-amd64.tar" \
+    "images/IMAGE-REFERENCES.txt" > "harbor/SHA256SUMS"
+)
 
 cat > "$OUT/ARTIFACTS.txt" <<EOF
 Kubernetes=v${K8S_VERSION}
