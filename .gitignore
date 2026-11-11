@@ -1,0 +1,8 @@
+# Local cluster configuration and generated secrets/artifacts
+config/cluster.env
+offline/
+generated/
+pki/
+kubeconfigs/
+.install-state/
+state/
