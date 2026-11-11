@@ -47,7 +47,7 @@ vi config/cluster.env
 - RUNTIME_TYPE=containerd 或 RUNTIME_TYPE=docker。Docker 模式必须使用 cri-dockerd。
 - KUBE_PROXY_MODE=nftables 或 ipvs。Kubernetes 1.37 新部署推荐 nftables；IPVS 已弃用，使用前应确认内核模块和 kube-proxy 支持。
 - `HARBOR_NODE_IP` 可以是集群节点，也可以是独立 Rocky Linux 9 Harbor 主机；`HARBOR_HOST` 使用 `harbor.<HARBOR_NODE_IP>.nip.io`，`HARBOR_URL` 使用 `http://`。
-- `PRIVATE_REGISTRY` 默认设置为 `${HARBOR_HOST}/library`；`PAUSE_IMAGE`、`NODE_LOCAL_DNS_IMAGE` 指向 Harbor 中对应镜像。CoreDNS 和 Calico 镜像由各自 Chart/Operator 的版本清单决定，不再单独配置镜像 tag。
+- `PRIVATE_REGISTRY` 默认设置为 `${HARBOR_HOST}/library`；`PAUSE_IMAGE`、`NODE_LOCAL_DNS_IMAGE` 和 `NETWORK_TEST_IMAGE` 指向 Harbor 中对应镜像。`NODE_LOCAL_DNS_IP` 默认 `169.254.20.10`，必须确认该链路本地地址未被主机网络占用。CoreDNS 和 Calico 镜像由各自 Chart/Operator 的版本清单决定，不再单独配置镜像 tag。
 - `SSH_USER`、`SSH_PASSWORD`、`SSH_PORT` 控制公钥分发；非 root SSH 账号必须具备免密 sudo。
 - KUBERNETES_SERVICE_IP 必须是 SERVICE_CIDR 中 Kubernetes API Service 使用的 IP，默认 10.96.0.1，并进入 apiserver 证书 SAN。
 
@@ -55,7 +55,7 @@ vi config/cluster.env
 
 ## 2. 构建并发布离线 Release
 
-GitHub Actions 的离线 Release workflow 使用 scripts/ci/build-offline-release.sh 构建。为目标 Kubernetes 版本触发 workflow，构建完成后应在 GitHub Releases 中看到 k8s-v1.37.2-r6（tag 由 RELEASE_REVISION 控制）。
+GitHub Actions 的离线 Release workflow 使用 scripts/ci/build-offline-release.sh 构建。为目标 Kubernetes 版本触发 workflow，构建完成后应在 GitHub Releases 中看到 k8s-v1.37.2-r7（tag 由 RELEASE_REVISION 控制）。
 
 离线包归档内含：
 - Kubernetes server/client 二进制、etcd、containerd、runc、CNI plugins、crictl；
@@ -196,7 +196,7 @@ CoreDNS、pause、Calico Operator/数据面和 NodeLocal DNSCache 镜像已由 A
 - `$PRIVATE_REGISTRY/tigera/operator:<Chart 默认 tag>`
 - `$NODE_LOCAL_DNS_IMAGE`
 
-NodeLocal DNSCache 镜像目前只纳入离线归档并推送到 Harbor；本仓库尚未新增 NodeLocal DNSCache DaemonSet 部署阶段。业务镜像及其他未列入基础归档的依赖仍需自行准备。
+NodeLocal DNSCache 现已由 `scripts/25-install-node-local-dns.sh` 部署为覆盖所有节点的 DaemonSet。每个节点的 kubelet `clusterDNS` 指向 `NODE_LOCAL_DNS_IP`，NodeLocal DNSCache 将集群域名请求转发至 CoreDNS 的 `DNS_SERVICE_IP`。离线 Release 还包含 BusyBox 网络验收镜像；Harbor 阶段会将其推送到 `NETWORK_TEST_IMAGE` 对应路径。业务镜像及其他未列入基础归档的依赖仍需自行准备。
 
 ### 9.2 安装 Calico VXLAN
 
@@ -230,6 +230,27 @@ kubectl -n kube-system get svc kube-dns
 
 CoreDNS Service ClusterIP 必须等于 DNS_SERVICE_IP。
 
+### 9.4 安装 NodeLocal DNSCache
+
+NodeLocal DNSCache 使用 Release 中的镜像 `$NODE_LOCAL_DNS_IMAGE`，由 Harbor 节点提前导入。确认 kubelet 配置已经在渲染/分发阶段写入本地 DNS 地址：
+
+~~~bash
+grep -A1 '^clusterDNS:' generated/worker-01/var/lib/kubelet/config.yaml
+grep -E '^(DNS_SERVICE_IP|NODE_LOCAL_DNS_IP)=' generated/worker-01/etc/kubernetes/cluster.env
+~~~
+
+预期 `clusterDNS` 为 `169.254.20.10`（或实际配置的 `NODE_LOCAL_DNS_IP`），CoreDNS Service IP 仍为 `DNS_SERVICE_IP`。部署：
+
+~~~bash
+sudo bash scripts/25-install-node-local-dns.sh
+kubectl -n kube-system rollout status ds/node-local-dns
+kubectl -n kube-system get ds node-local-dns
+kubectl -n kube-system get pods -l k8s-app=node-local-dns -o wide
+~~~
+
+DaemonSet 的 `numberReady` 必须等于 Kubernetes Node 总数。NodeLocal DNSCache 以 hostNetwork 方式监听链路本地地址 53/UDP、53/TCP；请确保节点防火墙允许本机 Pod 到该地址的 DNS 流量，且没有其他 hostNetwork 服务占用 53 端口。
+
+
 ## 10. 集群健康检查与功能验收
 
 运行一键检查：
@@ -243,9 +264,9 @@ sudo bash scripts/18-verify-cluster.sh
 2. API Server /readyz?verbose；
 3. 所有 Node Ready；
 4. Calico DaemonSet rollout、calicoctl 节点和 IPPool、可用时 TigeraStatus；
-5. CoreDNS Deployment、Service ClusterIP、Endpoints 和全量 Pod 状态；Node 数量及每个 InternalIP 与部署配置一致。
+5. CoreDNS Deployment、Service ClusterIP、Endpoints 和全量 Pod 状态；Node 数量及每个 InternalIP 与部署配置一致。\n6. NodeLocal DNSCache DaemonSet 覆盖全部节点并 Ready。\n7. 自动化网络验收：从 Harbor 强制拉取 BusyBox 测试镜像，验证 Pod 的 resolv.conf 使用 NodeLocal DNS、解析 kubernetes.default 和验收 Service 域名，再从不同节点间通过 Pod IP 与 ClusterIP Service 访问 HTTP 服务。测试 namespace 在结束时自动删除。
 
-进一步执行业务网络验收：
+`scripts/18-verify-cluster.sh` 会自动调用 `scripts/26-verify-network.sh` 执行以下检查，无需手动创建测试 Pod：
 
 ~~~bash
 kubectl get nodes -o wide
