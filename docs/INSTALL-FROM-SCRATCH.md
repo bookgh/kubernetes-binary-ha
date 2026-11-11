@@ -1,6 +1,6 @@
 # 从零部署到集群验收（Rocky Linux 9 / amd64）
 
-本文是本仓库当前实现的端到端部署流程，目标拓扑为 3 Master + 3 Worker，Kubernetes v1.37.2。部署端负责下载离线 Release、生成 PKI/kubeconfig/节点配置、批量分发和执行。节点端不需要安装 Docker 来构建 NGINX；运行时按 containerd 或 Docker + cri-dockerd 选择。
+本文是本仓库当前实现的端到端部署流程，目标示例拓扑为 3 Master + 3 Worker；实际 Master 数量由 MASTER_COUNT 决定，Kubernetes v1.37.2。部署端负责下载离线 Release、生成 PKI/kubeconfig/节点配置、批量分发和执行。节点端不需要安装 Docker 来构建 NGINX；运行时按 containerd 或 Docker + cri-dockerd 选择。
 
 ## 快速一键安装
 
@@ -18,9 +18,9 @@ sudo bash scripts/00-install.sh all
 
 ## 0. 部署拓扑与网络前置条件
 
-- 3 台 Master：etcd、kube-apiserver、kube-controller-manager、kube-scheduler。
-- 3 台 Worker：kubelet、kube-proxy、NGINX TCP/TLS 透传代理。
-- Rocky Linux 9 x86_64，固定主机名 master-01..03、worker-01..03，静态 IP。
+- `MASTER_COUNT` 台 Master：etcd、kube-apiserver、kube-controller-manager、kube-scheduler。
+- 其余至少 1 台 Worker：kubelet、kube-proxy、NGINX TCP/TLS 透传代理。
+- Rocky Linux 9 x86_64，所有 Master 主机名使用 `master-*`，其余 Worker 使用 `worker-*`，静态 IP。
 - 所有节点时间同步；部署机 root SSH 免密访问所有节点。
 - Master 间 TCP 2379/2380；Worker 到全部 Master TCP 6443；节点间 VXLAN UDP 4789；节点间 TCP 179 仅在启用 Calico BGP 时需要。另按 docs/NETWORK-PORTS.md 配置其余端口。
 - POD_CIDR、SERVICE_CIDR 不得与机房、VPN、VPC 网络冲突。
@@ -39,7 +39,7 @@ vi config/cluster.env
 
 至少确认以下参数：
 
-- 在 `config/cluster.env` 中维护 `NODE_NAMES` 和 `NODE_IPS` 两个数组，顺序为前三台 Master、后三台 Worker；`MASTER_COUNT=3` 固定不变。节点名称和 IP 按索引一一对应，脚本会在 `lib.sh` 中派生其余节点清单和兼容变量，并校验数量、重复项、主机名角色及 IPv4 格式。
+- 在 `config/cluster.env` 中维护 `NODE_NAMES` 和 `NODE_IPS` 两个数组，顺序必须先列出全部 Master，再列出全部 Worker；`MASTER_COUNT` 设置为 Master 数量，前 `MASTER_COUNT` 项自动成为 Master，其余自动成为 Worker。至少需要一个 Master 和一个 Worker；生产环境建议使用奇数 Master（3/5/7），偶数成员会产生 etcd quorum 风险并触发警告。节点名称和 IP 按索引一一对应，脚本会在 `lib.sh` 中派生角色数组并校验数量、重复项、主机名角色及 IPv4 格式。
 - API_DNS 必须解析到可达 Master IP。当前没有 VIP/LB，DNS 解析不提供高可用。
 - RUNTIME_TYPE=containerd 或 RUNTIME_TYPE=docker。Docker 模式必须使用 cri-dockerd。
 - KUBE_PROXY_MODE=nftables 或 ipvs。Kubernetes 1.37 新部署推荐 nftables；IPVS 已弃用，使用前应确认内核模块和 kube-proxy 支持。
@@ -101,7 +101,7 @@ sudo bash scripts/14-render-node-configs.sh
 
 检查 pki/、kubeconfigs/ 和 generated/。不要把 pki/*.key、管理员 kubeconfig 或生成目录提交到 Git。
 
-## 5. 分发到六台节点
+## 5. 分发到全部节点
 
 部署机确认 root SSH 免密、SSH host key 已核验：
 
@@ -150,11 +150,11 @@ sudo bash scripts/16-batch-exec.sh masters 07-bootstrap-etcd.sh --parallel
 sudo bash scripts/21-verify-etcd.sh
 ~~~
 
-该脚本检查三个 endpoint health、member 数量为 3、Leader 唯一性和 Raft 状态。三个 endpoint 均应返回 healthy，成员应为 3 个且有且仅有 1 个 Leader。未达到 quorum 时不得继续启动控制平面。完整集群就绪后再运行 scripts/18-verify-cluster.sh。
+该脚本检查全部 Master endpoint health、member 数量与 `MASTER_COUNT` 一致、预期成员及 peer URL、唯一 Leader 和 Raft 状态。所有 endpoint 均应返回 healthy，成员数量必须等于 `MASTER_COUNT` 且有且仅有 1 个 Leader。未达到 quorum 时不得继续启动控制平面。完整集群就绪后再运行 scripts/18-verify-cluster.sh。
 
 ## 8. 启动 Kubernetes 控制平面与 Worker
 
-先启动三台 Master：
+先启动全部 Master：
 
 ~~~bash
 sudo bash scripts/16-batch-exec.sh masters 08-start-control-plane.sh --parallel
@@ -167,7 +167,7 @@ sudo bash scripts/16-batch-exec.sh workers 13-install-nginx-proxy.sh --parallel
 sudo bash scripts/16-batch-exec.sh workers 09-start-worker.sh --parallel
 ~~~
 
-Worker NGINX 是 TLS passthrough，监听本机 127.0.0.1:6443，向三个 Master 的 TCP/6443 转发。管理员入口 API_DNS 仍然是单 Master DNS，不等同于外部 HA LB。
+Worker NGINX 是 TLS passthrough，监听本机 127.0.0.1:6443，向全部 Master 的 TCP/6443 转发。管理员入口 API_DNS 仍然是单 Master DNS，不等同于外部 HA LB。
 
 ## 9. 镜像同步、安装 Calico 和 CoreDNS
 
@@ -190,7 +190,7 @@ docker tag coredns/coredns:v1.13.1 "$COREDNS_IMAGE"
 docker push "$COREDNS_IMAGE"
 ~~~
 
-Calico 其他镜像按 offline/manifests/tigera-operator.yaml 与 Operator 生成的资源逐项同步。确认六台节点都能访问仓库、信任仓库 CA，并已配置拉取凭据（如仓库启用认证）。
+Calico 其他镜像按 offline/manifests/tigera-operator.yaml 与 Operator 生成的资源逐项同步。确认全部节点都能访问仓库、信任仓库 CA，并已配置拉取凭据（如仓库启用认证）。
 
 ### 9.2 安装 Calico VXLAN
 
@@ -233,7 +233,7 @@ sudo bash scripts/18-verify-cluster.sh
 ~~~
 
 脚本检查：
-1. etcd 三个 endpoint health、endpoint status、member list；
+1. etcd 全部 endpoint health、endpoint status、member list（成员数量与 MASTER_COUNT 一致）；
 2. API Server /readyz?verbose；
 3. 所有 Node Ready；
 4. Calico DaemonSet rollout、calicoctl 节点和 IPPool、可用时 TigeraStatus；
@@ -255,7 +255,7 @@ kubectl delete pod dns-test
 
 ## 11. 证书检查、etcd 备份和运行时检查
 
-证书 SAN 检查示例：
+证书 SAN 检查示例（以下 etcd-master-01 是默认示例拓扑中的首个 Master；应按实际节点名替换）：
 
 ~~~bash
 openssl x509 -in pki/apiserver.crt -noout -subject -issuer -dates -ext subjectAltName
@@ -265,7 +265,7 @@ openssl x509 -in pki/etcd-master-01-server.crt -noout -subject -ext subjectAltNa
 
 证书应包含预期主机名和内网 IP；不要只检查证书文件存在。根 CA 私钥应离线加密备份，制定证书轮换流程。
 
-etcd 快照示例（使用可访问 etcd 的 Master 上的 etcdctl 和 etcd client cert）：
+etcd 快照示例（使用任意健康 Master 上的 etcdctl 和该成员自己的 etcd server client cert）：
 
 ~~~bash
 ETCDCTL_API=3 etcdctl --endpoints=https://127.0.0.1:2379 \
