@@ -163,7 +163,7 @@ docker save --output "$IMAGE_ARCHIVE" "${IMAGE_REFS[@]}"
 {
   while IFS= read -r image_ref; do
     digest="$(docker image inspect --format '{{index .RepoDigests 0}}' "$image_ref")"
-    printf '%s\\t%s\\n' "$image_ref" "$digest"
+    printf '%s\t%s\\n' "$image_ref" "$digest"
   done < "$OUT/images/IMAGE-REFERENCES.txt"
 } > "$OUT/images/IMAGE-REFERENCES.txt.tmp"
 mv "$OUT/images/IMAGE-REFERENCES.txt.tmp" "$OUT/images/IMAGE-REFERENCES.txt"
@@ -248,7 +248,7 @@ Architecture=amd64
 OS=Rocky Linux 9
 EOF
 
-(cd "$OUT" && find bin src manifests checksums tools docker rpms harbor images -type f -print0 |
+(cd "$OUT" && find bin src manifests checksums tools docker rpms harbor images helm -type f -print0 |
   sort -z | xargs -0 sha256sum > SHA256SUMS)
 
 ARCHIVE="${WORK}/offline-kubernetes-v${K8S_VERSION}-rocky9-amd64.tar.gz"
