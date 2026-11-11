@@ -42,6 +42,7 @@ vi config/cluster.env
 至少确认以下参数：
 
 - 在 `config/cluster.env` 中维护 `NODE_NAMES` 和 `NODE_IPS` 两个数组，顺序必须先列出全部 Master，再列出全部 Worker；`MASTER_COUNT` 设置为 Master 数量，前 `MASTER_COUNT` 项自动成为 Master，其余自动成为 Worker。至少需要一个 Master 和一个 Worker；单 Master 不具备成员故障容忍能力，生产环境建议使用奇数 Master（3/5/7），偶数成员会产生 etcd quorum 风险并触发警告。节点名称和 IP 按索引一一对应，脚本会在 `lib.sh` 中派生角色数组并校验数量、重复项、主机名角色及 IPv4 格式。
+- 修改节点清单后，可先运行 `bash scripts/tests/test-dynamic-inventory.sh`，验证 1+1、2+2、3+3、5+2 拓扑的角色派生及非法 Master 数量拒绝逻辑。
 - API_DNS 必须解析到可达 Master IP。当前没有 VIP/LB，DNS 解析不提供高可用。
 - RUNTIME_TYPE=containerd 或 RUNTIME_TYPE=docker。Docker 模式必须使用 cri-dockerd。
 - KUBE_PROXY_MODE=nftables 或 ipvs。Kubernetes 1.37 新部署推荐 nftables；IPVS 已弃用，使用前应确认内核模块和 kube-proxy 支持。
@@ -267,7 +268,7 @@ openssl x509 -in pki/etcd-master-01-server.crt -noout -subject -ext subjectAltNa
 
 证书应包含预期主机名和内网 IP；不要只检查证书文件存在。根 CA 私钥应离线加密备份，制定证书轮换流程。
 
-etcd 快照示例（使用任意健康 Master 上的 etcdctl 和该成员自己的 etcd server client cert）：
+etcd 快照示例（使用任意健康 Master 上的 etcdctl 和该成员自己的 etcd server client cert）： 以下 `master-01` 是默认示例拓扑中的首个 Master，实际执行时请替换为所选成员名称。
 
 ~~~bash
 ETCDCTL_API=3 etcdctl --endpoints=https://127.0.0.1:2379 \
