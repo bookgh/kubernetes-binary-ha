@@ -2,6 +2,18 @@
 
 本文是本仓库当前实现的端到端部署流程，目标拓扑为 3 Master + 3 Worker，Kubernetes v1.37.2。部署端负责下载离线 Release、生成 PKI/kubeconfig/节点配置、批量分发和执行。节点端不需要安装 Docker 来构建 NGINX；运行时按 containerd 或 Docker + cri-dockerd 选择。
 
+## 快速一键安装
+
+当本文列出的系统、网络、镜像仓库和 Release 前置条件全部满足后，可直接运行统一入口：
+
+~~~bash
+sudo bash scripts/00-install.sh all
+~~~
+
+入口会自动执行本文后续章节对应的依赖阶段，记录本地和各节点的完成/失败标记。遇到错误先查看日志，修复后重复执行同一命令即可断点续装。阶段参数、幂等机制和日志路径详见 [docs/UNIFIED-INSTALLER.md](UNIFIED-INSTALLER.md)。
+
+
+
 > **重要边界：** 本仓库自动化覆盖系统二进制、CFSSL、Helm、Calicoctl、crictl、Docker/Compose、RPM、etcd、Calico 安装清单和 CoreDNS 清单。Calico/CoreDNS/pause 等容器镜像仍需提前同步到所有节点可访问的私有镜像仓库；镜像不是 Release 中的二进制文件。当前 API 入口没有外部 LB/VIP，管理端 API_DNS 指向单台 Master，不具备入口层 HA。
 
 ## 0. 部署拓扑与网络前置条件
