@@ -99,7 +99,60 @@ for i in "${!MASTER_NAMES[@]}"; do
   ETCD_INITIAL_CLUSTER+="${MASTER_NAMES[$i]}=https://${MASTER_IPS[$i]}:2380"
   ETCD_SERVERS+="https://${MASTER_IPS[$i]}:2379"
   NGINX_UPSTREAM_SERVERS+="server ${MASTER_IPS[$i]}:6443 max_fails=2 fail_timeout=5s;"
-  if (( i + 1 < ${#MASTER_NAMES[@]} )); then NGINX_UPSTREAM_SERVERS+=$'\\n        '; fi
+  if (( i + 1 < ${#MASTER_NAMES[@]} )); then NGINX_UPSTREAM_SERVERS+= fi
+done
+
+NODES=("${ALL_NAMES[@]}")
+IPS=("${ALL_IPS[@]}")
+for i in "${!NODES[@]}"; do
+  node="${NODES[$i]}"; ip="${IPS[$i]}"
+  dir="$OUT/$node"
+  install -d -m 0700 "$dir/etc/kubernetes" "$dir/var/lib/kubelet" "$dir/var/lib/kube-proxy"
+  sed -e "s#clusterDomain: .*#clusterDomain: ${CLUSTER_DOMAIN}#" \
+      -e "s#  - 10.96.0.10#  - ${DNS_SERVICE_IP}#" \
+      "$ROOT/config/kubelet-config.yaml" > "$dir/var/lib/kubelet/config.yaml"
+  sed -e "s#clusterCIDR: .*#clusterCIDR: ${POD_CIDR}#" \
+      -e "s#mode: .*#mode: ${KUBE_PROXY_MODE}#" \
+      -e "s#strictARP: .*#strictARP: ${IPVS_STRICT_ARP}#" \
+      -e "s#masqueradeBit: .*#masqueradeBit: ${NFTABLES_MASQUERADE_BIT}#" \
+      -e "s#hostnameOverride: .*#hostnameOverride: ${node}#" \
+      "$ROOT/config/kube-proxy-config.yaml" > "$dir/var/lib/kube-proxy/config.yaml"
+  if [[ "$node" == worker-* ]]; then
+    install -d -m 0700 "$dir/etc/nginx"
+    awk -v servers="$NGINX_UPSTREAM_SERVERS" '{ gsub(/__MASTER_UPSTREAM_SERVERS__/, servers); print }' \
+      "$ROOT/config/nginx-stream.conf.template" > "$dir/etc/nginx/nginx.conf"
+    grep -q "server .*:6443" "$dir/etc/nginx/nginx.conf" || die "NGINX upstream 未生成任何 Master endpoint：$node"
+  fi
+  cat > "$dir/etc/kubernetes/cluster.env" <<EOF
+NODE_NAME=${node}
+NODE_IP=${ip}
+CLUSTER_NAME=${CLUSTER_NAME}
+CLUSTER_DOMAIN=${CLUSTER_DOMAIN}
+API_DNS=${API_DNS}
+API_PORT=${API_PORT}
+POD_CIDR=${POD_CIDR}
+SERVICE_CIDR=${SERVICE_CIDR}
+MASTER_COUNT=${MASTER_COUNT}
+ETCD_SERVERS=${ETCD_SERVERS}
+ETCD_INITIAL_CLUSTER=${ETCD_INITIAL_CLUSTER}
+ETCD_HEARTBEAT_INTERVAL=${ETCD_HEARTBEAT_INTERVAL}
+ETCD_ELECTION_TIMEOUT=${ETCD_ELECTION_TIMEOUT}
+ETCD_QUOTA_BACKEND_BYTES=${ETCD_QUOTA_BACKEND_BYTES}
+RUNTIME_TYPE=${RUNTIME_TYPE:-containerd}
+CONTAINER_RUNTIME_ENDPOINT=${RUNTIME_ENDPOINT}
+PAUSE_IMAGE=${PAUSE_IMAGE}
+KUBE_PROXY_MODE=${KUBE_PROXY_MODE:-nftables}
+EOF
+  cat > "$dir/etc/kubernetes/runtime.env" <<EOF
+CONTAINER_RUNTIME_ENDPOINT=${RUNTIME_ENDPOINT}
+RUNTIME_TYPE=${RUNTIME_TYPE:-containerd}
+PAUSE_IMAGE=${PAUSE_IMAGE}
+EOF
+  chmod 0600 "$dir/etc/kubernetes/cluster.env" "$dir/etc/kubernetes/runtime.env"
+  log "已生成 ${node}（${ip}）的 kubelet/kube-proxy/运行时配置"
+done
+ok "本地配置生成完成：$OUT；下一步运行 scripts/15-distribute-node-configs.sh。"
+\n        '; fi
 done
 
 NODES=("${ALL_NAMES[@]}")
