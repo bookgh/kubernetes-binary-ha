@@ -115,8 +115,9 @@ sudo bash scripts/18-verify-cluster.sh
 2. 确认全部镜像均已导入内网仓库或节点缓存。
 3. 检查 Calico VXLAN、跨节点 Pod 通信。
 4. scripts/20-install-coredns.sh 部署 CoreDNS 并验证集群域名解析。
-5. scripts/18-verify-cluster.sh 检查 etcd endpoint health/member/quorum、API /readyz、Node Ready、Calico DaemonSet/TigeraStatus/IPPools、CoreDNS；然后验证 ClusterIP、NodePort 和跨节点 Service 流量。
-6. 逐台停止 API Server，验证 Worker NGINX 能切换到其他健康 Master。
-7. 完成 etcd 快照异机保存和恢复演练。
+5. scripts/25-install-node-local-dns.sh 部署 NodeLocal DNSCache；全部节点 DaemonSet Ready 后，Pod kubelet DNS 使用 `NODE_LOCAL_DNS_IP`，CoreDNS Service 仍使用 `DNS_SERVICE_IP`。
+6. scripts/18-verify-cluster.sh 调用 `scripts/26-verify-network.sh`，强制从 Harbor 拉取 BusyBox 测试镜像，检查 Pod `/etc/resolv.conf`、集群 DNS、跨节点 Pod IP 和 ClusterIP Service DNS/流量，结束后自动清理测试 namespace。
+7. 逐台停止 API Server，验证 Worker NGINX 能切换到其他健康 Master。
+8. 完成 etcd 快照异机保存和恢复演练。
 
 **重要：** `initial-cluster-state=new` 仅用于首次创建 etcd 集群，禁止通过删除现有数据目录重建成员。
