@@ -9,7 +9,7 @@ KUBECTL="$ROOT/offline/bin/kubectl"
 KUBECONFIG="${KUBECONFIG:-$HOME/.kube/config}"
 export KUBECONFIG
 [[ -s "$KUBECONFIG" ]] || die "缺少管理员 kubeconfig"
-for f in "$ROOT/offline/manifests/calico-crds.yaml" "$ROOT/offline/manifests/tigera-operator.yaml" "$ROOT/manifests/calico-installation.yaml.template"; do
+for f in "$ROOT/offline/manifests/calico-crds.yaml" "$ROOT/offline/manifests/tigera-operator.yaml" "$ROOT/offline/manifests/calico-installation.yaml.template"; do
   [[ -s "$f" ]] || die "缺少 Calico 安装文件：$f"
 done
 "$KUBECTL" apply -f "$ROOT/offline/manifests/calico-crds.yaml"
