@@ -30,7 +30,7 @@ derive_inventory() {
   [[ "$names_decl" == "declare -a NODE_NAMES="* ]] || die "配置缺少 NODE_NAMES 索引数组，请按 config/cluster.env.example 更新节点清单"
   [[ "$ips_decl" == "declare -a NODE_IPS="* ]] || die "配置缺少 NODE_IPS 索引数组，请按 config/cluster.env.example 更新节点清单"
   [[ "${MASTER_COUNT:-}" =~ ^[0-9]+$ ]] || die "MASTER_COUNT 必须设置为整数 3"
-  [[ "$MASTER_COUNT" -eq 3 ]] || die "当前项目仅支持 MASTER_COUNT=3（三 Master + 三 Worker）"
+  [[ "$MASTER_COUNT" == "3" ]] || die "当前项目仅支持 MASTER_COUNT=3（三 Master + 三 Worker）"
   [[ ${#NODE_NAMES[@]} -eq 6 ]] || die "NODE_NAMES 必须恰好包含 6 个节点"
   [[ ${#NODE_IPS[@]} -eq 6 ]] || die "NODE_IPS 必须恰好包含 6 个 IP"
   [[ ${#NODE_NAMES[@]} -eq ${#NODE_IPS[@]} ]] || die "NODE_NAMES 与 NODE_IPS 数量不一致"
@@ -43,7 +43,7 @@ derive_inventory() {
     IFS='.' read -r -a octets <<< "${NODE_IPS[$i]}"
     [[ ${#octets[@]} -eq 4 ]] || die "无效 IPv4 地址：${NODE_IPS[$i]}"
     for octet in "${octets[@]}"; do
-      [[ "$octet" =~ ^[0-9]{1,3}$ ]] || die "无效 IPv4 地址：${NODE_IPS[$i]}"
+      [[ "$octet" =~ ^(0|[1-9][0-9]{0,2})$ ]] || die "无效 IPv4 地址：${NODE_IPS[$i]}"
       (( 10#$octet <= 255 )) || die "无效 IPv4 地址：${NODE_IPS[$i]}"
     done
 
