@@ -12,7 +12,7 @@ CLUSTER_CONFIG="${ROOT}/config/cluster.env.example"
 
 # shellcheck disable=SC1090
 source "$VERSION_FILE"
-# Calico/CoreDNS app and chart versions live with cluster configuration.
+# Calico/CoreDNS Helm Chart versions live with cluster configuration.
 # shellcheck disable=SC1090
 source "$CLUSTER_CONFIG"
 : "${CALICO_CHART_VERSION:?请在 config/cluster.env.example 定义 CALICO_CHART_VERSION}"
