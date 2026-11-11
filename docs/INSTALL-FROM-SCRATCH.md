@@ -1,6 +1,6 @@
 # 从零部署到集群验收（Rocky Linux 9 / amd64）
 
-本文是本仓库当前实现的端到端部署流程，目标示例拓扑为 3 Master + 3 Worker；实际 Master 数量由 MASTER_COUNT 决定，Kubernetes v1.37.2。部署端负责下载离线 Release、生成 PKI/kubeconfig/节点配置、批量分发和执行。节点端不需要安装 Docker 来构建 NGINX；运行时按 containerd 或 Docker + cri-dockerd 选择。
+本文是本仓库当前实现的端到端部署流程，目标示例拓扑为 3 Master + 3 Worker；实际 Master 数量由 `MASTER_COUNT` 决定，Kubernetes v1.37.2。部署端负责下载离线 Release、生成 PKI/kubeconfig/节点配置、批量分发和执行。节点端不需要安装 Docker 来构建 NGINX；运行时按 containerd 或 Docker + cri-dockerd 选择。
 
 ## 快速一键安装
 
