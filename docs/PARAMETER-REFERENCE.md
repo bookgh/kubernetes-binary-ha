@@ -18,11 +18,24 @@
 - `NODE_IPS`：与 `NODE_NAMES` 按索引一一对应的 IPv4 地址；修改节点时同步修改这两个数组，并确保 `MASTER_COUNT` 与角色分界一致。
 - `MASTER_NAMES`/`MASTER_IPS`、`WORKER_NAMES`/`WORKER_IPS`、`ALL_NAMES`/`ALL_IPS`：由 `scripts/lib.sh` 根据上述两个数组自动派生，供现有部署脚本使用，不要在 `cluster.env` 中重复定义。
 - `MASTER1_IP`、`MASTER2_IP` 等编号标量：由 `scripts/lib.sh` 按数组顺序派生的兼容变量；动态部署逻辑应使用 `MASTER_IPS`/`WORKER_IPS`，不要手工维护标量。
-- `HARBOR_NODE_IP`：部署 Harbor 的集群节点 IP，必须属于 `NODE_IPS`；默认示例为第一个 Master。\n- `HARBOR_HOST`：Harbor 访问域名，格式为 `harbor.<HARBOR_NODE_IP>.nip.io`。\n- `HARBOR_URL`：Harbor URL；当前安装器使用 `http://` + `HARBOR_HOST`，HTTP/80。\n- `HARBOR_HTTP_PORT`：Harbor HTTP 端口，当前脚本固定要求 80。\n- `PRIVATE_REGISTRY`：Harbor project 路径，默认 `${HARBOR_HOST}/library`。\n- `COREDNS_IMAGE`、`PAUSE_IMAGE`、`CALICO_NODE_IMAGE`、`NODE_LOCAL_DNS_IMAGE`：对应镜像在 Harbor 中的完整引用。
+- `HARBOR_NODE_IP`：部署 Harbor 的集群节点 IP，必须属于 `NODE_IPS`；默认示例为第一个 Master。
+- `HARBOR_HOST`：Harbor 访问域名，格式为 `harbor.<HARBOR_NODE_IP>.nip.io`。
+- `HARBOR_URL`：Harbor URL；当前安装器使用 `http://` + `HARBOR_HOST`，HTTP/80。
+- `HARBOR_HTTP_PORT`：Harbor HTTP 端口，当前脚本固定要求 80。
+- `PRIVATE_REGISTRY`：Harbor project 路径，默认 `${HARBOR_HOST}/library`。
+- `COREDNS_IMAGE`、`PAUSE_IMAGE`、`CALICO_NODE_IMAGE`、`NODE_LOCAL_DNS_IMAGE`：对应镜像在 Harbor 中的完整引用。
 - `COREDNS_IMAGE`：CoreDNS 已同步至私有仓库的完整镜像引用。
 - `PAUSE_IMAGE`：容器 sandbox/pause 镜像，containerd 和 Docker/cri-dockerd 均需可访问。
 
-## SSH 与下载加速参数\n\n- `SSH_USER`：公钥分发和远程部署使用的 SSH 账号，默认 `root`。非 root 用户必须配置免密 sudo。\n- `SSH_PASSWORD`：首次公钥分发时使用的统一 SSH 密码；留空则使用已有密钥或交互式提示。密码只在部署机 `cluster.env` 中使用，分发到节点的副本会被清空。\n- `SSH_PORT`：SSH 端口，默认 `22`。\n- `GITHUB_REPOSITORY_URL`：本仓库 GitHub URL。\n- `GITHUB_RELEASE_BASE_URL`：Release 下载基础地址，可配置为企业代理/加速站，默认由 `GITHUB_REPOSITORY_URL` 派生。\n\n## 运行时与 kube-proxy 参数
+## SSH 与下载加速参数
+
+- `SSH_USER`：公钥分发和远程部署使用的 SSH 账号，默认 `root`。非 root 用户必须配置免密 sudo。
+- `SSH_PASSWORD`：首次公钥分发时使用的统一 SSH 密码；留空则使用已有密钥或交互式提示。密码只在部署机 `cluster.env` 中使用，分发到节点的副本会被清空。
+- `SSH_PORT`：SSH 端口，默认 `22`。
+- `GITHUB_REPOSITORY_URL`：本仓库 GitHub URL。
+- `GITHUB_RELEASE_BASE_URL`：Release 下载基础地址，可配置为企业代理/加速站，默认由 `GITHUB_REPOSITORY_URL` 派生。
+
+## 运行时与 kube-proxy 参数
 
 - `RUNTIME_TYPE`：`containerd` 或 `docker`。Docker 模式由 cri-dockerd 提供 CRI 兼容接口。
 - `cluster-signer.key`：独立节点证书签发 CA 私钥，只分发到 Master 控制平面；根 CA 私钥保持离线。
@@ -48,7 +61,11 @@
 - `CNI_PLUGINS_VERSION`：标准 CNI 辅助二进制版本。
 - `CRICTL_VERSION`：CRI 调试命令行工具版本。
 - `CALICO_VERSION`：Calico 版本；清单和镜像必须与该版本匹配。
-- `COREDNS_VERSION`：CoreDNS 镜像版本；生产环境建议固定 digest。\n- `HARBOR_VERSION`：Harbor 官方离线安装器版本。\n- `HARBOR_SHA256`：Harbor 离线安装器 SHA256。\n- `PAUSE_VERSION`：pause 镜像版本。\n- `NODE_LOCAL_DNS_VERSION`：NodeLocal DNSCache 镜像版本。
+- `COREDNS_VERSION`：CoreDNS 镜像版本；生产环境建议固定 digest。
+- `HARBOR_VERSION`：Harbor 官方离线安装器版本。
+- `HARBOR_SHA256`：Harbor 离线安装器 SHA256。
+- `PAUSE_VERSION`：pause 镜像版本。
+- `NODE_LOCAL_DNS_VERSION`：NodeLocal DNSCache 镜像版本。
 - `ARCH`：目标架构，本项目基线为 `amd64`。
 
 ## etcd 参数
@@ -84,7 +101,8 @@
 - `authorization.mode=Webhook`：将授权请求委托给 API Server。
 - `readOnlyPort=0`：关闭未认证的 kubelet 只读端口。
 - `clusterDNS`：必须等于 CoreDNS Service ClusterIP。
-- `sandbox_image`：pause 镜像必须提前导入 Harbor 并与运行时配置一致。\n- containerd 使用 `/etc/containerd/certs.d/<HARBOR_HOST>/hosts.toml` 配置 HTTP registry endpoint；Docker 使用 `insecure-registries`。HTTP 不涉及 TLS CA 证书信任，生产环境应另行启用 HTTPS 和 CA 管理。
+- `sandbox_image`：pause 镜像必须提前导入 Harbor 并与运行时配置一致。
+- containerd 使用 `/etc/containerd/certs.d/<HARBOR_HOST>/hosts.toml` 配置 HTTP registry endpoint；Docker 使用 `insecure-registries`。HTTP 不涉及 TLS CA 证书信任，生产环境应另行启用 HTTPS 和 CA 管理。
 
 ## NGINX 本地 API 代理
 
