@@ -10,7 +10,7 @@ sudo bash scripts/00-install.sh all
 
 该入口按依赖顺序完成：Release 离线资源下载与校验、部署机 RPM/CLI 安装、SSH 公钥登录、CFSSL PKI、kubeconfig、节点配置渲染与分发、全部节点系统预检、容器运行时、systemd/内核参数、**Harbor 离线部署与基础镜像导入**、etcd、控制平面、Worker、NGINX、Calico、CoreDNS 和最终健康检查。
 
-> 一条命令不代表跳过环境准备。首次运行前须配置 `HARBOR_NODE_IP`、`HARBOR_HOST`、`HARBOR_URL`、`PRIVATE_REGISTRY` 和镜像引用；`HARBOR_NODE_IP` 必须属于 `NODE_IPS`。Release 已包含 Harbor 官方离线安装器和基础 Kubernetes/Calico 镜像归档。Harbor 在 `prepare` 完成后、etcd 启动前部署。当前默认使用 HTTP/80，因此运行时配置的是 HTTP insecure registry，而不是 TLS CA 证书信任。请先核验 SSH host key 指纹；SSH 用户、密码和端口从 `cluster.env` 读取。非 root SSH 用户必须具备免密 sudo 权限。
+> 一条命令不代表跳过环境准备。首次运行前须配置 `HARBOR_NODE_IP`、`HARBOR_HOST`、`HARBOR_URL`、`PRIVATE_REGISTRY` 和镜像引用；`HARBOR_NODE_IP` 可以是集群节点，也可以是独立的 Rocky Linux 9 主机。Release 已包含 Harbor 官方离线安装器和基础 Kubernetes/Calico 镜像归档。Harbor 在 `prepare` 完成后、etcd 启动前部署。当前默认使用 HTTP/80，因此运行时配置的是 HTTP insecure registry，而不是 TLS CA 证书信任。请先核验 SSH host key 指纹；SSH 用户、密码和端口从 `cluster.env` 读取。非 root SSH 用户必须具备免密 sudo 权限。
 
 ## 2. 安装参数
 
