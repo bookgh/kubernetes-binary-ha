@@ -16,7 +16,7 @@ for ip in "${ALL_IPS[@]}"; do
   if ! check_access "$ip"; then NEED_KEY=1; fi
 done
 if [[ "$NEED_KEY" -eq 1 ]]; then
-  if [[ ! -s "$SSH_KEY" || ! -s "$SSH_KEY.pub" ]]; then
+  if [[ ! -s "$SSH_KEY" ]]; then
     log "生成专用 SSH Ed25519 密钥：$SSH_KEY"
     ssh-keygen -q -t ed25519 -N "" -C "kubernetes-binary-ha-deploy" -f "$SSH_KEY"
     chmod 0600 "$SSH_KEY"
