@@ -17,7 +17,7 @@ RUN set -eux; \
     curl --fail --location --retry 4 --retry-all-errors \
       "https://nginx.org/download/nginx-${NGINX_VERSION}.tar.gz" \
       --output nginx.tar.gz; \
-    printf '%s  %s\\n' "${NGINX_SHA256}" nginx.tar.gz | sha256sum --check -; \
+    printf '%s  %s\n' "${NGINX_SHA256}" nginx.tar.gz | sha256sum --check -; \
     tar -xzf nginx.tar.gz; \
     cd "nginx-${NGINX_VERSION}"; \
     ./configure \
