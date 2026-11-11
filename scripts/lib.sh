@@ -83,7 +83,9 @@ validate_inventory() {
   [[ ${#MASTER_NAMES[@]} -eq "$MASTER_COUNT" && ${#MASTER_IPS[@]} -eq "$MASTER_COUNT" ]] || die "Master 节点派生数量与 MASTER_COUNT 不一致"
   [[ ${#WORKER_NAMES[@]} -ge 1 && ${#WORKER_NAMES[@]} -eq ${#WORKER_IPS[@]} ]] || die "Worker 节点清单至少需要一个名称和 IP"
   [[ ${#ALL_NAMES[@]} -eq ${#NODE_NAMES[@]} && ${#ALL_IPS[@]} -eq ${#NODE_IPS[@]} ]] || die "ALL_NAMES/ALL_IPS 派生数量异常"
-  if (( MASTER_COUNT % 2 == 0 )); then
+  if (( MASTER_COUNT == 1 )); then
+    warn "MASTER_COUNT=1：etcd 为单成员部署，不具备成员故障容忍能力。"
+  elif (( MASTER_COUNT % 2 == 0 )); then
     warn "MASTER_COUNT=$MASTER_COUNT 为偶数：etcd 需要多数派，任意单成员故障都可能导致失去 quorum；生产环境通常建议奇数成员。"
   fi
 }
