@@ -23,7 +23,7 @@ sudo bash scripts/00-install.sh all
 - `MASTER_COUNT` 台 Master：etcd、kube-apiserver、kube-controller-manager、kube-scheduler。
 - 其余至少 1 台 Worker：kubelet、kube-proxy、NGINX TCP/TLS 透传代理。
 - Rocky Linux 9 x86_64，所有 Master 主机名使用 `master-*`，其余 Worker 使用 `worker-*`，静态 IP。
-- 所有节点时间同步；部署机 root SSH 免密访问所有节点。
+- 所有节点时间同步；部署机通过 `SSH_USER`、`SSH_PASSWORD`、`SSH_PORT` 配置 SSH 公钥访问。非 root 账号必须具备免密 sudo。
 - Master 间 TCP 2379/2380；Worker 到全部 Master TCP 6443；节点间 VXLAN UDP 4789；节点间 TCP 179 仅在启用 Calico BGP 时需要。另按 docs/NETWORK-PORTS.md 配置其余端口。
 - POD_CIDR、SERVICE_CIDR 不得与机房、VPN、VPC 网络冲突。
 - 所有节点的 MTU、防火墙、DNS、路由、磁盘和 SELinux 策略先行确认，不建议通过关闭防火墙/SELinux解决问题。
@@ -46,7 +46,9 @@ vi config/cluster.env
 - API_DNS 必须解析到可达 Master IP。当前没有 VIP/LB，DNS 解析不提供高可用。
 - RUNTIME_TYPE=containerd 或 RUNTIME_TYPE=docker。Docker 模式必须使用 cri-dockerd。
 - KUBE_PROXY_MODE=nftables 或 ipvs。Kubernetes 1.37 新部署推荐 nftables；IPVS 已弃用，使用前应确认内核模块和 kube-proxy 支持。
-- `HARBOR_NODE_IP` 必须是 `NODE_IPS` 中的一个节点；`HARBOR_HOST` 使用 `harbor.<HARBOR_NODE_IP>.nip.io`，`HARBOR_URL` 使用 `http://`。\n- `PRIVATE_REGISTRY` 默认设置为 `${HARBOR_HOST}/library`；`COREDNS_IMAGE`、`PAUSE_IMAGE`、`CALICO_NODE_IMAGE`、`NODE_LOCAL_DNS_IMAGE` 指向 Harbor 中对应镜像。\n- `SSH_USER`、`SSH_PASSWORD`、`SSH_PORT` 控制公钥分发；非 root SSH 账号必须具备免密 sudo。
+- `HARBOR_NODE_IP` 必须是 `NODE_IPS` 中的一个节点；`HARBOR_HOST` 使用 `harbor.<HARBOR_NODE_IP>.nip.io`，`HARBOR_URL` 使用 `http://`。
+- `PRIVATE_REGISTRY` 默认设置为 `${HARBOR_HOST}/library`；`COREDNS_IMAGE`、`PAUSE_IMAGE`、`CALICO_NODE_IMAGE`、`NODE_LOCAL_DNS_IMAGE` 指向 Harbor 中对应镜像。
+- `SSH_USER`、`SSH_PASSWORD`、`SSH_PORT` 控制公钥分发；非 root SSH 账号必须具备免密 sudo。
 - KUBERNETES_SERVICE_IP 必须是 SERVICE_CIDR 中 Kubernetes API Service 使用的 IP，默认 10.96.0.1，并进入 apiserver 证书 SAN。
 
 版本清单集中在 config/release-versions.env，集群参数集中在 config/cluster.env。修改版本后必须重新构建一个新的、不可覆盖的 Release tag。
@@ -62,7 +64,7 @@ GitHub Actions 的离线 Release workflow 使用 scripts/ci/build-offline-releas
 - NGINX stream 二进制及构建信息；
 - Rocky Linux 9 amd64 RPM 及依赖、Calico CRD/Operator manifests、SHA256SUMS 和 ARTIFACTS.txt。
 
-下载前检查 Release 的资产和 SHA256。Release tag 不可覆盖；变更组件版本应发布新 tag。离线包中不包含容器镜像归档。
+下载前检查 Release 资产和 SHA256。Release tag 不可覆盖；变更组件版本应发布新 tag。离线包包含 Harbor 离线安装器和项目基础镜像归档。
 
 ## 3. 准备离线资源并安装部署端 CLI
 
@@ -106,7 +108,7 @@ sudo bash scripts/14-render-node-configs.sh
 
 ## 5. 分发到全部节点
 
-部署机确认 root SSH 免密、SSH host key 已核验：
+部署机确认 `SSH_USER` 对全部节点的公钥登录可用、SSH host key 已核验：
 
 ~~~bash
 sudo bash scripts/15-distribute-node-configs.sh
