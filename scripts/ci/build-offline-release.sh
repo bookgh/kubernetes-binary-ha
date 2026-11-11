@@ -5,7 +5,7 @@ set -Eeuo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 VERSION_FILE="${ROOT}/config/release-versions.env"
 [[ -f "$VERSION_FILE" ]] || {
-  printf '[错误] 缺少版本配置：%s\\n' "$VERSION_FILE" >&2
+  printf '[错误] 缺少版本配置：%s\n' "$VERSION_FILE" >&2
   exit 1
 }
 
@@ -13,11 +13,11 @@ VERSION_FILE="${ROOT}/config/release-versions.env"
 source "$VERSION_FILE"
 
 log() {
-  printf '[信息] %s\\n' "$*"
+  printf '[信息] %s\n' "$*"
 }
 
 die() {
-  printf '[错误] %s\\n' "$*" >&2
+  printf '[错误] %s\n' "$*" >&2
   exit 1
 }
 
@@ -32,7 +32,7 @@ done
 if [[ "${GITHUB_EVENT_NAME:-}" == "workflow_dispatch" ]]; then
   raw="${INPUT_VERSION:-}"
 else
-  raw="$(printf '%s\\n%s\\n' "${ISSUE_TITLE:-}" "${ISSUE_BODY:-}" |
+  raw="$(printf '%s\n%s\n' "${ISSUE_TITLE:-}" "${ISSUE_BODY:-}" |
     grep -Eo 'v?[0-9]+\\.[0-9]+\\.[0-9]+' | head -n1 || true)"
 fi
 
@@ -73,7 +73,7 @@ verify_k8s_binary() {
   [[ "$expected" =~ ^[a-fA-F0-9]{64}$ ]] ||
     die "$name 的上游 SHA256 格式无效。"
 
-  printf '%s  %s\\n' "$expected" "$OUT/bin/$name" |
+  printf '%s  %s\n' "$expected" "$OUT/bin/$name" |
     sha256sum --check --status ||
     die "$name SHA256 校验失败。"
 
@@ -97,7 +97,7 @@ download "https://raw.githubusercontent.com/projectcalico/calico/${CALICO_VERSIO
 HARBOR_ASSET="harbor-offline-installer-v${HARBOR_VERSION}-amd64.tgz"
 HARBOR_URL="https://github.com/goharbor/harbor/releases/download/v${HARBOR_VERSION}/${HARBOR_ASSET}"
 download "$HARBOR_URL" "$OUT/harbor/$HARBOR_ASSET"
-printf '%s  %s\\n' "$HARBOR_SHA256" "$OUT/harbor/$HARBOR_ASSET" |
+printf '%s  %s\n' "$HARBOR_SHA256" "$OUT/harbor/$HARBOR_ASSET" |
   sha256sum --check --status ||
   die "Harbor ${HARBOR_VERSION} 离线安装器 SHA256 校验失败。"
 
@@ -122,11 +122,11 @@ IMAGE_ARCHIVE="$OUT/images/kubernetes-images-linux-amd64.tar"
 docker save --output "$IMAGE_ARCHIVE" "${IMAGE_REFS[@]}"
 
 {
-  printf 'Platform=linux/amd64\\n'
-  printf 'Harbor installer images are bundled separately in harbor/.\\n'
+  printf 'Platform=linux/amd64\n'
+  printf 'Harbor installer images are bundled separately in harbor/.\n'
   for image_ref in "${IMAGE_REFS[@]}"; do
     digest="$(docker image inspect --format '{{index .RepoDigests 0}}' "$image_ref")"
-    printf '%s\\t%s\\n' "$image_ref" "$digest"
+    printf '%s\\t%s\n' "$image_ref" "$digest"
   done
 } > "$OUT/images/IMAGE-REFERENCES.txt"
 
