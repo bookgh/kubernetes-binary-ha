@@ -6,7 +6,7 @@ Harbor 自身只使用官方 Harbor offline installer；Harbor 服务镜像不�
 
 Calico、Tigera Operator 和 CoreDNS 的版本统一在 `config/cluster.env` 中定义（仓库默认值维护在 `config/cluster.env.example`）：
 
-- `CALICO_VERSION` / `CALICO_CHART_VERSION`：Calico Chart 版本。
+- `CALICO_VERSION`：Calico 应用/镜像版本；`CALICO_CHART_VERSION`：Calico Helm Chart 版本（默认与应用版本一致）。
 - `TIGERA_OPERATOR_VERSION`：Tigera Operator 镜像版本。
 - `COREDNS_VERSION`：CoreDNS 应用镜像版本。
 - `COREDNS_CHART_VERSION`：CoreDNS Helm Chart 版本。
