@@ -8,7 +8,7 @@
 sudo bash scripts/00-install.sh all
 ~~~
 
-入口会按顺序完成离线下载、SSH 公钥配置、CFSSL、配置分发、全部节点运行时与系统参数、Harbor 镜像导入、etcd quorum、全部 Master API `/readyz`、Worker、Calico、CoreDNS 和验收。失败后查看 `/var/log/kubernetes-binary-ha-install/` 与节点 `/var/log/kubernetes-binary-ha/`，修复后重复同一命令即可续装。参数和标记机制见 [统一安装入口说明](UNIFIED-INSTALLER.md)。
+入口会按顺序完成离线下载、SSH 公钥配置、CFSSL、配置分发、全部节点运行时与系统参数、Harbor 镜像导入、etcd quorum、全部 Master API `/readyz`、Worker、Calico、CoreDNS、NodeLocal DNSCache 和端到端验收。失败后查看 `/var/log/kubernetes-binary-ha-install/` 与节点 `/var/log/kubernetes-binary-ha/`，修复后重复同一命令即可续装。参数和标记机制见 [统一安装入口说明](UNIFIED-INSTALLER.md)。
 
 
 本文以 Rocky Linux 9、amd64、示例三 Master + 三 Worker 为基线；Master 数量由 `MASTER_COUNT` 决定。所有集群参数集中在部署机的 `config/cluster.env`。
@@ -102,7 +102,7 @@ sudo bash scripts/16-batch-exec.sh workers 09-start-worker.sh --parallel
 
 NGINX 只做 TCP/TLS 透传，不终止 TLS。检查本机 `127.0.0.1:6443` 可访问 API Server，随后确认 Worker 节点注册为 Ready。
 
-## 阶段 6：CNI、DNS 与验收
+## 阶段 6：CNI、CoreDNS、NodeLocal DNS 与验收
 
 ~~~bash
 sudo bash scripts/19-install-calico.sh
