@@ -129,7 +129,7 @@ require_certificates() {
   done
   for ip in "${MASTER_IPS[@]}"; do
     ssh -o BatchMode=yes -o ConnectTimeout=5 "root@$ip" \
-      "test -s /etc/etcd/pki/etcd-ca.crt && test -s /etc/etcd/pki/etcd-server.crt" \
+      "test -s /etc/etcd/pki/etcd-ca.crt && test -s /etc/etcd/pki/etcd-master-01-server.crt" \
       >/dev/null 2>&1 || die "Master $ip 尚未收到 etcd 证书。请先执行：sudo bash scripts/00-install.sh prepare"
   done
 }
