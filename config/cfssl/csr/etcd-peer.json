@@ -1,1 +1,13 @@
-{"CN":"etcd-peer","key":{"algo":"rsa","size":2048},"names":[{"O":"etcd","OU":"etcd Peer"}]}
+{
+  "CN": "etcd-peer",
+  "key": {
+    "algo": "rsa",
+    "size": 2048
+  },
+  "names": [
+    {
+      "O": "etcd",
+      "OU": "etcd Peer"
+    }
+  ]
+}
