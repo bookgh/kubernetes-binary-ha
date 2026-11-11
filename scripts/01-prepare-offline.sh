@@ -81,7 +81,8 @@ log "离线资源准备完成：$OUT"
 for chart in \
   "$OUT/helm/projectcalico.org.v3-${CALICO_CHART_VERSION}.tgz" \
   "$OUT/helm/tigera-operator-${CALICO_CHART_VERSION}.tgz" \
-  "$OUT/helm/coredns-${COREDNS_CHART_VERSION}.tgz"; do
+  "$OUT/helm/coredns-${COREDNS_CHART_VERSION}.tgz" \
+  "$OUT/helm/coredns-values.yaml"; do
   [[ -s "$chart" ]] || die "Release 中缺少 Helm Chart：$chart"
 done
 log "Release 二进制、RPM、Harbor 安装器及 Kubernetes 镜像归档均已校验。"
