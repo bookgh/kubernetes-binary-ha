@@ -23,9 +23,8 @@
 - `HARBOR_URL`：Harbor URL；当前安装器使用 `http://` + `HARBOR_HOST`，HTTP/80。
 - `HARBOR_HTTP_PORT`：Harbor HTTP 端口，当前脚本固定要求 80。
 - `PRIVATE_REGISTRY`：Harbor project 路径，默认 `${HARBOR_HOST}/library`。
-- `COREDNS_IMAGE`、`PAUSE_IMAGE`、`CALICO_NODE_IMAGE`、`NODE_LOCAL_DNS_IMAGE`：对应镜像在 Harbor 中的完整引用。
-- `COREDNS_IMAGE`：CoreDNS 已同步至私有仓库的完整镜像引用。
 - `PAUSE_IMAGE`：容器 sandbox/pause 镜像，containerd 和 Docker/cri-dockerd 均需可访问。
+- `NODE_LOCAL_DNS_IMAGE`：NodeLocal DNSCache 镜像在 Harbor 中的完整引用。CoreDNS/Calico 镜像由 Helm Chart 与 Operator 清单管理，无需单独配置镜像 tag。
 
 ## SSH 与下载加速参数
 
@@ -53,15 +52,15 @@
 - `ETCD_VERSION`：etcd 发布版本；升级前核对 Kubernetes 与 etcd 兼容性。
 - `CFSSL_VERSION`：CFSSL/cfssljson 版本；证书签发模板位于 config/cfssl/。
 - `HELM_VERSION`：部署端 Helm CLI 版本。
-- `CALICOCTL_VERSION`：Calicoctl CLI 版本，应与 CALICO_VERSION 匹配。
+- `CALICOCTL_VERSION`：Calicoctl CLI 独立发布版本；选择与当前 Calico 组件兼容的版本。
 - `DOCKER_COMPOSE_VERSION`：Docker Compose CLI plugin 版本。
 - `RELEASE_REVISION`：位于 config/release-versions.env，用于生成不可变 Release tag 后缀。
 - `CONTAINERD_VERSION`：containerd 版本；核对 Kubernetes 1.37 所需 CRI 兼容性。
 - `RUNC_VERSION`：OCI runtime 版本；应验证上游校验和/签名。
 - `CNI_PLUGINS_VERSION`：标准 CNI 辅助二进制版本。
 - `CRICTL_VERSION`：CRI 调试命令行工具版本。
-- `CALICO_VERSION`：Calico 版本；清单和镜像必须与该版本匹配。
-- `COREDNS_VERSION`：CoreDNS 镜像版本；生产环境建议固定 digest。
+- `CALICO_CHART_VERSION`：Calico CRD Chart 与 Tigera Operator Chart 版本；当前两者均为 `v3.33.0`。
+- `COREDNS_CHART_VERSION`：CoreDNS Helm Chart 版本；当前为 `1.50.4`。镜像 tag 由 Chart 默认配置决定。
 - `HARBOR_VERSION`：Harbor 官方离线安装器版本。
 - `HARBOR_SHA256`：Harbor 离线安装器 SHA256。
 - `PAUSE_VERSION`：pause 镜像版本。
