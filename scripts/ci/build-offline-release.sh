@@ -17,9 +17,6 @@ source "$VERSION_FILE"
 source "$CLUSTER_CONFIG"
 : "${CALICO_CHART_VERSION:?请在 config/cluster.env.example 定义 CALICO_CHART_VERSION}"
 : "${COREDNS_CHART_VERSION:?请在 config/cluster.env.example 定义 COREDNS_CHART_VERSION}"
-: "${CALICO_VERSION:?请在 config/cluster.env.example 定义 CALICO_VERSION}"
-: "${TIGERA_OPERATOR_VERSION:?请在 config/cluster.env.example 定义 TIGERA_OPERATOR_VERSION}"
-: "${COREDNS_VERSION:?请在 config/cluster.env.example 定义 COREDNS_VERSION}"
 
 log() {
   printf '[信息] %s\n' "$*"
@@ -129,14 +126,10 @@ done
   > "$OUT/manifests/helm-rendered/calico-crds.yaml"
 "$OUT/bin/helm" template calico "$CALICO_OPERATOR_CHART" \
   --namespace tigera-operator \
-  --set tigeraOperator.image=tigera/operator \
-  --set tigeraOperator.registry=quay.io \
-  --set-string "tigeraOperator.version=$TIGERA_OPERATOR_VERSION" \
   > "$OUT/manifests/helm-rendered/calico-operator.yaml"
 "$OUT/bin/helm" template coredns "$COREDNS_CHART" \
   --namespace kube-system \
   --set image.repository=registry.k8s.io/coredns/coredns \
-  --set-string "image.tag=${COREDNS_VERSION#v}" \
   --set-string "service.clusterIP=${DNS_SERVICE_IP}" \
   --set service.name=kube-dns \
   --set k8sAppLabelOverride=kube-dns \
@@ -322,10 +315,7 @@ runc=v${RUNC_VERSION}
 CNI_PLUGINS=${CNI_VERSION}
 crictl=${CRICTL_VERSION}
 CalicoChart=${CALICO_CHART_VERSION}
-Calico=${CALICO_VERSION}
-TigeraOperator=${TIGERA_OPERATOR_VERSION}
 CoreDNSChart=${COREDNS_CHART_VERSION}
-CoreDNS=${COREDNS_VERSION}
 Pause=${PAUSE_VERSION}
 NodeLocalDNS=${NODE_LOCAL_DNS_VERSION}
 Harbor=${HARBOR_VERSION} (offline installer includes Harbor service images)
