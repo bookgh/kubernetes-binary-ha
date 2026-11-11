@@ -66,6 +66,7 @@ local_healthy() {
       grep -Fxq "CalicoChart=$CALICO_CHART_VERSION" "$ROOT/offline/ARTIFACTS.txt" || return 1
       grep -Fxq "CoreDNSChart=$COREDNS_CHART_VERSION" "$ROOT/offline/ARTIFACTS.txt" || return 1
       grep -Fxq "Runtime=$RUNTIME_TYPE" "$ROOT/offline/ARTIFACTS.txt" || return 1
+      grep -Fxq "NodeLocalDNS=$NODE_LOCAL_DNS_VERSION" "$ROOT/offline/ARTIFACTS.txt" || return 1
       grep -Fq 'docker.io/library/busybox:1.36.1' "$ROOT/offline/images/IMAGE-REFERENCES.txt" || return 1
       [[ -s "$ROOT/offline/helm/projectcalico.org.v3-${CALICO_CHART_VERSION}.tgz" && -s "$ROOT/offline/helm/tigera-operator-${CALICO_CHART_VERSION}.tgz" && -s "$ROOT/offline/helm/coredns-${COREDNS_CHART_VERSION}.tgz" && -s "$ROOT/offline/helm/coredns-values.yaml" ]] || return 1
       (cd "$ROOT/offline" && sha256sum -c SHA256SUMS >/dev/null 2>&1)
@@ -95,13 +96,14 @@ local_healthy() {
       if [[ "$RUNTIME_TYPE" == docker ]]; then [[ -s "$ROOT/generated/common/etc/docker/daemon.json" ]] || return 1; fi
       for node in "${ALL_NAMES[@]}"; do
         [[ -s "$ROOT/generated/$node/etc/kubernetes/cluster.env" && -s "$ROOT/generated/$node/etc/kubernetes/runtime.env" && -s "$ROOT/generated/$node/var/lib/kubelet/config.yaml" && -s "$ROOT/generated/$node/var/lib/kube-proxy/config.yaml" ]] || return 1
+        grep -Fq "  - $NODE_LOCAL_DNS_IP" "$ROOT/generated/$node/var/lib/kubelet/config.yaml" || return 1
         if [[ "$node" == worker-* ]]; then [[ -s "$ROOT/generated/$node/etc/nginx/nginx.conf" ]] || return 1; fi
       done
       ;;
     distribute)
       for i in "${!ALL_IPS[@]}"; do
         local ip="${ALL_IPS[$i]}" node="${ALL_NAMES[$i]}"
-        ssh_remote "$ip" "test -s /etc/kubernetes/cluster.env && test -s /etc/kubernetes/runtime.env && test -s /var/lib/kubelet/config.yaml && test -s /var/lib/kube-proxy/config.yaml && test -s /etc/crictl.yaml && test -s /etc/modules-load.d/10-kubernetes.conf && test -s /etc/sysctl.d/95-kubernetes.conf && test -s /opt/kubernetes-binary-ha/scripts/22-node-step.sh" >/dev/null 2>&1 || return 1
+        ssh_remote "$ip" "test -s /etc/kubernetes/cluster.env && grep -Fxq 'NODE_LOCAL_DNS_IP=$NODE_LOCAL_DNS_IP' /etc/kubernetes/cluster.env && grep -Fq '  - $NODE_LOCAL_DNS_IP' /var/lib/kubelet/config.yaml && test -s /etc/kubernetes/runtime.env && test -s /var/lib/kubelet/config.yaml && test -s /var/lib/kube-proxy/config.yaml && test -s /etc/crictl.yaml && test -s /etc/modules-load.d/10-kubernetes.conf && test -s /etc/sysctl.d/95-kubernetes.conf && test -s /opt/kubernetes-binary-ha/scripts/22-node-step.sh" >/dev/null 2>&1 || return 1
         if [[ "$RUNTIME_TYPE" == containerd ]]; then ssh_remote "$ip" "test -s /etc/containerd/config.toml && test -s /etc/containerd/certs.d/$HARBOR_HOST/hosts.toml" >/dev/null 2>&1 || return 1; fi
         if [[ "$RUNTIME_TYPE" == docker ]]; then ssh_remote "$ip" "test -s /etc/docker/daemon.json" >/dev/null 2>&1 || return 1; fi
         if [[ "$node" == worker-* ]]; then ssh_remote "$ip" "test -s /etc/nginx/nginx.conf" >/dev/null 2>&1 || return 1; fi
