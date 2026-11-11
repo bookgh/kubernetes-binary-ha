@@ -178,7 +178,7 @@ require_certificates() {
     ip="${ALL_IPS[$i]}"
     node="${ALL_NAMES[$i]}"
     ssh_remote "$ip" \
-      "test -s /etc/kubernetes/pki/k8s-ca.crt && grep -Fxq 'ETCD_SERVERS=$expected_etcd_servers' /etc/kubernetes/cluster.env && grep -Fxq 'ETCD_INITIAL_CLUSTER=$expected_initial_cluster' \
+      "test -s /etc/kubernetes/pki/k8s-ca.crt && grep -Fxq 'ETCD_SERVERS=$expected_etcd_servers' /etc/kubernetes/cluster.env && grep -Fxq 'ETCD_INITIAL_CLUSTER=$expected_initial_cluster' /etc/kubernetes/cluster.env" \
       >/dev/null 2>&1 || die "节点 $node ($ip) 的 Kubernetes CA 或动态 etcd 配置未更新。请先执行：sudo bash scripts/00-install.sh prepare"
     if [[ "$node" == worker-* ]]; then
       for master_ip in "${MASTER_IPS[@]}"; do
@@ -242,6 +242,7 @@ prepare_workers() {
 }
 prepare_calico() {
   validate_image_config
+  ensure_harbor_ready
   prepare_workers
   local_step calico 19-install-calico.sh
 }
