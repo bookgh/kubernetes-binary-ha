@@ -4,13 +4,13 @@
 
 ## 快速一键安装
 
-当本文列出的系统、网络、镜像仓库和 Release 前置条件全部满足后，可直接运行统一入口：
+当本文列出的系统、网络、镜像仓库和 Release 前置条件全部满足后，可直接运行统一入口完成全流程：
 
 ~~~bash
 sudo bash scripts/00-install.sh all
 ~~~
 
-入口会自动执行本文后续章节对应的依赖阶段，记录本地和各节点的完成/失败标记。遇到错误先查看日志，修复后重复执行同一命令即可断点续装。阶段参数、幂等机制和日志路径详见 [docs/UNIFIED-INSTALLER.md](UNIFIED-INSTALLER.md)。
+`all` 会显式先执行预处理，再依序部署 etcd、控制平面、Worker 和集群组件。若选择分阶段安装，必须先执行 `sudo bash scripts/00-install.sh prepare`；随后 `etcd`、`workers` 等组件命令只做前置证书检查，不会自动生成证书或安装依赖。缺少证书时会提示并退出。入口记录本地和各节点的完成/失败标记，失败后修复再运行同一命令即可断点续装。详见 [docs/UNIFIED-INSTALLER.md](UNIFIED-INSTALLER.md)。
 
 
 
