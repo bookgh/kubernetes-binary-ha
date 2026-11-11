@@ -18,13 +18,13 @@ GitHub Actions 负责触发，仓库脚本负责实现。构建逻辑、下载 U
 3. Actions 提取第一个符合 `X.Y.Z` 或 `vX.Y.Z` 的版本号。
 4. 构建脚本下载 Kubernetes 和配套组件，并对 Kubernetes 官方 SHA256 文件执行校验。
 5. 下载 Harbor 官方 offline installer，并按 `HARBOR_SHA256` 校验。
-6. 下载实际部署 manifests；如存在 Helm Chart 则使用 Helm 渲染；从 Chart 渲染结果、Operator 动态镜像清单及运行时镜像声明中提取镜像引用，校验、去重、排序后拉取 linux/amd64 镜像并生成归档与 RepoDigest 清单。Harbor 自身镜像仅由官方离线安装器提供。
+6. 下载 Calico 原生 v3 CRD Chart、Tigera Operator Chart 和 CoreDNS Chart，使用 Helm 渲染；从渲染结果、Operator 的 `--print-images=list` 动态镜像清单及运行时镜像声明中提取镜像引用，校验、去重、排序后拉取 linux/amd64 镜像并生成归档与 RepoDigest 清单。Harbor 自身镜像仅由官方离线安装器提供。
 7. 使用 `nginx/Dockerfile` 构建 NGINX 源码，导出独立二进制及 SHA256。
 8. 发布 `k8s-vX.Y.Z-rN` Release。
 
 ## 3. Release 资产
 
-- `offline-kubernetes-vX.Y.Z-rocky9-amd64.tar.gz`：Kubernetes、etcd、containerd、runc、CNI、crictl、Calico 清单、Harbor 离线安装器、Kubernetes 镜像归档、Docker/Compose 和 Rocky Linux 9 RPM 依赖。
+- `offline-kubernetes-vX.Y.Z-rocky9-amd64.tar.gz`：Kubernetes、etcd、containerd、runc、CNI、crictl、Calico/CoreDNS Helm Charts、Harbor 离线安装器、Kubernetes 镜像归档、Docker/Compose 和 Rocky Linux 9 RPM 依赖。
 - 对应 `.tar.gz.sha256`：归档校验文件。
 - `nginx-<NGINX_VERSION>-linux-amd64`：NGINX 独立二进制。
 - 对应 `.sha256`：NGINX 独立二进制校验文件。
