@@ -1,50 +1,85 @@
 #!/usr/bin/env bash
-# GitHub Actions 唯一构建入口：下载、校验、源码构建 NGINX、打包并发布 Release。
+# GitHub Actions 唯一构建入口：下载、校验、源码构建 NGINX、打包二进制与 OCI 镜像。
 set -Eeuo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 VERSION_FILE="${ROOT}/config/release-versions.env"
-[[ -f "$VERSION_FILE" ]] || { printf '[错误] 缺少版本配置：%s\n' "$VERSION_FILE" >&2; exit 1; }
+[[ -f "$VERSION_FILE" ]] || {
+  printf '[错误] 缺少版本配置：%s\\n' "$VERSION_FILE" >&2
+  exit 1
+}
+
 # shellcheck disable=SC1090
 source "$VERSION_FILE"
 
-log() { printf '[信息] %s\n' "$*"; }
-die() { printf '[错误] %s\n' "$*" >&2; exit 1; }
-need() { command -v "$1" >/dev/null 2>&1 || die "缺少命令：$1"; }
-for cmd in curl sha256sum tar docker gh find sort xargs; do need "$cmd"; done
+log() {
+  printf '[信息] %s\\n' "$*"
+}
+
+die() {
+  printf '[错误] %s\\n' "$*" >&2
+  exit 1
+}
+
+need() {
+  command -v "$1" >/dev/null 2>&1 || die "缺少命令：$1"
+}
+
+for cmd in curl sha256sum tar docker gh find sort xargs; do
+  need "$cmd"
+done
 
 if [[ "${GITHUB_EVENT_NAME:-}" == "workflow_dispatch" ]]; then
   raw="${INPUT_VERSION:-}"
 else
-  raw="$(printf '%s\n%s\n' "${ISSUE_TITLE:-}" "${ISSUE_BODY:-}" |
-    grep -Eo 'v?[0-9]+\.[0-9]+\.[0-9]+' | head -n1 || true)"
+  raw="$(printf '%s\\n%s\\n' "${ISSUE_TITLE:-}" "${ISSUE_BODY:-}" |
+    grep -Eo 'v?[0-9]+\\.[0-9]+\\.[0-9]+' | head -n1 || true)"
 fi
-[[ "$raw" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+$ ]] || die "未找到有效版本号，格式应为 vX.Y.Z。"
+
+[[ "$raw" =~ ^v?[0-9]+\\.[0-9]+\\.[0-9]+$ ]] ||
+  die "未找到有效版本号，格式应为 vX.Y.Z。"
+
 K8S_VERSION="${raw#v}"
 TAG="k8s-v${K8S_VERSION}-r${RELEASE_REVISION}"
 : "${GH_TOKEN:?缺少 GH_TOKEN；请检查 Workflow 权限配置。}"
 
 WORK="$(mktemp -d)"
-cleanup() { rm -rf "$WORK"; }
+cleanup() {
+  rm -rf "$WORK"
+}
 trap cleanup EXIT
+
 OUT="${WORK}/offline-kubernetes-v${K8S_VERSION}-rocky9-amd64"
-mkdir -p "$OUT"/{bin,src,manifests,checksums,tools,docker,rpms}
+mkdir -p "$OUT"/{bin,src,manifests,checksums,tools,docker,rpms,harbor,images}
 
 download() {
-  local url="$1" dest="$2"
+  local url="$1"
+  local dest="$2"
+
   log "下载：$(basename "$dest")"
-  curl --fail --location --retry 4 --retry-all-errors --silent --show-error "$url" -o "$dest"
+  curl --fail --location --retry 4 --retry-all-errors \
+    --silent --show-error "$url" -o "$dest"
 }
+
 verify_k8s_binary() {
-  local name="$1" url="https://dl.k8s.io/v${K8S_VERSION}/bin/linux/amd64/$1"
+  local name="$1"
+  local url="https://dl.k8s.io/v${K8S_VERSION}/bin/linux/amd64/$1"
+  local expected
+
   download "$url" "$OUT/bin/$name"
   download "${url}.sha256" "$OUT/checksums/$name.sha256"
-  local expected
+
   expected="$(tr -d '[:space:]' < "$OUT/checksums/$name.sha256")"
-  [[ "$expected" =~ ^[a-fA-F0-9]{64}$ ]] || die "$name 的上游 SHA256 格式无效。"
-  printf '%s  %s\n' "$expected" "$OUT/bin/$name" | sha256sum --check --status || die "$name SHA256 校验失败。"
+  [[ "$expected" =~ ^[a-fA-F0-9]{64}$ ]] ||
+    die "$name 的上游 SHA256 格式无效。"
+
+  printf '%s  %s\\n' "$expected" "$OUT/bin/$name" |
+    sha256sum --check --status ||
+    die "$name SHA256 校验失败。"
+
   chmod 0755 "$OUT/bin/$name"
 }
+
 for binary in kube-apiserver kube-controller-manager kube-scheduler kubelet kube-proxy kubectl; do
   verify_k8s_binary "$binary"
 done
@@ -57,6 +92,43 @@ download "https://github.com/containernetworking/plugins/releases/download/${CNI
 download "https://github.com/kubernetes-sigs/cri-tools/releases/download/${CRICTL_VERSION}/crictl-${CRICTL_VERSION}-linux-amd64.tar.gz" "$OUT/src/crictl.tar.gz"
 download "https://raw.githubusercontent.com/projectcalico/calico/${CALICO_VERSION}/manifests/tigera-operator.yaml" "$OUT/manifests/tigera-operator.yaml"
 download "https://raw.githubusercontent.com/projectcalico/calico/${CALICO_VERSION}/manifests/v3_projectcalico_org.yaml" "$OUT/manifests/calico-crds.yaml"
+
+# Harbor 官方离线安装器已包含 Harbor 自身所需的 OCI 镜像。
+HARBOR_ASSET="harbor-offline-installer-v${HARBOR_VERSION}-amd64.tgz"
+HARBOR_URL="https://github.com/goharbor/harbor/releases/download/v${HARBOR_VERSION}/${HARBOR_ASSET}"
+download "$HARBOR_URL" "$OUT/harbor/$HARBOR_ASSET"
+printf '%s  %s\\n' "$HARBOR_SHA256" "$OUT/harbor/$HARBOR_ASSET" |
+  sha256sum --check --status ||
+  die "Harbor ${HARBOR_VERSION} 离线安装器 SHA256 校验失败。"
+
+# Kubernetes/Calico 镜像集中保存为一个归档，版本由 release-versions.env 统一管理。
+IMAGE_REFS=(
+  "registry.k8s.io/coredns/coredns:${COREDNS_VERSION}"
+  "registry.k8s.io/pause:${PAUSE_VERSION}"
+  "docker.io/calico/node:${CALICO_VERSION}"
+  "docker.io/calico/cni:${CALICO_VERSION}"
+  "docker.io/calico/kube-controllers:${CALICO_VERSION}"
+  "docker.io/calico/pod2daemon-flexvol:${CALICO_VERSION}"
+  "quay.io/tigera/operator:${CALICO_VERSION}"
+  "registry.k8s.io/dns/k8s-dns-node-cache:${NODE_LOCAL_DNS_VERSION}"
+)
+
+log "拉取 linux/amd64 Kubernetes 与 Calico 镜像。"
+for image_ref in "${IMAGE_REFS[@]}"; do
+  docker pull --platform linux/amd64 "$image_ref"
+done
+
+IMAGE_ARCHIVE="$OUT/images/kubernetes-images-linux-amd64.tar"
+docker save --output "$IMAGE_ARCHIVE" "${IMAGE_REFS[@]}"
+
+{
+  printf 'Platform=linux/amd64\\n'
+  printf 'Harbor installer images are bundled separately in harbor/.\\n'
+  for image_ref in "${IMAGE_REFS[@]}"; do
+    digest="$(docker image inspect --format '{{index .RepoDigests 0}}' "$image_ref")"
+    printf '%s\\t%s\\n' "$image_ref" "$digest"
+  done
+} > "$OUT/images/IMAGE-REFERENCES.txt"
 
 # CFSSL、Helm、Calicoctl、Docker Engine 与 Compose 均作为 Release 离线资产。
 download "https://github.com/cloudflare/cfssl/releases/download/v${CFSSL_VERSION}/cfssl_${CFSSL_VERSION}_linux_amd64" "$OUT/bin/cfssl"
@@ -78,7 +150,13 @@ download "https://github.com/docker/compose/releases/download/v${DOCKER_COMPOSE_
 chmod 0755 "$OUT/docker/docker-compose"
 
 log "在 Rocky Linux 9 容器中解析并下载离线 RPM 及其依赖。"
-docker run --rm -v "$OUT/rpms:/rpms" rockylinux:9 bash -lc 'dnf -y install dnf-plugins-core && dnf -y download --resolve --alldeps --destdir=/rpms chrony curl-minimal wget openssh-clients tar gzip jq openssl socat conntrack-tools ipset ipvsadm iptables ebtables ethtool rsync policycoreutils-python-utils container-selinux nftables'
+docker run --rm -v "$OUT/rpms:/rpms" rockylinux:9 bash -lc '
+  dnf -y install dnf-plugins-core epel-release &&
+  dnf -y download --resolve --alldeps --destdir=/rpms \
+    chrony curl-minimal wget openssh-clients tar gzip jq openssl socat \
+    conntrack-tools ipset ipvsadm iptables ebtables ethtool rsync \
+    policycoreutils-python-utils container-selinux nftables sshpass
+'
 
 log "使用仓库 Dockerfile 构建 NGINX ${NGINX_VERSION}（启用 stream）。"
 docker build --pull \
@@ -86,6 +164,7 @@ docker build --pull \
   --build-arg "NGINX_SHA256=${NGINX_SHA256}" \
   -t "local/k8s-nginx-builder:${NGINX_VERSION}" \
   -f "$ROOT/nginx/Dockerfile" "$ROOT/nginx"
+
 CID="$(docker create "local/k8s-nginx-builder:${NGINX_VERSION}")"
 trap 'docker rm -f "$CID" >/dev/null 2>&1 || true; cleanup' EXIT
 NGINX_ASSET="nginx-${NGINX_VERSION}-linux-amd64"
@@ -106,7 +185,11 @@ runc=v${RUNC_VERSION}
 CNI_PLUGINS=${CNI_VERSION}
 crictl=${CRICTL_VERSION}
 Calico=${CALICO_VERSION}
-CoreDNS=${COREDNS_VERSION} (container image must be mirrored separately)
+CoreDNS=${COREDNS_VERSION}
+Pause=${PAUSE_VERSION}
+NodeLocalDNS=${NODE_LOCAL_DNS_VERSION}
+Harbor=${HARBOR_VERSION} (offline installer includes Harbor service images)
+KubernetesImages=images/kubernetes-images-linux-amd64.tar
 CFSSL=${CFSSL_VERSION}
 Helm=${HELM_VERSION}
 Calicoctl=${CALICOCTL_VERSION}
@@ -118,7 +201,10 @@ NGINX=${NGINX_VERSION} (Rocky Linux 9 source build with stream)
 Architecture=amd64
 OS=Rocky Linux 9
 EOF
-(cd "$OUT" && find bin src manifests checksums tools docker rpms -type f -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS)
+
+(cd "$OUT" && find bin src manifests checksums tools docker rpms harbor images -type f -print0 |
+  sort -z | xargs -0 sha256sum > SHA256SUMS)
+
 ARCHIVE="${WORK}/offline-kubernetes-v${K8S_VERSION}-rocky9-amd64.tar.gz"
 tar -C "$WORK" -czf "$ARCHIVE" "$(basename "$OUT")"
 (cd "$WORK" && sha256sum "$(basename "$ARCHIVE")" > "$(basename "$ARCHIVE").sha256")
@@ -126,9 +212,10 @@ tar -C "$WORK" -czf "$ARCHIVE" "$(basename "$OUT")"
 if gh release view "$TAG" >/dev/null 2>&1; then
   die "Release ${TAG} 已存在；为保证不可变发布，不会覆盖。请提升版本号或人工处理旧 Release。"
 fi
+
 log "发布 Release ${TAG}。"
 gh release create "$TAG" "$ARCHIVE" "$ARCHIVE.sha256" \
   "$WORK/$NGINX_ASSET" "$WORK/$NGINX_ASSET.sha256" \
   --title "Kubernetes v${K8S_VERSION} 离线资源包（Rocky Linux 9 amd64）" \
-  --notes "由仓库脚本自动构建。包含 Kubernetes、etcd、containerd、runc、CNI、crictl、CFSSL、Helm、Calicoctl、Docker Engine、Docker Compose、Rocky Linux 9 RPM 及 NGINX 二进制。使用前请校验 SHA256；容器镜像需另行准备。"
+  --notes "离线包包含 Harbor ${HARBOR_VERSION} 官方离线安装器、CoreDNS、pause、Calico 和 NodeLocal DNS 镜像归档，以及 Kubernetes/etcd/containerd/CFSSL/Helm/Docker/NGINX 和 Rocky Linux 9 RPM。使用前请校验 SHA256。"
 log "Release 发布完成：${TAG}"
