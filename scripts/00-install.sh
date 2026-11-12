@@ -321,7 +321,7 @@ prepare_harbor() {
       die "Harbor 部署失败；修复后运行 scripts/00-install.sh harbor 重试"
     }
   ensure_harbor_ready
-  printf '%s\\n' "$fp" > "$marker"
+  printf '%s\n' "$fp" > "$marker"
   chmod 0600 "$marker"
   ok "Harbor 部署和基础镜像导入完成"
 }
