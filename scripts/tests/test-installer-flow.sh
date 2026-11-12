@@ -10,6 +10,8 @@ VERIFY="$ROOT/scripts/18-verify-cluster.sh"
 NODE_LOCAL="$ROOT/scripts/25-install-node-local-dns.sh"
 NETWORK_VERIFY="$ROOT/scripts/26-verify-network.sh"
 RELEASE="$ROOT/config/release-versions.env"
+CERT_CONFIG="$ROOT/config/cfssl/ca-config.json"
+CLI_TOOLS="$ROOT/scripts/17-install-cli-tools.sh"
 RENDER="$ROOT/scripts/14-render-node-configs.sh"
 
 contains() {
@@ -31,7 +33,15 @@ if grep -Fq 'curl ' "$NGINX"; then
   exit 1
 fi
 contains "$OFFLINE" '.offline-stage.XXXXXX'
+contains "$OFFLINE" 'SHA256SUMS_SHA256=$CURRENT_SUMS_SHA'
+contains "$OFFLINE" 'validate_offline_dir "$ROOT/offline"'
 contains "$RENDER" '.generated-stage.XXXXXX'
+contains "$RENDER" 'sandbox = .*'
+contains "$CLI_TOOLS" 'calicoctl version'
+if grep -Fq -- 'calicoctl version --client-only' "$CLI_TOOLS"; then
+  echo "FAIL: calicoctl does not support --client-only" >&2
+  exit 1
+fi
 contains "$VERIFY" 'Node 数量与配置不一致'
 contains "$VERIFY" 'CoreDNS kube-dns Service 没有可用 Endpoints'
 contains "$ROOT/scripts/11-upgrade-node.sh" '当前版本暂不支持'
@@ -47,4 +57,9 @@ contains "$NETWORK_VERIFY" 'nslookup kubernetes.default.svc.cluster.local'
 contains "$NETWORK_VERIFY" 'cross-node-network-ok'
 contains "$VERIFY" 'bash "$ROOT/scripts/26-verify-network.sh"'
 contains "$RELEASE" 'docker.io/library/busybox:1.36.1'
+contains "$CERT_CONFIG" '"expiry": "876000h"'
+if grep -Fq '"expiry": "8760h"' "$CERT_CONFIG"; then
+  echo "FAIL: all certificate profiles must use 100-year validity" >&2
+  exit 1
+fi
 echo "Installer flow, NodeLocal DNS, Harbor image-pull and cross-node network tests passed."
