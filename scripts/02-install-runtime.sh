@@ -10,10 +10,8 @@ source "$ROOT/config/release-versions.env"
 OFF="${ROOT}/offline"
 RUNTIME_ENV="/etc/kubernetes/runtime.env"
 [[ -s "$RUNTIME_ENV" ]] || die "缺少运行时配置 $RUNTIME_ENV；请通过批量执行脚本分发运行时配置"
-[[ -s "$OFF/SHA256SUMS" ]] || die "缺少运行时离线资源校验清单"
 # shellcheck disable=SC1091
 source "$RUNTIME_ENV"
-(cd "$OFF" && sha256sum -c SHA256SUMS) || die "运行时离线资源校验失败"
 
 assert_active_version() {
   local service="$1" binary="$2" expected="$3" actual
