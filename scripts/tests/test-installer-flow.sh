@@ -44,6 +44,8 @@ fi
 contains "$OFFLINE" '.offline-stage.XXXXXX'
 contains "$OFFLINE" 'SHA256SUMS_SHA256=$CURRENT_SUMS_SHA'
 contains "$OFFLINE" 'validate_offline_dir "$ROOT/offline"'
+contains "$OFFLINE" 'rpms/repodata/repomd.xml'
+contains "$OFFLINE" 'RPM-HOST-ROOTS.txt'
 contains "$OFFLINE" 'MARKER_TMP="$ROOT/offline/.PREPARED.tmp.$"'
 contains "$ROOT/scripts/ci/build-offline-release.sh" 'createrepo_c /rpms'
 contains "$ROOT/scripts/ci/build-offline-release.sh" 'RPM_NODE_PACKAGES'
