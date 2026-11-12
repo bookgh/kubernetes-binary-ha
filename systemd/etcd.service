@@ -9,7 +9,10 @@ Type=notify
 User=etcd
 Group=etcd
 EnvironmentFile=/etc/kubernetes/cluster.env
-ExecStart=/usr/local/bin/etcd \
+# cluster.env also contains ETCD_* deployment settings. Remove them from the
+# etcd process environment because the same settings are passed as CLI flags.
+ExecStart=/usr/bin/env -u ETCD_SERVERS -u ETCD_INITIAL_CLUSTER -u ETCD_HEARTBEAT_INTERVAL -u ETCD_ELECTION_TIMEOUT -u ETCD_QUOTA_BACKEND_BYTES \
+  /usr/local/bin/etcd \
   --name=${NODE_NAME} \
   --data-dir=/var/lib/etcd \
   --listen-peer-urls=https://${NODE_IP}:2380 \
