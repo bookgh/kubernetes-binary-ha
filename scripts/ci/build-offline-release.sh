@@ -309,8 +309,8 @@ download "https://github.com/docker/compose/releases/download/v${DOCKER_COMPOSE_
 chmod 0755 "$OUT/docker/docker-compose"
 
 log "生成最小 RPM 根包清单，并在本地仓库中保留完整依赖元数据。"
-printf '%s\\n' "${RPM_NODE_PACKAGES[@]}" > "$OUT/rpms/RPM-ROOTS.txt"
-printf '%s\\n' "${RPM_HOST_PACKAGES[@]}" > "$OUT/rpms/RPM-HOST-ROOTS.txt"
+printf '%s\n' "${RPM_NODE_PACKAGES[@]}" > "$OUT/rpms/RPM-ROOTS.txt"
+printf '%s\n' "${RPM_HOST_PACKAGES[@]}" > "$OUT/rpms/RPM-HOST-ROOTS.txt"
 install -m 0644 "$ROOT/config/offline-rpm-packages.env" "$OUT/rpms/offline-rpm-packages.env"
 
 log "在 Rocky Linux 9 容器中解析并下载 RPM 依赖闭包；安装时只选择根包及其依赖。"
