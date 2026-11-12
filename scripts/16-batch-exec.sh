@@ -4,13 +4,30 @@ set -Eeuo pipefail
 source "$(dirname "$0")/lib.sh"
 require_root
 require_cmd ssh
-[[ $# -ge 2 && $# -le 3 ]] || die "用法：$0 <all|masters|workers> <script-name> [--parallel]"
+require_cmd scp
+[[ $# -ge 2 ]] || die "用法：$0 <all|masters|workers> <scripts/script-name.sh> [--parallel] [--copy]"
+
 GROUP="$1"
-SCRIPT="$2"
-PARALLEL="${3:-}"
-[[ -z "$PARALLEL" || "$PARALLEL" == --parallel ]] || die "第三个参数仅支持 --parallel"
-[[ "$SCRIPT" == "$(basename "$SCRIPT")" && "$SCRIPT" == *.sh ]] || die "脚本参数必须是 scripts/ 下的 .sh 文件名"
-[[ -f "$ROOT/scripts/$SCRIPT" ]] || die "本地不存在脚本：$ROOT/scripts/$SCRIPT"
+SCRIPT_ARG="$2"
+shift 2
+PARALLEL=""
+COPY_MODE=0
+for arg in "$@"; do
+  case "$arg" in
+    --parallel) [[ -z "$PARALLEL" ]] || die "--parallel 不能重复"; PARALLEL=1 ;;
+    --copy) [[ "$COPY_MODE" -eq 0 ]] || die "--copy 不能重复"; COPY_MODE=1 ;;
+    *) die "不支持的参数：$arg（仅支持 --parallel、--copy）" ;;
+  esac
+done
+
+# 始终从仓库根目录解析脚本路径，调用时推荐传 scripts/xxx.sh。
+[[ "$SCRIPT_ARG" == scripts/*.sh && "$SCRIPT_ARG" != *"/../"* && "$SCRIPT_ARG" != ../* ]] \
+  || die "脚本参数必须是仓库根目录下 scripts/ 目录中的相对 .sh 路径，例如 scripts/02-install-runtime.sh"
+SCRIPT_REL="$SCRIPT_ARG"
+LOCAL_SCRIPT="$ROOT/$SCRIPT_REL"
+[[ -f "$LOCAL_SCRIPT" ]] || die "本地不存在脚本：$LOCAL_SCRIPT"
+SCRIPT_NAME="$(basename "$SCRIPT_REL")"
+
 case "$GROUP" in
   all)
     NODES=("${ALL_NAMES[@]}")
@@ -26,14 +43,30 @@ case "$GROUP" in
     ;;
   *) die "节点组仅支持 all、masters、workers" ;;
 esac
+
 REMOTE_ROOT="/opt/kubernetes-binary-ha"
-if [[ "$PARALLEL" == --parallel ]]; then
+REMOTE_SCRIPT="$REMOTE_ROOT/$SCRIPT_REL"
+REMOTE_TMP="/tmp/kubernetes-binary-ha-$SCRIPT_NAME"
+
+run_node() {
+  local node="$1" ip="$2"
+  if [[ "$COPY_MODE" -eq 1 ]]; then
+    log "先 SCP 更新脚本 $SCRIPT_REL -> $node ($ip)"
+    scp -P "$SSH_PORT" -o BatchMode=yes "$LOCAL_SCRIPT" "$SSH_USER@$ip:$REMOTE_TMP"
+    ssh_remote "$ip" "install -m 0755 '$REMOTE_TMP' '$REMOTE_SCRIPT' && rm -f '$REMOTE_TMP' && cd '$REMOTE_ROOT' && bash '$REMOTE_SCRIPT'"
+  else
+    # 默认方式：通过 SSH 直接调用已分发到远端仓库目录的脚本，不再传输脚本文件。
+    ssh_remote "$ip" "cd '$REMOTE_ROOT' && bash '$REMOTE_SCRIPT'"
+  fi
+}
+
+if [[ -n "$PARALLEL" ]]; then
   PIDS=()
   FAILED=0
   for i in "${!NODES[@]}"; do
     node="${NODES[$i]}"; ip="${IPS[$i]}"
-    log "并行执行 $SCRIPT -> $node ($ip)"
-    ssh_remote "$ip" "bash '$REMOTE_ROOT/scripts/$SCRIPT'" &
+    log "并行执行 $SCRIPT_REL -> $node ($ip)"
+    run_node "$node" "$ip" &
     PIDS+=("$!")
   done
   for i in "${!PIDS[@]}"; do
@@ -43,8 +76,8 @@ if [[ "$PARALLEL" == --parallel ]]; then
 else
   for i in "${!NODES[@]}"; do
     node="${NODES[$i]}"; ip="${IPS[$i]}"
-    log "执行 $SCRIPT -> $node ($ip)"
-    ssh_remote "$ip" "bash '$REMOTE_ROOT/scripts/$SCRIPT'"
+    log "执行 $SCRIPT_REL -> $node ($ip)"
+    run_node "$node" "$ip"
     ok "$node 执行完成"
   done
 fi
