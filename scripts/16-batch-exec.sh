@@ -101,9 +101,9 @@ run_node() {
     scripts/02-install-runtime.sh)
       local stage="$BATCH_STAGE/$node"
       mkdir -p "$stage/offline/bin" "$stage/offline/src" "$stage/offline/docker" "$stage/systemd" "$stage/runtime-config"
-      install -m 0755 "$ROOT/offline/bin/runc" "$stage/offline/bin/runc" 2>/dev/null || true
       install -m 0600 "$ROOT/generated/$node/etc/kubernetes/runtime.env" "$stage/runtime-config/runtime.env"
       if [[ "$RUNTIME_TYPE" == containerd ]]; then
+        install -m 0755 "$ROOT/offline/bin/runc" "$stage/offline/bin/runc"
         install -m 0644 "$ROOT/offline/src/containerd.tar.gz" "$stage/offline/src/containerd.tar.gz"
         install -m 0644 "$ROOT/systemd/containerd.service" "$stage/systemd/containerd.service"
         install -m 0644 "$ROOT/generated/common/etc/containerd/config.toml" "$stage/runtime-config/config.toml"
