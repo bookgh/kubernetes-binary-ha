@@ -3,6 +3,9 @@
 set -Eeuo pipefail
 source "$(dirname "$0")/lib.sh"
 require_root
+# 运行时二进制版本由部署端统一锁定。
+# shellcheck disable=SC1090
+source "$ROOT/config/release-versions.env"
 
 OFF="${ROOT}/offline"
 RUNTIME_ENV="/etc/kubernetes/runtime.env"
