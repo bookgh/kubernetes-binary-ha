@@ -50,6 +50,8 @@ esac
 RESOURCE_DIRS=(offline systemd generated pki kubeconfigs)
 if [[ "$SCRIPT_REL" == "scripts/02-install-runtime.sh" ]]; then
   [[ -s "$ROOT/offline/SHA256SUMS" ]] || die "部署机缺少 offline/SHA256SUMS；请先运行离线资源准备步骤"
+  require_cmd sha256sum
+  (cd "$ROOT/offline" && sha256sum -c SHA256SUMS) || die "部署机 offline 资源校验失败，请重新准备离线资源"
   [[ -s "$ROOT/systemd/containerd.service" || -s "$ROOT/systemd/docker.service" ]] || die "部署机缺少 systemd 运行时服务文件"
 fi
 REMOTE_TMP="/tmp/kubernetes-binary-ha-$(basename "$SCRIPT_REL" .sh)-$$"
