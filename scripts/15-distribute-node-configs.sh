@@ -117,7 +117,7 @@ for i in "${!NODES[@]}"; do
   # 先通过 SCP 传输本地 RPM 仓库（含 repodata），再仅安装节点根包及其依赖。
   remote_exec "$ip" "rm -rf /tmp/k8s-ha-rpms && install -d -m 0755 /tmp/k8s-ha-rpms"
   scp -P "$SSH_PORT" -r "$ROOT/offline/rpms" "$SSH_USER@$ip:/tmp/k8s-ha-rpms/"
-  remote_exec "$ip" "xargs -r dnf install -y --skip-broken --disablerepo='*' --repofrompath=k8s-ha-offline,file:///tmp/k8s-ha-rpms/rpms --enablerepo=k8s-ha-offline --setopt=install_weak_deps=False < /tmp/k8s-ha-rpms/rpms/RPM-ROOTS.txt && rm -rf /tmp/k8s-ha-rpms"
+  remote_exec "$ip" "xargs -r dnf install -y --skip-broken --disablerepo='*' --repofrompath=k8s-ha-offline,file:///tmp/k8s-ha-rpms/rpms --enablerepo=k8s-ha-offline --setopt=install_weak_deps=False < /tmp/k8s-ha-rpms/rpms/RPM-ROOTS.txt && while IFS= read -r package; do rpm -q \"\$package\" >/dev/null 2>&1 || { echo \"required RPM missing: \$package\" >&2; exit 1; }; done < /tmp/k8s-ha-rpms/rpms/RPM-ROOTS.txt && rm -rf /tmp/k8s-ha-rpms"
 
   rsync -az --delete -e "ssh -p $SSH_PORT" \
     "$NODE_OFFLINE/" "$SSH_USER@$ip:/tmp/k8s-ha-offline/"
@@ -212,7 +212,7 @@ if (( HARBOR_IS_CLUSTER_NODE == 0 )); then
   remote_exec "$HARBOR_NODE_IP" "rm -rf /tmp/k8s-ha-rpms && install -d -m 0755 /tmp/k8s-ha-rpms"
   scp -P "$SSH_PORT" -r "$ROOT/offline/rpms" "$SSH_USER@$HARBOR_NODE_IP:/tmp/k8s-ha-rpms/"
   remote_exec "$HARBOR_NODE_IP" \
-    "xargs -r dnf install -y --skip-broken --disablerepo='*' --repofrompath=k8s-ha-offline,file:///tmp/k8s-ha-rpms/rpms --enablerepo=k8s-ha-offline --setopt=install_weak_deps=False < /tmp/k8s-ha-rpms/rpms/RPM-ROOTS.txt && rm -rf /tmp/k8s-ha-rpms"
+    "xargs -r dnf install -y --skip-broken --disablerepo='*' --repofrompath=k8s-ha-offline,file:///tmp/k8s-ha-rpms/rpms --enablerepo=k8s-ha-offline --setopt=install_weak_deps=False < /tmp/k8s-ha-rpms/rpms/RPM-ROOTS.txt && while IFS= read -r package; do rpm -q \"\$package\" >/dev/null 2>&1 || { echo \"required RPM missing: \$package\" >&2; exit 1; }; done < /tmp/k8s-ha-rpms/rpms/RPM-ROOTS.txt && rm -rf /tmp/k8s-ha-rpms"
 
   rsync -az --delete -e "ssh -p $SSH_PORT" \
     "$PROJECT_STAGE/" "$SSH_USER@$HARBOR_NODE_IP:/tmp/k8s-ha-project/"
