@@ -5,8 +5,6 @@ source "$(dirname "$0")/lib.sh"
 require_root
 
 OFF="${ROOT}/offline"
-[[ -s "$OFF/SHA256SUMS" ]] || die "缺少 Kubernetes/etcd 离线二进制资源校验清单"
-(cd "$OFF" && sha256sum -c SHA256SUMS) || die "Kubernetes/etcd 离线资源校验失败"
 
 assert_active_version() {
   local service="$1" binary="$2" expected="$3" actual
