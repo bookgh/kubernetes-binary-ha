@@ -179,9 +179,13 @@ ensure_host_rpms() {
     fi
     warn "部署机 RPM 完成标记存在，但必要命令缺失；重新安装离线 RPM。"
   fi
-  [[ -d "$ROOT/offline/rpms" ]] || die "缺少 offline/rpms，请先准备离线资源"
-  log "在部署机安装 Release 内的 Rocky Linux 9 RPM"
-  dnf install -y --disablerepo="*" "$ROOT"/offline/rpms/*.rpm
+  [[ -s "$ROOT/offline/rpms/repodata/repomd.xml" ]] || die "缺少离线 RPM 仓库元数据 offline/rpms/repodata/repomd.xml，请重新构建/下载离线资源包"
+  [[ -s "$ROOT/offline/rpms/RPM-HOST-ROOTS.txt" ]] || die "缺少部署机 RPM 根包清单 offline/rpms/RPM-HOST-ROOTS.txt"
+  log "在部署机安装最小 RPM 根包集合及其依赖（跳过缺失依赖，不安装仓库内其他 RPM）"
+  xargs -r dnf install -y --skip-broken --disablerepo="*" \
+    --repofrompath="k8s-ha-offline,file://$ROOT/offline/rpms" \
+    --enablerepo=k8s-ha-offline --setopt=install_weak_deps=False \
+    < "$ROOT/offline/rpms/RPM-HOST-ROOTS.txt"
   for cmd in ssh scp rsync jq openssl curl tar sha256sum; do require_cmd "$cmd"; done
   printf '%s\n' "$fp" > "$marker"; chmod 0600 "$marker"
 }
@@ -225,13 +229,22 @@ require_certificates() {
     "$ROOT/pki/sa.key" \
     "$ROOT/pki/sa.pub" \
     "$ROOT/kubeconfigs/admin.conf" \
+    "$ROOT/kubeconfigs/controller-manager.conf" \
+    "$ROOT/kubeconfigs/scheduler.conf" \
     "$ROOT/kubeconfigs/kube-proxy.conf"; do
     if [[ ! -s "$file" ]]; then
-      printf '  - %s\n' "$file" >&2
+      printf '  - %s\n' "${file#"$ROOT"/}" >&2
       missing=1
     fi
   done
-  (( missing == 0 )) || die "缺少必要证书或 kubeconfig。请先执行：sudo bash scripts/00-install.sh prepare（本命令不会自动生成证书或安装前置依赖）"
+  for node in "${ALL_NAMES[@]}"; do
+    file="$ROOT/kubeconfigs/kubelet-$node.conf"
+    if [[ ! -s "$file" ]]; then
+      printf '  - %s\n' "${file#"$ROOT"/}" >&2
+      missing=1
+    fi
+  done
+  (( missing == 0 )) || die "缺少必要证书或 kubeconfig。请先执行：sudo bash scripts/00-install.sh prepare；该步骤会按当前节点清单生成 kubelet-<节点名>.conf、kube-proxy.conf 等配置并分发。"
   for node in "${MASTER_NAMES[@]}"; do
     for suffix in server.crt server.key peer.crt peer.key; do
       file="$ROOT/pki/etcd-$node-$suffix"
@@ -327,6 +340,8 @@ prepare_harbor() {
 }
 
 prepare_etcd() {
+  # 单独执行 etcd 目标时也先补齐部署机 RPM、SSH、PKI、kubeconfigs、节点配置分发和运行时前置步骤。
+  prepare_system
   ensure_harbor_ready
   require_certificates
   remote_step masters 07-bootstrap-etcd.sh
@@ -351,12 +366,16 @@ wait_for_all_apis() {
   die "等待全部 Master API /readyz 超时；请检查 kube-apiserver、etcd、证书和本机 6443 监听"
 }
 prepare_control_plane() {
+  # 控制平面目标包含 etcd 及其全部前置步骤，避免因跳过安装顺序而缺少 kubeconfig/证书。
+  prepare_etcd
   require_certificates
   local_step etcd-health 21-verify-etcd.sh
   remote_step masters 08-start-control-plane.sh
   wait_for_all_apis
 }
 prepare_workers() {
+  # Worker 目标包含完整的控制平面前置链。
+  prepare_control_plane
   require_certificates
   wait_for_all_apis
   remote_step workers 13-install-nginx-proxy.sh
