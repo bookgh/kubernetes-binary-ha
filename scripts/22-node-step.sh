@@ -8,7 +8,7 @@ SCRIPT="$1"; STEP="$2"
 [[ "$SCRIPT" == "$(basename "$SCRIPT")" && "$SCRIPT" == *.sh ]] || { echo "invalid script name" >&2; exit 2; }
 [[ "$STEP" =~ ^[a-zA-Z0-9_.-]+$ ]] || { echo "invalid step id" >&2; exit 2; }
 case "$SCRIPT" in
-  00-preflight.sh|02-install-runtime.sh|06-install-systemd.sh|07-bootstrap-etcd.sh|08-start-control-plane.sh|09-start-worker.sh|13-install-nginx-proxy.sh) ;;
+  00-preflight.sh|02-install-runtime.sh|02-install-kubernetes-binaries.sh|06-install-systemd.sh|07-bootstrap-etcd.sh|08-start-control-plane.sh|09-start-worker.sh|13-install-nginx-proxy.sh) ;;
   *) echo "script not allowed: $SCRIPT" >&2; exit 2 ;;
 esac
 [[ -s "$ROOT/scripts/$SCRIPT" ]] || { echo "script not found: $SCRIPT" >&2; exit 1; }
@@ -35,7 +35,10 @@ healthy() {
   case "$SCRIPT" in
     02-install-runtime.sh)
       source /etc/kubernetes/runtime.env 2>/dev/null || return 1
-      systemctl is-active --quiet "$RUNTIME_TYPE" && crictl --runtime-endpoint "$CONTAINER_RUNTIME_ENDPOINT" info >/dev/null 2>&1
+      systemctl is-active --quiet "$RUNTIME_TYPE"
+      ;;
+    02-install-kubernetes-binaries.sh)
+      [[ -x /usr/local/bin/etcd && -x /usr/local/bin/etcdctl && -x /usr/local/bin/kube-apiserver && -x /usr/local/bin/kubelet && -x /usr/local/bin/kube-proxy && -x /usr/local/bin/crictl && -x /opt/cni/bin/loopback ]]
       ;;
     06-install-systemd.sh)
       source /etc/kubernetes/cluster.env 2>/dev/null || return 1
