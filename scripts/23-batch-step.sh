@@ -11,6 +11,7 @@ GROUP="$1"; SCRIPT="$2"; PARALLEL="${3:-}"
 case "$SCRIPT" in
   00-preflight.sh) STEP=preflight ;;
   02-install-runtime.sh) STEP=runtime ;;
+  02-install-kubernetes-binaries.sh) STEP=kubernetes-binaries ;;
   06-install-systemd.sh) STEP=systemd ;;
   07-bootstrap-etcd.sh) STEP=etcd ;;
   08-start-control-plane.sh) STEP=control-plane ;;
