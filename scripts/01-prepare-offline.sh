@@ -45,6 +45,7 @@ validate_offline_dir() {
   [[ -s "$dir/bin/nginx" && -s "$dir/checksums/nginx.sha256" ]] || return 1
   [[ -s "$dir/images/kubernetes-images-linux-amd64.tar" ]] || return 1
   [[ -d "$dir/rpms" ]] && compgen -G "$dir/rpms/*.rpm" >/dev/null || return 1
+  [[ -s "$dir/rpms/repodata/repomd.xml" && -s "$dir/rpms/RPM-ROOTS.txt" && -s "$dir/rpms/RPM-HOST-ROOTS.txt" ]] || return 1
   for chart in \
     "$dir/helm/projectcalico.org.v3-${CALICO_CHART_VERSION}.tgz" \
     "$dir/helm/tigera-operator-${CALICO_CHART_VERSION}.tgz" \
