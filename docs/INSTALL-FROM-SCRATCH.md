@@ -55,7 +55,7 @@ vi config/cluster.env
 
 ## 2. 构建并发布离线 Release
 
-GitHub Actions 的离线 Release workflow 使用 scripts/ci/build-offline-release.sh 构建。为目标 Kubernetes 版本触发 workflow，构建完成后应在 GitHub Releases 中看到 k8s-v1.37.2-r7（tag 由 RELEASE_REVISION 控制）。
+GitHub Actions 的离线 Release workflow 使用 scripts/ci/build-offline-release.sh 构建。为目标 Kubernetes 版本触发 workflow，构建完成后应在 GitHub Releases 中看到 k8s-v1.37.2-r8（tag 由 RELEASE_REVISION 控制；实际部署以 Release 页面和配置文件为准）。
 
 离线包归档内含：
 - Kubernetes server/client 二进制、etcd、containerd、runc、CNI plugins、crictl；
@@ -70,8 +70,8 @@ GitHub Actions 的离线 Release workflow 使用 scripts/ci/build-offline-releas
 
 ~~~bash
 sudo bash scripts/01-prepare-offline.sh
-sudo dnf install -y --disablerepo="*" offline/rpms/*.rpm
-sudo bash scripts/17-install-cli-tools.sh
+# 按离线 RPM 根包清单安装部署机必需 RPM，并安装 Helm/CFSSL 等 CLI
+sudo bash scripts/00-install.sh download
 ~~~
 
 01 会下载 Release 归档和 SHA256，校验外层及内部 SHA256SUMS，在临时目录完成全部资产校验后再原子切换仓库根目录 offline/；下载/校验失败不会先删除旧离线包。RPM 包来自 Release，不再要求部署机访问 Rocky Linux 软件源。部署机本地安装 Helm、Calicoctl、crictl、CFSSL 和 cfssljson，便于后续管理和验收。离线资源目录同时包含 Harbor 安装器与 Kubernetes 镜像归档。
@@ -82,7 +82,42 @@ sudo bash scripts/17-install-cli-tools.sh
 (cd offline && sha256sum -c SHA256SUMS)
 ~~~
 
-## 4. 本地生成 CFSSL PKI、kubeconfig 和节点配置
+## 4. 配置部署机到节点的 SSH 公钥免密登录
+
+**此步骤必须在证书/配置分发之前执行**，因为后续 `15-distribute-node-configs.sh`、批量执行脚本和统一安装入口都依赖 SSH 公钥登录。
+
+先在 `config/cluster.env` 检查以下配置：
+
+~~~bash
+export SSH_USER="root"
+export SSH_PASSWORD="首次分发公钥时使用的登录密码"
+export SSH_PORT="22"
+~~~
+
+- `SSH_USER`：远程节点登录账号，默认 root。使用普通账号时，该账号必须能免密执行 sudo。
+- `SSH_PASSWORD`：仅用于首次通过 `sshpass` 调用 `ssh-copy-id` 分发公钥；若留空，脚本会由 `ssh-copy-id` 交互式询问远程密码。不要把真实密码提交到 Git。
+- `SSH_PORT`：所有目标节点 SSH 端口，必须与 sshd 实际监听端口一致。
+- 部署机需安装 `ssh`、`ssh-keygen`、`ssh-copy-id`；配置了非空密码时还需要 `sshpass`。离线 RPM 根包清单会提供所需工具。
+
+确认节点 IP、账号、端口无误后，在部署机以 root 执行：
+
+~~~bash
+sudo bash scripts/05-configure-ssh.sh
+~~~
+
+脚本会在部署机的 `/root/.ssh/` 下生成或复用专用 Ed25519 密钥 `kubernetes-binary-ha_ed25519`，将公钥分发到全部 Master、Worker；若 Harbor 位于独立主机，也会配置 Harbor 节点。私钥只保留在部署机。首次连接会采用 `StrictHostKeyChecking=accept-new` 记录主机密钥；**首次连接前应通过可信渠道核对每台主机的 SSH host key 指纹**，不要在未核验身份的情况下盲目接受。
+
+完成后脚本会逐台使用 BatchMode 验证公钥登录。也可手工抽查：
+
+~~~bash
+sudo ssh -p 22 -o BatchMode=yes root@192.168.10.21 true
+sudo ssh -p 22 -o BatchMode=yes root@192.168.10.41 true
+~~~
+
+将示例 IP、账号和端口替换为实际配置。若验证失败，检查账号密码、sshd 端口、防火墙、远端 `~/.ssh/authorized_keys` 权限以及部署机私钥权限；修复后重新执行脚本即可。SSH 私钥和密码不得复制到集群节点或提交到仓库。
+
+统一安装方式无需手工单独执行该脚本：`sudo bash scripts/00-install.sh prepare` 会自动执行 SSH 公钥配置；也可单独运行 `sudo bash scripts/00-install.sh ssh`。
+## 6. 本地生成 CFSSL PKI、kubeconfig 和节点配置
 
 先生成证书：
 
@@ -106,9 +141,9 @@ sudo bash scripts/14-render-node-configs.sh
 
 检查 pki/、kubeconfigs/ 和 generated/。不要把 pki/*.key、管理员 kubeconfig 或生成目录提交到 Git。
 
-## 5. 分发到全部节点
+## 6. 分发到全部节点
 
-部署机确认 `SSH_USER` 对全部节点的公钥登录可用、SSH host key 已核验：
+部署机确认本节的 `05-configure-ssh.sh` 已成功执行，全部节点及独立 Harbor 节点均可 BatchMode 公钥登录，且 SSH host key 已核验：
 
 ~~~bash
 sudo bash scripts/15-distribute-node-configs.sh
@@ -121,7 +156,7 @@ ssh root@master-01 'ls -l /etc/kubernetes/pki /etc/etcd/pki'
 ssh root@worker-01 'ls -l /etc/kubernetes/pki /etc/kubernetes'
 ~~~
 
-## 6. 批量预检、安装运行时和 systemd
+## 7. 批量预检、安装运行时和 systemd
 
 ~~~bash
 sudo bash scripts/16-batch-exec.sh all 00-preflight.sh --parallel
@@ -143,7 +178,7 @@ sysctl net.ipv4.ip_forward
 - Docker 模式：Docker Engine + cri-dockerd + Compose plugin；kubelet 连接 /run/cri-dockerd.sock，不能将 Docker Engine socket 当作 CRI endpoint。
 - IPVS 模式检查 ipvsadm -Ln；nftables 模式检查 nft list ruleset。不要在集群运行后随意切换模式。
 
-## 7. 部署 Harbor 并导入镜像，然后启动 etcd 集群
+## 8. 部署 Harbor 并导入镜像，然后启动 etcd 集群
 
 在第 6 节全部节点预处理、运行时安装和配置分发完成后，先部署 Harbor：
 
@@ -167,7 +202,7 @@ sudo bash scripts/21-verify-etcd.sh
 
 该脚本检查全部 Master endpoint health、member 数量与 `MASTER_COUNT` 一致、预期成员及 peer URL、唯一 Leader 和 Raft 状态。所有 endpoint 均应返回 healthy，成员数量必须等于 `MASTER_COUNT` 且有且仅有 1 个 Leader。未达到 quorum 时不得继续启动控制平面。完整集群就绪后再运行 scripts/18-verify-cluster.sh。
 
-## 8. 启动 Kubernetes 控制平面与 Worker
+## 9. 启动 Kubernetes 控制平面与 Worker
 
 先启动全部 Master：
 
@@ -184,7 +219,7 @@ sudo bash scripts/16-batch-exec.sh workers 09-start-worker.sh --parallel
 
 Worker NGINX 是 TLS passthrough，监听本机 127.0.0.1:6443，向全部 Master 的 TCP/6443 转发。管理员入口 API_DNS 仍然是单 Master DNS，不等同于外部 HA LB。
 
-## 9. 镜像同步、安装 Calico 和 CoreDNS
+## 10. 镜像同步、安装 Calico 和 CoreDNS
 
 ### 9.1 镜像准备与验收
 
@@ -251,7 +286,7 @@ kubectl -n kube-system get pods -l k8s-app=node-local-dns -o wide
 DaemonSet 的 `numberReady` 必须等于 Kubernetes Node 总数。NodeLocal DNSCache 以 hostNetwork 方式监听链路本地地址 53/UDP、53/TCP；请确保节点防火墙允许本机 Pod 到该地址的 DNS 流量，且没有其他 hostNetwork 服务占用 53 端口。
 
 
-## 10. 集群健康检查与功能验收
+## 11. 集群健康检查与功能验收
 
 运行一键检查：
 
@@ -282,7 +317,7 @@ kubectl delete pod dns-test
 
 如需跨节点网络验收，分别在不同 Worker 上运行测试 Pod，验证 Pod IP 互通；再创建 ClusterIP Service，验证服务发现和转发。镜像必须先同步到内网仓库。NodePort 验收需使用实际配置的 NodePort 和防火墙策略。
 
-## 11. 证书检查、etcd 备份和运行时检查
+## 12. 证书检查、etcd 备份和运行时检查
 
 证书 SAN 检查示例（以下 etcd-master-01 是默认示例拓扑中的首个 Master；应按实际节点名替换）：
 
@@ -311,7 +346,7 @@ ETCDCTL_API=3 etcdctl --endpoints=https://127.0.0.1:2379 \
 - Docker：systemctl status docker cri-docker.socket cri-docker.service、docker info、crictl info。
 - kube-proxy IPVS：ipvsadm -Ln；nftables：nft list ruleset。
 
-## 12. 故障处理和安全边界
+## 13. 故障处理和安全边界
 
 - etcd 无 quorum：先检查成员状态、2379/2380 网络、防火墙、证书 SAN/有效期和磁盘延迟；不要删除 /var/lib/etcd 重建成员。
 - Calico Pod 不 Ready：检查镜像拉取、节点路由/MTU、UDP/4789、防火墙、CNI 文件和 calico-node 日志；多网卡时检查地址自动探测。
