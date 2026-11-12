@@ -24,10 +24,9 @@ assert_active_version() {
 }
 
 install -d -m 0755 /usr/local/bin /usr/local/sbin
-install -m 0755 "$OFF/bin/runc" /usr/local/sbin/runc
-
 case "$RUNTIME_TYPE" in
   containerd)
+    install -m 0755 "$OFF/bin/runc" /usr/local/sbin/runc
     assert_active_version containerd /usr/local/bin/containerd "$CONTAINERD_VERSION"
     [[ -s "$OFF/src/containerd.tar.gz" ]] || die "containerd 模式缺少 offline/src/containerd.tar.gz"
     [[ -s /etc/containerd/config.toml ]] || die "缺少 containerd 配置 /etc/containerd/config.toml"
