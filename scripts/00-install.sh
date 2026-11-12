@@ -168,7 +168,17 @@ local_step() {
 ensure_host_rpms() {
   local marker="$STATE/steps/host-rpms.done" fp
   fp="$(fingerprint 01-prepare-offline.sh)"
-  if [[ -s "$marker" && "$(cat "$marker")" == "$fp" ]]; then ok "跳过部署机 RPM 安装"; return; fi
+  if [[ -s "$marker" && "$(cat "$marker")" == "$fp" ]]; then
+    local commands_ok=1
+    for cmd in ssh scp rsync jq openssl curl tar sha256sum; do
+      command -v "$cmd" >/dev/null 2>&1 || commands_ok=0
+    done
+    if (( commands_ok == 1 )); then
+      ok "跳过部署机 RPM 安装（标记和命令健康状态均匹配）"
+      return
+    fi
+    warn "部署机 RPM 完成标记存在，但必要命令缺失；重新安装离线 RPM。"
+  fi
   [[ -d "$ROOT/offline/rpms" ]] || die "缺少 offline/rpms，请先准备离线资源"
   log "在部署机安装 Release 内的 Rocky Linux 9 RPM"
   dnf install -y --disablerepo="*" "$ROOT"/offline/rpms/*.rpm
