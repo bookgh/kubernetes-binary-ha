@@ -21,12 +21,16 @@ ASSET_BASE="${GITHUB_RELEASE_BASE_URL:?请在 config/cluster.env 设置 GITHUB_R
 # SSH、节点 IP 等集群运行参数变化不应导致重新下载 2GB 离线包。
 CACHE_KEY="$(
   {
-    printf '%s\\n' "$TAG" "${RUNTIME_TYPE:-containerd}" "${KUBE_PROXY_MODE:-nftables}" \
+    printf '%s\n' "$TAG" "${RUNTIME_TYPE:-containerd}" "${KUBE_PROXY_MODE:-nftables}" \
       "$CALICO_CHART_VERSION" "$COREDNS_CHART_VERSION"
     sha256sum "$ROOT/config/release-versions.env"
   } | sha256sum | awk '{print $1}'
 )"
 PREPARED_MARKER="$ROOT/offline/.PREPARED"
+CURRENT_SUMS_SHA=""
+if [[ -s "$ROOT/offline/SHA256SUMS" ]]; then
+  CURRENT_SUMS_SHA="$(sha256sum "$ROOT/offline/SHA256SUMS" | awk '{print $1}')"
+fi
 
 validate_offline_dir() {
   local dir="$1"
@@ -55,6 +59,7 @@ validate_offline_dir() {
 if [[ -s "$PREPARED_MARKER" && -d "$ROOT/offline" ]] &&
   grep -Fxq "TAG=$TAG" "$PREPARED_MARKER" &&
   grep -Fxq "CACHE_KEY=$CACHE_KEY" "$PREPARED_MARKER" &&
+  grep -Fxq "SHA256SUMS_SHA256=$CURRENT_SUMS_SHA" "$PREPARED_MARKER" &&
   validate_offline_dir "$ROOT/offline"; then
   ok "离线资源已准备且校验通过，跳过重复下载和解压：$ROOT/offline"
   exit 0
@@ -137,9 +142,9 @@ fi
 # 标记独立于 SHA256SUMS，先写临时文件再原子落盘；失败时下次会重新下载校验。
 MARKER_TMP="$ROOT/offline/.PREPARED.tmp.$"
 {
-  printf 'TAG=%s\\n' "$TAG"
-  printf 'CACHE_KEY=%s\\n' "$CACHE_KEY"
-  printf 'SHA256SUMS_SHA256=%s\\n' "$(sha256sum "$ROOT/offline/SHA256SUMS" | awk '{print $1}')"
+  printf 'TAG=%s\n' "$TAG"
+  printf 'CACHE_KEY=%s\n' "$CACHE_KEY"
+  printf 'SHA256SUMS_SHA256=%s\n' "$(sha256sum "$ROOT/offline/SHA256SUMS" | awk '{print $1}')"
 } > "$MARKER_TMP"
 chmod 0644 "$MARKER_TMP"
 mv -f "$MARKER_TMP" "$PREPARED_MARKER"
