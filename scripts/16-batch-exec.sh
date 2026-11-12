@@ -77,7 +77,12 @@ if [[ "$SCRIPT_REL" == "scripts/02-install-runtime.sh" ]]; then
       ;;
     *) die "RUNTIME_TYPE 仅支持 containerd 或 docker" ;;
   esac
+  for node in "${NODES[@]}"; do
+    [[ -s "$ROOT/generated/$node/etc/kubernetes/runtime.env" ]] || die "缺少节点运行时配置 generated/$node/etc/kubernetes/runtime.env；请先运行 scripts/14-render-node-configs.sh"
+  done
 fi
+REMOTE_TMP="/tmp/kubernetes-binary-ha-$(basename "$SCRIPT_REL" .sh)-$"
+
 run_node() {
   local node="$1" ip="$2" remote_cmd
   log "创建远程临时目录并复制脚本、lib.sh 和 cluster.env -> $node ($ip)"
