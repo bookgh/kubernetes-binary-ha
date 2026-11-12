@@ -45,7 +45,8 @@ case "$GROUP" in
   *) die "节点组仅支持 all、masters、workers" ;;
 esac
 
-# 每次执行使用独立临时目录，避免并行任务互相覆盖。
+# 复用 15-distribute-node-configs.sh 已分发的项目资源，避免重复传输大型离线包。
+REMOTE_PROJECT_ROOT="/opt/kubernetes-binary-ha"
 REMOTE_TMP="/tmp/kubernetes-binary-ha-$(basename "$SCRIPT_REL" .sh)-$$"
 
 run_node() {
@@ -57,6 +58,11 @@ run_node() {
     "$LOCAL_SCRIPT" "$LOCAL_LIB" "$SSH_USER@$ip:$REMOTE_TMP/scripts/"
   scp -P "$SSH_PORT" -o BatchMode=yes \
     "$LOCAL_CONFIG" "$SSH_USER@$ip:$REMOTE_TMP/config/cluster.env"
+
+  # 脚本 ROOT 指向临时目录；将已分发项目中的资源目录链接进来。
+  # 不链接 config，确保本次上传的 cluster.env 是唯一生效配置。
+  remote_cmd="set -e; for name in offline systemd generated pki kubeconfigs; do if [[ -d '$REMOTE_PROJECT_ROOT/'\$name ]]; then ln -s '$REMOTE_PROJECT_ROOT/'\$name '$REMOTE_TMP/'\$name; fi; done"
+  ssh_remote "$ip" "$remote_cmd"
 
   # 通过临时目录中的脚本执行；无论成功或失败都清理临时目录，并保留脚本退出码。
   remote_cmd="set +e; bash '$REMOTE_TMP/$SCRIPT_REL'; rc=\$?; rm -rf '$REMOTE_TMP'; exit \$rc"
