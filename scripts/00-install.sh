@@ -384,7 +384,6 @@ prepare_workers() {
 }
 prepare_calico() {
   validate_image_config
-  ensure_harbor_ready
   prepare_workers
   local_step calico 19-install-calico.sh
 }
@@ -395,7 +394,6 @@ prepare_coredns() {
 }
 prepare_node_local_dns() {
   validate_image_config
-  ensure_harbor_ready
   prepare_coredns
   local_step node-local-dns 25-install-node-local-dns.sh
 }
@@ -406,7 +404,7 @@ case "$TARGET" in
   ssh) prepare_ssh ;;
   certs) prepare_download; prepare_ssh; prepare_certs ;;
   system) prepare_system ;;
-  harbor) prepare_harbor ;;
+  harbor) prepare_system; prepare_harbor ;;
   etcd) prepare_etcd ;;
   control-plane) prepare_control_plane ;;
   workers) prepare_workers ;;
@@ -419,7 +417,7 @@ case "$TARGET" in
     find "$STATE/steps" -maxdepth 1 -type f -printf '%f\n' | sort
     printf '远程节点标记位置：/var/lib/kubernetes-binary-ha/steps/（每台节点独立保存）\n'
     ;;
-  all) validate_image_config; prepare_system; prepare_harbor; prepare_etcd; prepare_control_plane; prepare_workers; local_step calico 19-install-calico.sh; local_step coredns 20-install-coredns.sh; local_step node-local-dns 25-install-node-local-dns.sh; verify_cluster ;;
+  all) validate_image_config; prepare_node_local_dns; verify_cluster ;;
   *) die "用法：$0 {all|prepare|download|ssh|certs|system|harbor|etcd|control-plane|workers|calico|coredns|node-local-dns|verify|status}" ;;
 esac
 ok "目标阶段 $TARGET 执行结束。安装日志：$LOG"
