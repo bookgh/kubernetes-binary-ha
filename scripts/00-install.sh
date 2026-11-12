@@ -221,6 +221,7 @@ prepare_system() {
   prepare_certs
   remote_step all 00-preflight.sh
   remote_step all 02-install-runtime.sh
+  remote_step all 02-install-kubernetes-binaries.sh
   remote_step all 06-install-systemd.sh
 }
 require_certificates() {
