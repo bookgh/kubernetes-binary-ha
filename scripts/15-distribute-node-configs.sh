@@ -23,7 +23,23 @@ trap 'rm -rf "$NODE_OFFLINE" "$PROJECT_STAGE"' EXIT
 [[ -s "$ROOT/offline/SHA256SUMS" ]] || die "缺少 offline/SHA256SUMS"
 [[ -d "$ROOT/offline/rpms" ]] || die "缺少离线 RPM"
 [[ -s "$PKI/k8s-ca.crt" && -s "$PKI/k8s-ca-bundle.crt" ]] || die "缺少 PKI"
-[[ -s "$KCFG/admin.conf" && -s "$KCFG/kube-proxy.conf" ]] || die "缺少 kubeconfig"
+missing_kubeconfigs=0
+for kubeconfig in "$KCFG/admin.conf" "$KCFG/controller-manager.conf" "$KCFG/scheduler.conf" "$KCFG/kube-proxy.conf"; do
+  if [[ ! -s "$kubeconfig" ]]; then
+    printf '  - %s\\n' "${kubeconfig#"$ROOT"/}" >&2
+    missing_kubeconfigs=1
+  fi
+done
+for node in "${ALL_NAMES[@]}"; do
+  kubeconfig="$KCFG/kubelet-$node.conf"
+  if [[ ! -s "$kubeconfig" ]]; then
+    printf '  - %s\\n' "${kubeconfig#"$ROOT"/}" >&2
+    missing_kubeconfigs=1
+  fi
+done
+(( missing_kubeconfigs == 0 )) || die "本地 kubeconfigs 不完整；请先执行 sudo bash scripts/00-install.sh prepare 生成完整配置后再分发。"
+[[ -s "$ROOT/offline/rpms/repodata/repomd.xml" && -s "$ROOT/offline/rpms/RPM-ROOTS.txt" ]] ||
+  die "缺少离线 RPM 仓库元数据或 RPM-ROOTS.txt；请重新准备离线资源包"
 
 remote_exec() {
   local ip="$1"
@@ -98,10 +114,10 @@ for i in "${!NODES[@]}"; do
 
   log "准备分发到 $node ($ip)"
 
-  # 先通过 SCP 传输 RPM，安装 rsync 后再同步其余离线资源。
+  # 先通过 SCP 传输本地 RPM 仓库（含 repodata），再仅安装节点根包及其依赖。
   remote_exec "$ip" "rm -rf /tmp/k8s-ha-rpms && install -d -m 0755 /tmp/k8s-ha-rpms"
-  scp -P "$SSH_PORT" "$ROOT"/offline/rpms/*.rpm "$SSH_USER@$ip:/tmp/k8s-ha-rpms/"
-  remote_exec "$ip" "dnf install -y --disablerepo='*' /tmp/k8s-ha-rpms/*.rpm && rm -rf /tmp/k8s-ha-rpms"
+  scp -P "$SSH_PORT" -r "$ROOT/offline/rpms" "$SSH_USER@$ip:/tmp/k8s-ha-rpms/"
+  remote_exec "$ip" "xargs -r dnf install -y --skip-broken --disablerepo='*' --repofrompath=k8s-ha-offline,file:///tmp/k8s-ha-rpms/rpms --enablerepo=k8s-ha-offline --setopt=install_weak_deps=False < /tmp/k8s-ha-rpms/rpms/RPM-ROOTS.txt && rm -rf /tmp/k8s-ha-rpms"
 
   rsync -az --delete -e "ssh -p $SSH_PORT" \
     "$NODE_OFFLINE/" "$SSH_USER@$ip:/tmp/k8s-ha-offline/"
@@ -194,9 +210,9 @@ done
 if (( HARBOR_IS_CLUSTER_NODE == 0 )); then
   log "Harbor 使用独立节点 $HARBOR_NODE_IP，准备其基础依赖和安装脚本。"
   remote_exec "$HARBOR_NODE_IP" "rm -rf /tmp/k8s-ha-rpms && install -d -m 0755 /tmp/k8s-ha-rpms"
-  scp -P "$SSH_PORT" "$ROOT"/offline/rpms/*.rpm "$SSH_USER@$HARBOR_NODE_IP:/tmp/k8s-ha-rpms/"
+  scp -P "$SSH_PORT" -r "$ROOT/offline/rpms" "$SSH_USER@$HARBOR_NODE_IP:/tmp/k8s-ha-rpms/"
   remote_exec "$HARBOR_NODE_IP" \
-    "dnf install -y --disablerepo='*' /tmp/k8s-ha-rpms/*.rpm && rm -rf /tmp/k8s-ha-rpms"
+    "xargs -r dnf install -y --skip-broken --disablerepo='*' --repofrompath=k8s-ha-offline,file:///tmp/k8s-ha-rpms/rpms --enablerepo=k8s-ha-offline --setopt=install_weak_deps=False < /tmp/k8s-ha-rpms/rpms/RPM-ROOTS.txt && rm -rf /tmp/k8s-ha-rpms"
 
   rsync -az --delete -e "ssh -p $SSH_PORT" \
     "$PROJECT_STAGE/" "$SSH_USER@$HARBOR_NODE_IP:/tmp/k8s-ha-project/"
