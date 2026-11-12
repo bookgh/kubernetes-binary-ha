@@ -57,13 +57,23 @@ sudo ssh -p 22 -o BatchMode=yes root@<WORKER_IP> true
 脚本自动生成/复用部署机专用 Ed25519 密钥，并配置全部集群节点；Harbor 为独立主机时也会加入目标列表。首次连接前应核对 SSH host key 指纹。脚本通过 BatchMode 对所有目标执行登录验证，全部成功后才能继续执行 `15-distribute-node-configs.sh`。不要分发部署机私钥，也不要将密码或密钥提交到仓库。
 ## 阶段 2：系统预检、运行时与 systemd
 
-在部署机使用批量执行入口：
+在部署机先切换到仓库源码根目录，然后执行。默认推荐方式 1，通过 SSH 直接执行远端已分发的脚本：
 
-```bash
-sudo bash scripts/16-batch-exec.sh all 00-preflight.sh --parallel
-sudo bash scripts/16-batch-exec.sh all 02-install-runtime.sh --parallel
-sudo bash scripts/16-batch-exec.sh all 06-install-systemd.sh --parallel
-```
+~~~bash
+cd /path/to/kubernetes-binary-ha
+bash scripts/16-batch-exec.sh all scripts/00-preflight.sh --parallel
+bash scripts/16-batch-exec.sh all scripts/02-install-runtime.sh --parallel
+bash scripts/16-batch-exec.sh all scripts/06-install-systemd.sh --parallel
+~~~
+
+- **方式 1（默认，推荐）**：SSH 直接执行远端 `/opt/kubernetes-binary-ha/scripts/` 下的脚本；先完成 `scripts/15-distribute-node-configs.sh`。
+- **方式 2（`--copy`）**：先 SCP 本地脚本到远端，再安装并执行。只更新单个脚本时可用：
+
+~~~bash
+bash scripts/16-batch-exec.sh all scripts/02-install-runtime.sh --parallel --copy
+~~~
+
+脚本参数必须传 `scripts/xxx.sh` 完整相对路径，不再使用单独文件名。两种模式都支持节点组及并行执行。
 
 - `RUNTIME_TYPE=containerd`：安装 containerd 并使用 `unix:///run/containerd/containerd.sock`。
 - `RUNTIME_TYPE=docker`：安装 Docker Engine + cri-dockerd，kubelet 使用 `unix:///run/cri-dockerd.sock`。Docker Engine socket 不是 CRI socket。
