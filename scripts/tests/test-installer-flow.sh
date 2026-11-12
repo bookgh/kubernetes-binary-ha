@@ -38,7 +38,7 @@ fi
 contains "$OFFLINE" '.offline-stage.XXXXXX'
 contains "$OFFLINE" 'SHA256SUMS_SHA256=$CURRENT_SUMS_SHA'
 contains "$OFFLINE" 'validate_offline_dir "$ROOT/offline"'
-contains "$OFFLINE" 'MARKER_TMP="$ROOT/offline/.PREPARED.tmp.$"'
+contains "$OFFLINE" 'MARKER_TMP="$ROOT/offline/.PREPARED.tmp.$$"'
 contains "$RENDER" '.generated-stage.XXXXXX'
 contains "$RENDER" 'sandbox = .*'
 contains "$CLI_TOOLS" 'calicoctl version'
