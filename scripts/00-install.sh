@@ -342,6 +342,7 @@ prepare_harbor() {
 prepare_etcd() {
   # 单独执行 etcd 目标时也先补齐部署机 RPM、SSH、PKI、kubeconfigs、节点配置分发和运行时前置步骤。
   prepare_system
+  prepare_harbor
   ensure_harbor_ready
   require_certificates
   remote_step masters 07-bootstrap-etcd.sh
