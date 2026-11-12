@@ -20,7 +20,7 @@ sudo bash scripts/00-install.sh all
 - 确认 Worker 到所有 Master 的 TCP/6443 可达；Master 间 TCP/2379、2380 可达。
 - 在 GitHub Actions 中构建 k8s-vX.Y.Z-rN Release，确认完整离线包、RPM、CFSSL/Helm/Calicoctl/Docker/Compose、离线 NGINX 二进制及 SHA256 已上传。
 - 准备 pause、Calico、CoreDNS、NodeLocal DNSCache、BusyBox 网络验收镜像和业务容器镜像。
-- 配置部署机到六台节点的 root SSH 免密登录。
+- 配置部署机到全部 Master、Worker 及独立 Harbor 节点的 SSH 公钥免密登录；明确执行 `sudo bash scripts/05-configure-ssh.sh`，并逐台验证 BatchMode 登录成功。
 
 ## 阶段 1：部署机本地生成与批量分发
 
@@ -29,9 +29,10 @@ sudo bash scripts/00-install.sh all
 ```bash
 sudo bash scripts/01-prepare-offline.sh
 # 暂存机与部署机分离时，将 offline/ 目录先复制到部署机项目根目录
-sudo dnf install -y --disablerepo="*" offline/rpms/*.rpm
-sudo bash scripts/17-install-cli-tools.sh
-# 部署机需要 rsync、ssh、scp 客户端
+# 按 RPM 根包清单安装部署机依赖及 CLI 工具
+sudo bash scripts/00-install.sh download
+# 先配置 SSH 公钥登录，再进行后续文件分发
+sudo bash scripts/05-configure-ssh.sh
 sudo bash scripts/03-generate-pki.sh  # CFSSL 按仓库 CSR/profile 签发，-hostname 使用裸 DNS 名和 IP
 sudo bash scripts/04-make-kubeconfigs.sh
 sudo bash scripts/14-render-node-configs.sh
@@ -43,6 +44,17 @@ sudo bash scripts/15-distribute-node-configs.sh
 - 根 CA 私钥、etcd CA 私钥和管理员 kubeconfig 不分发到节点；专用 `cluster-signer.key` 仅分发到 Master 控制平面。
 - 分发后先检查各节点的 `/opt/kubernetes-binary-ha`、`/etc/kubernetes` 和 `/etc/etcd/pki` 文件权限。
 
+### SSH 公钥登录（必须先于配置分发）
+
+在 `config/cluster.env` 设置 `SSH_USER`、`SSH_PASSWORD`、`SSH_PORT`。密码仅用于首次公钥分发；留空时由 `ssh-copy-id` 交互式询问。配置非空密码需部署机具备 `sshpass`。普通 SSH 用户必须具备免密 sudo。
+
+~~~bash
+sudo bash scripts/05-configure-ssh.sh
+sudo ssh -p 22 -o BatchMode=yes root@<MASTER_IP> true
+sudo ssh -p 22 -o BatchMode=yes root@<WORKER_IP> true
+~~~
+
+脚本自动生成/复用部署机专用 Ed25519 密钥，并配置全部集群节点；Harbor 为独立主机时也会加入目标列表。首次连接前应核对 SSH host key 指纹。脚本通过 BatchMode 对所有目标执行登录验证，全部成功后才能继续执行 `15-distribute-node-configs.sh`。不要分发部署机私钥，也不要将密码或密钥提交到仓库。
 ## 阶段 2：系统预检、运行时与 systemd
 
 在部署机使用批量执行入口：
