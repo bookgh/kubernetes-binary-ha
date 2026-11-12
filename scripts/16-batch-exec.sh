@@ -147,6 +147,15 @@ run_node() {
       log "仅复制 etcd/Kubernetes/CNI/crictl 二进制资源 -> $node ($ip)"
       scp -r -P "$SSH_PORT" -o BatchMode=yes "$stage/offline" "$SSH_USER@$ip:$REMOTE_TMP/"
       ;;
+    *)
+      # 其他通用脚本暂沿用完整资源分发；高频的运行时与二进制安装阶段走上面的精简清单。
+      for name in offline systemd generated pki kubeconfigs; do
+        if [[ -d "$ROOT/$name" ]]; then
+          log "复制通用脚本资源目录 $name -> $node ($ip)"
+          scp -r -P "$SSH_PORT" -o BatchMode=yes "$ROOT/$name" "$SSH_USER@$ip:$REMOTE_TMP/"
+        fi
+      done
+      ;;
   esac
 
   # 通过临时目录中的脚本执行；无论成功或失败都清理临时目录，并保留脚本退出码。
