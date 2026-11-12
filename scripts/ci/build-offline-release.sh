@@ -18,6 +18,9 @@ source "$CLUSTER_CONFIG"
 : "${CALICO_CHART_VERSION:?请在 config/cluster.env.example 定义 CALICO_CHART_VERSION}"
 : "${COREDNS_CHART_VERSION:?请在 config/cluster.env.example 定义 COREDNS_CHART_VERSION}"
 
+# shellcheck disable=SC1090
+source "${ROOT}/config/offline-rpm-packages.env"
+
 
 log() {
   printf '[信息] %s\n' "$*"
@@ -305,13 +308,18 @@ install -m 0755 "$CRI_DOCKERD_BIN" "$OUT/docker/cri-dockerd"
 download "https://github.com/docker/compose/releases/download/v${DOCKER_COMPOSE_VERSION}/docker-compose-linux-x86_64" "$OUT/docker/docker-compose"
 chmod 0755 "$OUT/docker/docker-compose"
 
-log "在 Rocky Linux 9 容器中解析并下载离线 RPM 及其依赖。"
+log "生成最小 RPM 根包清单，并在本地仓库中保留完整依赖元数据。"
+printf '%s\\n' "${RPM_NODE_PACKAGES[@]}" > "$OUT/rpms/RPM-ROOTS.txt"
+printf '%s\\n' "${RPM_HOST_PACKAGES[@]}" > "$OUT/rpms/RPM-HOST-ROOTS.txt"
+install -m 0644 "$ROOT/config/offline-rpm-packages.env" "$OUT/rpms/offline-rpm-packages.env"
+
+log "在 Rocky Linux 9 容器中解析并下载 RPM 依赖闭包；安装时只选择根包及其依赖。"
 docker run --rm -v "$OUT/rpms:/rpms" rockylinux:9 bash -lc '
-  dnf -y install dnf-plugins-core epel-release &&
-  dnf -y download --resolve --alldeps --destdir=/rpms \
-    chrony curl-minimal wget openssh-clients tar gzip jq openssl socat \
-    conntrack-tools ipset ipvsadm iptables ebtables ethtool rsync \
-    policycoreutils-python-utils container-selinux nftables sshpass sudo
+  set -euo pipefail
+  dnf -y install dnf-plugins-core epel-release createrepo_c
+  source /rpms/offline-rpm-packages.env
+  dnf -y download --resolve --alldeps --destdir=/rpms "${RPM_NODE_PACKAGES[@]}"
+  createrepo_c /rpms
 '
 
 log "使用仓库 Dockerfile 构建 NGINX ${NGINX_VERSION}（启用 stream）。"
