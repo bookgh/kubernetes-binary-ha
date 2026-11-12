@@ -81,7 +81,7 @@ if [[ "$SCRIPT_REL" == "scripts/02-install-runtime.sh" ]]; then
     [[ -s "$ROOT/generated/$node/etc/kubernetes/runtime.env" ]] || die "缺少节点运行时配置 generated/$node/etc/kubernetes/runtime.env；请先运行 scripts/14-render-node-configs.sh"
   done
 fi
-REMOTE_TMP="/tmp/kubernetes-binary-ha-$(basename "$SCRIPT_REL" .sh)-$"
+REMOTE_TMP="/tmp/kubernetes-binary-ha-$(basename "$SCRIPT_REL" .sh)-$$"
 
 run_node() {
   local node="$1" ip="$2" remote_cmd
