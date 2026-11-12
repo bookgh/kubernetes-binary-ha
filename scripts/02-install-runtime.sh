@@ -3,7 +3,7 @@ set -Eeuo pipefail
 source "$(dirname "$0")/lib.sh"
 require_root
 OFF="${ROOT}/offline"
-[[ -d "$OFF/rpms" ]] || die "缺少 offline/rpms；请先运行 scripts/01-prepare-offline.sh"
+[[ -s "$OFF/SHA256SUMS" ]] || die "缺少离线二进制资源或 SHA256SUMS；请先准备并分发 offline 资源"
 [[ -s /etc/kubernetes/runtime.env ]] || die "缺少部署端分发的 runtime.env；请先运行 scripts/15-distribute-node-configs.sh"
 [[ -s /etc/crictl.yaml ]] || die "缺少部署端生成的 /etc/crictl.yaml"
 # 运行时配置由部署端生成并分发；节点安装脚本只安装二进制和启动服务。
@@ -34,12 +34,20 @@ else
   assert_active_version cri-docker /usr/local/bin/cri-dockerd "$CRI_DOCKERD_VERSION"
 fi
 
-log "安装离线系统 RPM 依赖包"
-dnf install -y --disablerepo="*" "$OFF"/rpms/*.rpm
-if [[ "$KUBE_PROXY_MODE" == nftables ]]; then
-  command -v nft >/dev/null 2>&1 || die "离线 RPM 未安装 nftables/nft"
+# 容器运行时和 Kubernetes 组件使用 Release 提供的二进制归档安装；RPM 仅用于可选的系统依赖补齐。
+# 节点已具备系统依赖时，不要求部署端额外分发 RPM 仓库。
+if [[ -d "$OFF/rpms" ]] && compgen -G "$OFF/rpms/*.rpm" >/dev/null; then
+  require_cmd dnf
+  log "检测到离线 RPM 仓库，安装系统依赖包"
+  dnf install -y --disablerepo="*" "$OFF"/rpms/*.rpm
 else
-  command -v ipvsadm >/dev/null 2>&1 || die "离线 RPM 未安装 ipvsadm"
+  warn "未发现 offline/rpms，跳过可选的系统 RPM 安装；容器运行时仍从离线二进制归档安装"
+fi
+
+if [[ "$KUBE_PROXY_MODE" == nftables ]]; then
+  command -v nft >/dev/null 2>&1 || die "缺少 nft 命令；请预装 nftables 或分发 offline/rpms 后重新执行"
+else
+  command -v ipvsadm >/dev/null 2>&1 || die "缺少 ipvsadm 命令；请预装 ipvsadm 或分发 offline/rpms 后重新执行"
 fi
 
 install -d -m 0755 /usr/local/bin /usr/local/sbin /opt/cni/bin /etc/kubernetes
