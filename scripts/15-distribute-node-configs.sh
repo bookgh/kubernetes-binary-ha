@@ -114,6 +114,18 @@ for i in "${!NODES[@]}"; do
 
   log "准备分发到 $node ($ip)"
 
+  # 在分发 Kubernetes 配置前统一设置节点主机名，并维护集群节点的 /etc/hosts 解析。
+  # 仅替换本脚本管理的 hosts 区块，保留操作系统及管理员已有的其他条目。
+  hosts_args=""
+  for j in "${!ALL_NAMES[@]}"; do
+    printf -v hosts_line '%s %s' "${ALL_IPS[$j]}" "${ALL_NAMES[$j]}"
+    printf -v hosts_quoted '%q' "$hosts_line"
+    hosts_args+=" $hosts_quoted"
+  done
+  printf -v node_quoted '%q' "$node"
+  remote_exec "$ip" "hostnamectl set-hostname $node_quoted && tmp_hosts=\$(mktemp) && awk '/^# BEGIN kubernetes-binary-ha nodes$/{skip=1; next} /^# END kubernetes-binary-ha nodes$/{skip=0; next} !skip{print}' /etc/hosts > \"\$tmp_hosts\" && { printf '%s\\n' '# BEGIN kubernetes-binary-ha nodes'; printf '%s\\n' $hosts_args; printf '%s\\n' '# END kubernetes-binary-ha nodes'; } >> \"\$tmp_hosts\" && install -m 0644 \"\$tmp_hosts\" /etc/hosts && rm -f \"\$tmp_hosts\""
+  ok "节点主机名和集群 hosts 解析已配置：$node ($ip)"
+
   # 先通过 SCP 传输本地 RPM 仓库（含 repodata），再仅安装节点根包及其依赖。
   remote_exec "$ip" "rm -rf /tmp/k8s-ha-rpms && install -d -m 0755 /tmp/k8s-ha-rpms"
   scp -P "$SSH_PORT" -r "$ROOT/offline/rpms" "$SSH_USER@$ip:/tmp/k8s-ha-rpms/"
