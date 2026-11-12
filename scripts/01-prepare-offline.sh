@@ -129,7 +129,7 @@ validate_offline_dir "$OUT" || die "离线资源目录完整性或版本校验�
 log "Release 二进制、RPM、Harbor 安装器及 Kubernetes 镜像归档均已校验。"
 
 # 只有完整下载、解压、校验及必需资产检查全部通过后，才替换现有 offline/。
-OLD_OUT="$ROOT/.offline-previous.$"
+OLD_OUT="$ROOT/.offline-previous.$$"
 [[ ! -e "$OLD_OUT" ]] || die "发现未清理的离线资源备份目录：$OLD_OUT"
 if [[ -e "$ROOT/offline" ]]; then mv "$ROOT/offline" "$OLD_OUT"; fi
 if mv "$OUT_STAGE" "$ROOT/offline"; then
