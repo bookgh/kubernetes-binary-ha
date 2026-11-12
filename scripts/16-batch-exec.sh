@@ -53,6 +53,7 @@ case "$SCRIPT_REL" in
   scripts/02-install-runtime.sh)
     require_cmd sha256sum
     [[ -s "$ROOT/offline/SHA256SUMS" ]] || die "部署机缺少 offline/SHA256SUMS；请先准备离线资源"
+    [[ -s "$ROOT/config/release-versions.env" ]] || die "缺少 config/release-versions.env"
     (cd "$ROOT/offline" && sha256sum -c SHA256SUMS >/dev/null) || die "部署机离线资源校验失败"
     for node in "${NODES[@]}"; do
       [[ -s "$ROOT/generated/$node/etc/kubernetes/runtime.env" ]] || die "缺少 generated/$node/etc/kubernetes/runtime.env；请先运行 scripts/14-render-node-configs.sh"
@@ -96,6 +97,9 @@ run_node() {
     "$LOCAL_SCRIPT" "$LOCAL_LIB" "$SSH_USER@$ip:$REMOTE_TMP/scripts/"
   scp -P "$SSH_PORT" -o BatchMode=yes \
     "$LOCAL_CONFIG" "$SSH_USER@$ip:$REMOTE_TMP/config/cluster.env"
+  if [[ "$SCRIPT_REL" == "scripts/02-install-runtime.sh" ]]; then
+    scp -P "$SSH_PORT" -o BatchMode=yes "$ROOT/config/release-versions.env" "$SSH_USER@$ip:$REMOTE_TMP/config/release-versions.env"
+  fi
 
   case "$SCRIPT_REL" in
     scripts/02-install-runtime.sh)
