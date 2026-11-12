@@ -4,7 +4,6 @@ set -Eeuo pipefail
 source "$(dirname "$0")/lib.sh"
 require_root
 require_cmd ssh
-require_cmd scp
 [[ $# -ge 2 ]] || die "用法：$0 <all|masters|workers> <scripts/script-name.sh> [--parallel] [--copy]"
 
 GROUP="$1"
@@ -27,6 +26,7 @@ SCRIPT_REL="$SCRIPT_ARG"
 LOCAL_SCRIPT="$ROOT/$SCRIPT_REL"
 [[ -f "$LOCAL_SCRIPT" ]] || die "本地不存在脚本：$LOCAL_SCRIPT"
 SCRIPT_NAME="$(basename "$SCRIPT_REL")"
+[[ "$COPY_MODE" -eq 0 ]] || require_cmd scp
 
 case "$GROUP" in
   all)
