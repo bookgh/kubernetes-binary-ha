@@ -14,7 +14,7 @@ trap 'rm -rf "$TMP"' EXIT
 tar -xzf "$OFF/src/crictl.tar.gz" -C "$TMP" crictl
 install -m 0755 "$TMP/crictl" /usr/local/bin/crictl
 helm version --short
-calicoctl version --client-only
+calicoctl version
 crictl --version
 cfssl version
 ok "helm、calicoctl、crictl、cfssl 和 cfssljson 已安装到 /usr/local/bin。"
