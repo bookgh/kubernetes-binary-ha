@@ -27,13 +27,37 @@ sudo bash scripts/00-install.sh all
 | `sudo bash scripts/00-install.sh control-plane` | 验证 etcd quorum 后启动全部 Master，并等待每台 Master API `/readyz` 成功 |
 | `sudo bash scripts/00-install.sh workers` | 检查证书、节点配置及全部 Master API `/readyz`，再安装 Worker NGINX 并启动 kubelet/kube-proxy；不自动执行前置准备 |
 | `sudo bash scripts/00-install.sh calico` | 完成前置阶段后安装 Calico |
-| `sudo bash scripts/00-install.sh coredns` | 完成前置阶段后安装 CoreDNS |\n| `sudo bash scripts/00-install.sh node-local-dns` | 安装 NodeLocal DNSCache，并等待全部节点 DaemonSet Ready |
+| `sudo bash scripts/00-install.sh coredns` | 完成前置阶段后安装 CoreDNS |
+| `sudo bash scripts/00-install.sh node-local-dns` | 安装 NodeLocal DNSCache，并等待全部节点 DaemonSet Ready |
 | `sudo bash scripts/00-install.sh verify` | 重新执行集群健康检查 |
 | `sudo bash scripts/00-install.sh status` | 查看部署机本地阶段标记 |
 
 `prepare` 是独立的预处理阶段。请先执行 `sudo bash scripts/00-install.sh prepare`，再按需执行 `etcd`、`control-plane`、`workers` 等组件阶段。组件阶段不会隐式下载资源、安装依赖或生成证书；若本地证书或节点证书分发缺失，会明确提示先执行 `prepare` 并退出。`all` 会显式按顺序执行预处理、Harbor、etcd quorum 验证、控制平面启动、全部 Master API `/readyz` 门槛、Worker、Calico、CoreDNS、NodeLocal DNSCache 和最终验收。NodeLocal DNSCache 在 kubelet 配置中使用 `NODE_LOCAL_DNS_IP`（默认 `169.254.20.10`），并在所有节点以 DaemonSet 运行。单独执行 `etcd` 前必须先完成 `harbor`；单独执行 `workers` 或 `calico` 前，必须已有可用控制平面 API。
 
-## 3. 幂等标记和断点续装
+## 3. SSH 公钥配置的单独执行方式
+
+统一入口的 `prepare`、`system`、`all` 会自动调用 `scripts/05-configure-ssh.sh`；如需单独准备 SSH，可运行：
+
+~~~bash
+sudo bash scripts/00-install.sh ssh
+~~~
+
+也可直接调用底层脚本：
+
+~~~bash
+sudo bash scripts/05-configure-ssh.sh
+~~~
+
+脚本从 `config/cluster.env` 读取 `SSH_USER`、`SSH_PASSWORD`、`SSH_PORT`。它会生成或复用部署机专用 Ed25519 密钥，向全部 Master、Worker 以及独立 Harbor 节点分发公钥，并逐台通过 BatchMode 检查登录。
+
+- `SSH_PASSWORD` 非空时需要部署机安装 `sshpass`，用于首次 `ssh-copy-id`；留空时由 `ssh-copy-id` 交互式询问密码。
+- 非 root SSH 用户必须具备免密 sudo 权限。
+- 首次连接会使用 `StrictHostKeyChecking=accept-new`；执行前仍须通过可信渠道核对节点 SSH host key 指纹。
+- 私钥保留在部署机 `/root/.ssh/kubernetes-binary-ha_ed25519`，不得分发到节点或提交仓库。
+- SSH 全部验证通过后才能继续 PKI 生成、配置分发和远程批量安装。
+
+## 4. 幂等标记和断点续装
+
 
 ### 本地阶段标记
 
