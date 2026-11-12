@@ -98,7 +98,7 @@ sudo bash scripts/00-install.sh harbor
 全部 Master etcd 成员应并发启动：
 
 ```bash
-sudo bash scripts/16-batch-exec.sh masters 07-bootstrap-etcd.sh --parallel
+bash scripts/16-batch-exec.sh masters scripts/07-bootstrap-etcd.sh --parallel
 ```
 
 确认 etcd endpoint health、成员列表和 quorum 后，再启动控制平面：
@@ -108,7 +108,7 @@ sudo bash scripts/21-verify-etcd.sh
 ~~~
 
 ```bash
-sudo bash scripts/16-batch-exec.sh masters 08-start-control-plane.sh --parallel
+bash scripts/16-batch-exec.sh masters scripts/08-start-control-plane.sh --parallel
 ```
 
 通过 SSH 在每台 Master 本机检查 `https://127.0.0.1:6443/readyz`；统一安装入口会自动等待全部 Master 就绪。禁止在已有 etcd 数据目录上重复执行首次初始化。
@@ -118,8 +118,8 @@ sudo bash scripts/16-batch-exec.sh masters 08-start-control-plane.sh --parallel
 先在 Worker 使用已分发离线包中的 NGINX（不访问 GitHub），再启动 Worker 服务：
 
 ```bash
-sudo bash scripts/16-batch-exec.sh workers 13-install-nginx-proxy.sh --parallel
-sudo bash scripts/16-batch-exec.sh workers 09-start-worker.sh --parallel
+bash scripts/16-batch-exec.sh workers scripts/13-install-nginx-proxy.sh --parallel
+bash scripts/16-batch-exec.sh workers scripts/09-start-worker.sh --parallel
 ```
 
 NGINX 只做 TCP/TLS 透传，不终止 TLS。检查本机 `127.0.0.1:6443` 可访问 API Server，随后确认 Worker 节点注册为 Ready。
