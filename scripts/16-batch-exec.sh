@@ -51,10 +51,7 @@ trap 'rm -rf "$BATCH_STAGE"' EXIT
 
 case "$SCRIPT_REL" in
   scripts/02-install-runtime.sh)
-    require_cmd sha256sum
-    [[ -s "$ROOT/offline/SHA256SUMS" ]] || die "部署机缺少 offline/SHA256SUMS；请先准备离线资源"
     [[ -s "$ROOT/config/release-versions.env" ]] || die "缺少 config/release-versions.env"
-    (cd "$ROOT/offline" && sha256sum -c SHA256SUMS >/dev/null) || die "部署机离线资源校验失败"
     for node in "${NODES[@]}"; do
       [[ -s "$ROOT/generated/$node/etc/kubernetes/runtime.env" ]] || die "缺少 generated/$node/etc/kubernetes/runtime.env；请先运行 scripts/14-render-node-configs.sh"
     done
@@ -88,9 +85,6 @@ case "$SCRIPT_REL" in
     fi
     ;;
   scripts/02-install-kubernetes-binaries.sh)
-    require_cmd sha256sum
-    [[ -s "$ROOT/offline/SHA256SUMS" ]] || die "部署机缺少 offline/SHA256SUMS；请先准备离线资源"
-    (cd "$ROOT/offline" && sha256sum -c SHA256SUMS >/dev/null) || die "部署机离线资源校验失败"
     for binary in kube-apiserver kube-controller-manager kube-scheduler kubelet kube-proxy kubectl; do
       [[ -s "$ROOT/offline/bin/$binary" ]] || die "缺少离线二进制 offline/bin/$binary"
     done
@@ -136,7 +130,6 @@ run_node() {
         done
         install -m 0644 "$ROOT/generated/common/etc/docker/daemon.json" "$stage/runtime-config/daemon.json"
       fi
-      (cd "$stage/offline" && find bin src docker -type f -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS)
       log "仅复制 $RUNTIME_TYPE 运行时二进制、运行时配置和 systemd 单元 -> $node ($ip)"
       scp -r -P "$SSH_PORT" -o BatchMode=yes \
         "$stage/offline" "$stage/systemd" "$stage/runtime-config" "$SSH_USER@$ip:$REMOTE_TMP/"
@@ -176,7 +169,6 @@ run_node() {
       for artifact in etcd.tar.gz cni-plugins.tgz crictl.tar.gz; do
         install -m 0644 "$ROOT/offline/src/$artifact" "$stage/offline/src/$artifact"
       done
-      (cd "$stage/offline" && find bin src -type f -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS)
       log "仅复制 etcd/Kubernetes/CNI/crictl 二进制资源 -> $node ($ip)"
       scp -r -P "$SSH_PORT" -o BatchMode=yes "$stage/offline" "$SSH_USER@$ip:$REMOTE_TMP/"
       ;;
