@@ -183,7 +183,7 @@ EOF
   chmod 0600 "$dir/etc/kubernetes/cluster.env" "$dir/etc/kubernetes/runtime.env"
   log "已生成 ${node}（${ip}）的 kubelet/kube-proxy/运行时配置"
 done
-OLD_OUT="$ROOT/.generated-previous.$"
+OLD_OUT="$ROOT/.generated-previous.$$"
 [[ ! -e "$OLD_OUT" ]] || die "发现未清理的配置备份目录：$OLD_OUT"
 if [[ -e "$ROOT/generated" ]]; then mv "$ROOT/generated" "$OLD_OUT"; fi
 if mv "$OUT_STAGE" "$ROOT/generated"; then
