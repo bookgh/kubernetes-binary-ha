@@ -25,6 +25,9 @@ contains() {
 contains "$INSTALL" 'source "$ROOT/config/release-versions.env"'
 contains "$INSTALL" 'all) validate_image_config; prepare_system; prepare_harbor; prepare_etcd; prepare_control_plane; prepare_workers; local_step calico 19-install-calico.sh; local_step coredns 20-install-coredns.sh; local_step node-local-dns 25-install-node-local-dns.sh; verify_cluster ;;'
 contains "$INSTALL" 'wait_for_all_apis'
+contains "$INSTALL" 'commands_ok=1'
+contains "$INSTALL" 'local_healthy "$id"'
+contains "$INSTALL" 'stage_fingerprint'
 contains "$INSTALL" 'IMAGE_ARCHIVE_SHA256=$image_sha'
 contains "$NGINX" 'NGINX_BINARY="$ROOT/offline/bin/nginx"'
 contains "$NGINX" 'NGINX_CHECKSUM="$ROOT/offline/checksums/nginx.sha256"'
@@ -35,6 +38,7 @@ fi
 contains "$OFFLINE" '.offline-stage.XXXXXX'
 contains "$OFFLINE" 'SHA256SUMS_SHA256=$CURRENT_SUMS_SHA'
 contains "$OFFLINE" 'validate_offline_dir "$ROOT/offline"'
+contains "$OFFLINE" 'MARKER_TMP="$ROOT/offline/.PREPARED.tmp.$"'
 contains "$RENDER" '.generated-stage.XXXXXX'
 contains "$RENDER" 'sandbox = .*'
 contains "$CLI_TOOLS" 'calicoctl version'
@@ -58,6 +62,10 @@ contains "$NETWORK_VERIFY" 'cross-node-network-ok'
 contains "$VERIFY" 'bash "$ROOT/scripts/26-verify-network.sh"'
 contains "$RELEASE" 'docker.io/library/busybox:1.36.1'
 contains "$CERT_CONFIG" '"expiry": "876000h"'
+[[ "$(grep -Fc '"expiry": "876000h"' "$CERT_CONFIG")" -eq 4 ]] || {
+  echo "FAIL: CA default and all three certificate profiles must use 100-year validity" >&2
+  exit 1
+}
 if grep -Fq '"expiry": "8760h"' "$CERT_CONFIG"; then
   echo "FAIL: all certificate profiles must use 100-year validity" >&2
   exit 1
