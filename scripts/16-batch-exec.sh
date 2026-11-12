@@ -45,17 +45,33 @@ case "$GROUP" in
   *) die "节点组仅支持 all、masters、workers" ;;
 esac
 
-# 资源随本次批量任务复制到远程临时目录，不依赖远程节点预先存在整个仓库。
-# 安装运行时必须有离线二进制包；在部署机先检查，避免传完脚本后才在远端失败。
-RESOURCE_DIRS=(offline systemd generated pki kubeconfigs)
-if [[ "$SCRIPT_REL" == "scripts/02-install-runtime.sh" ]]; then
-  [[ -s "$ROOT/offline/SHA256SUMS" ]] || die "部署机缺少 offline/SHA256SUMS；请先运行离线资源准备步骤"
-  require_cmd sha256sum
-  (cd "$ROOT/offline" && sha256sum -c SHA256SUMS) || die "部署机 offline 资源校验失败，请重新准备离线资源"
-  [[ -s "$ROOT/systemd/containerd.service" || -s "$ROOT/systemd/docker.service" ]] || die "部署机缺少 systemd 运行时服务文件"
-fi
-REMOTE_TMP="/tmp/kubernetes-binary-ha-$(basename "$SCRIPT_REL" .sh)-$$"
+# 按脚本职责准备资源，不再整目录复制 offline/generated/pki/kubeconfigs。
+# 02-install-runtime 仅传输其执行所需的二进制归档、运行时配置和 systemd 单元。
+BATCH_STAGE="$(mktemp -d)"
+trap 'rm -rf "$BATCH_STAGE"' EXIT
 
+if [[ "$SCRIPT_REL" == "scripts/02-install-runtime.sh" ]]; then
+  require_cmd sha256sum
+  [[ -s "$ROOT/offline/SHA256SUMS" ]] || die "部署机缺少 offline/SHA256SUMS；请先准备离线资源"
+  (cd "$ROOT/offline" && sha256sum -c SHA256SUMS >/dev/null) || die "部署机离线资源校验失败"
+  [[ -s "$ROOT/generated/common/etc/crictl.yaml" ]] || die "缺少运行时配置，请先运行 scripts/14-render-node-configs.sh"
+  [[ -s "$ROOT/config/release-versions.env" ]] || die "缺少 config/release-versions.env"
+  source "$ROOT/config/release-versions.env"
+  case "$RUNTIME_TYPE" in
+    containerd)
+      [[ -s "$ROOT/offline/src/containerd.tar.gz" && -s "$ROOT/offline/bin/runc" ]] || die "缺少 containerd/runc 二进制资源"
+      [[ -s "$ROOT/generated/common/etc/containerd/config.toml" ]] || die "缺少 generated/common/etc/containerd/config.toml；请先运行 scripts/14-render-node-configs.sh"
+      [[ -s "$ROOT/generated/common/etc/containerd/certs.d/$HARBOR_HOST/hosts.toml" ]] || die "缺少 containerd Harbor hosts.toml"
+      [[ -s "$ROOT/systemd/containerd.service" ]] || die "缺少 systemd/containerd.service"
+      ;;
+    docker)
+      [[ -s "$ROOT/offline/docker/docker.tgz" && -s "$ROOT/offline/docker/cri-dockerd" && -s "$ROOT/offline/docker/docker-compose" ]] || die "缺少 Docker/cri-dockerd 离线二进制资源"
+      [[ -s "$ROOT/generated/common/etc/docker/daemon.json" ]] || die "缺少 generated/common/etc/docker/daemon.json；请先运行 scripts/14-render-node-configs.sh"
+      for unit in docker.service cri-docker.socket cri-docker.service; do [[ -s "$ROOT/systemd/$unit" ]] || die "缺少 systemd/$unit"; done
+      ;;
+    *) die "RUNTIME_TYPE 仅支持 containerd 或 docker" ;;
+  esac
+fi
 run_node() {
   local node="$1" ip="$2" remote_cmd
   log "创建远程临时目录并复制脚本、lib.sh 和 cluster.env -> $node ($ip)"
@@ -66,15 +82,45 @@ run_node() {
   scp -P "$SSH_PORT" -o BatchMode=yes \
     "$LOCAL_CONFIG" "$SSH_USER@$ip:$REMOTE_TMP/config/cluster.env"
 
-  # 脚本 ROOT 指向临时目录；将本次任务所需资源一并复制，避免依赖远程仓库目录。
-  # 不复制 config，确保本次上传的 cluster.env 是唯一生效配置。
-  for name in "${RESOURCE_DIRS[@]}"; do
-    if [[ -d "$ROOT/$name" ]]; then
-      log "复制资源目录 $name -> $node ($ip)"
-      scp -r -P "$SSH_PORT" -o BatchMode=yes \
-        "$ROOT/$name" "$SSH_USER@$ip:$REMOTE_TMP/"
+  if [[ "$SCRIPT_REL" == "scripts/02-install-runtime.sh" ]]; then
+    local stage="$BATCH_STAGE/$node"
+    mkdir -p "$stage/offline/src" "$stage/offline/bin" "$stage/offline/docker" "$stage/systemd" "$stage/runtime-config"
+    # 02 当前还负责安装 etcd/Kubernetes/CNI/crictl 二进制，因此只挑选该脚本实际使用的文件。
+    for binary in kube-apiserver kube-controller-manager kube-scheduler kubelet kube-proxy kubectl runc; do
+      install -m 0755 "$ROOT/offline/bin/$binary" "$stage/offline/bin/$binary"
+    done
+    for artifact in etcd.tar.gz cni-plugins.tgz crictl.tar.gz; do
+      install -m 0644 "$ROOT/offline/src/$artifact" "$stage/offline/src/$artifact"
+    done
+    install -m 0600 "$ROOT/generated/$node/etc/kubernetes/runtime.env" "$stage/runtime-config/runtime.env"
+    install -m 0644 "$ROOT/generated/common/etc/crictl.yaml" "$stage/runtime-config/crictl.yaml"
+    if [[ "$RUNTIME_TYPE" == containerd ]]; then
+      install -m 0644 "$ROOT/offline/src/containerd.tar.gz" "$stage/offline/src/containerd.tar.gz"
+      install -m 0755 "$ROOT/systemd/containerd.service" "$stage/systemd/containerd.service"
+      install -m 0644 "$ROOT/generated/common/etc/containerd/config.toml" "$stage/runtime-config/config.toml"
+      mkdir -p "$stage/runtime-config/certs.d/$HARBOR_HOST"
+      install -m 0644 "$ROOT/generated/common/etc/containerd/certs.d/$HARBOR_HOST/hosts.toml" "$stage/runtime-config/certs.d/$HARBOR_HOST/hosts.toml"
+    else
+      for artifact in docker.tgz cri-dockerd docker-compose; do
+        install -m 0644 "$ROOT/offline/docker/$artifact" "$stage/offline/docker/$artifact"
+      done
+      for unit in docker.service cri-docker.socket cri-docker.service; do
+        install -m 0644 "$ROOT/systemd/$unit" "$stage/systemd/$unit"
+      done
+      install -m 0644 "$ROOT/generated/common/etc/docker/daemon.json" "$stage/runtime-config/daemon.json"
     fi
-  done
+    (cd "$stage/offline" && find bin src docker -type f -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS)
+    log "仅复制 $RUNTIME_TYPE 安装所需资源及其依赖二进制 -> $node ($ip)"
+    scp -r -P "$SSH_PORT" -o BatchMode=yes \
+      "$stage/offline" "$stage/systemd" "$stage/runtime-config" "$SSH_USER@$ip:$REMOTE_TMP/"
+    remote_cmd="install -D -m 0600 '$REMOTE_TMP/runtime-config/runtime.env' /etc/kubernetes/runtime.env && install -D -m 0644 '$REMOTE_TMP/runtime-config/crictl.yaml' /etc/crictl.yaml"
+    if [[ "$RUNTIME_TYPE" == containerd ]]; then
+      remote_cmd+=" && install -D -m 0644 '$REMOTE_TMP/runtime-config/config.toml' /etc/containerd/config.toml && install -D -m 0644 '$REMOTE_TMP/runtime-config/certs.d/$HARBOR_HOST/hosts.toml' '/etc/containerd/certs.d/$HARBOR_HOST/hosts.toml'"
+    else
+      remote_cmd+=" && install -D -m 0644 '$REMOTE_TMP/runtime-config/daemon.json' /etc/docker/daemon.json"
+    fi
+    ssh_remote "$ip" "$remote_cmd"
+  fi
 
   # 通过临时目录中的脚本执行；无论成功或失败都清理临时目录，并保留脚本退出码。
   remote_cmd="set +e; bash '$REMOTE_TMP/$SCRIPT_REL'; rc=\$?; rm -rf '$REMOTE_TMP'; exit \$rc"
