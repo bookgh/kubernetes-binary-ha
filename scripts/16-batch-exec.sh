@@ -94,6 +94,8 @@ case "$SCRIPT_REL" in
     ;;
   scripts/08-start-control-plane.sh)
     [[ "$GROUP" == masters ]] || die "08-start-control-plane.sh 必须使用 masters 节点组"
+    require_cmd jq
+    require_cmd tar
     [[ -s "$ROOT/offline/src/etcd.tar.gz" ]] || die "缺少本地 etcdctl 验证工具归档 offline/src/etcd.tar.gz"
     for file in pki/etcd-ca.crt pki/apiserver-etcd-client.crt pki/apiserver-etcd-client.key; do
       [[ -s "$ROOT/$file" ]] || die "缺少 etcd 验证凭据：$file"
