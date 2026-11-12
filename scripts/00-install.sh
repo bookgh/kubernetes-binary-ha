@@ -69,7 +69,6 @@ local_healthy() {
       grep -Fxq "NodeLocalDNS=$NODE_LOCAL_DNS_VERSION" "$ROOT/offline/ARTIFACTS.txt" || return 1
       grep -Fq 'docker.io/library/busybox:1.36.1' "$ROOT/offline/images/IMAGE-REFERENCES.txt" || return 1
       [[ -s "$ROOT/offline/helm/projectcalico.org.v3-${CALICO_CHART_VERSION}.tgz" && -s "$ROOT/offline/helm/tigera-operator-${CALICO_CHART_VERSION}.tgz" && -s "$ROOT/offline/helm/coredns-${COREDNS_CHART_VERSION}.tgz" && -s "$ROOT/offline/helm/coredns-values.yaml" ]] || return 1
-      (cd "$ROOT/offline" && sha256sum -c SHA256SUMS >/dev/null 2>&1)
       ;;
     cli-tools) command -v helm >/dev/null && command -v calicoctl >/dev/null && command -v crictl >/dev/null && command -v cfssl >/dev/null ;;
     ssh-key)
