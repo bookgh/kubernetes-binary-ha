@@ -153,26 +153,29 @@ sudo bash scripts/15-distribute-node-configs.sh
 
 ### 6.2 远程节点批量执行
 
-部署机需按 `SSH_USER`、`SSH_PASSWORD`、`SSH_PORT` 配置 SSH 公钥登录；非 root 账号需免密 sudo。先在部署机切换到仓库源码根目录（确保本地 `scripts/` 目录存在），再使用完整相对路径调用批量执行器。默认推荐**方式 1**：SSH 直接执行远端已分发到 `/opt/kubernetes-binary-ha/scripts/` 的脚本，不再重复 SCP：
+部署机需按 `SSH_USER`、`SSH_PORT` 配置 SSH 公钥登录；非 root 账号需免密 sudo。先在部署机切换到仓库源码根目录，再使用完整相对路径调用批量执行器。批量执行器会把脚本、`lib.sh` 和配置复制到远程临时目录，执行后自动清理，不要求远程节点预先存在完整仓库。
 
 ~~~bash
 cd /path/to/kubernetes-binary-ha
-bash scripts/16-batch-exec.sh all scripts/00-preflight.sh --parallel
+# 先在部署机生成节点运行时配置（不连接远程节点）
+bash scripts/14-render-node-configs.sh
+
+# 只安装容器运行时：仅传输 containerd/runc 或 Docker 二进制、
+# 对应 systemd 单元、runtime.env 和运行时配置，不传输 PKI/kubeconfig 等目录
 bash scripts/16-batch-exec.sh all scripts/02-install-runtime.sh --parallel
+
+# 单独安装 etcd、Kubernetes、CNI 和 crictl 二进制
+bash scripts/16-batch-exec.sh all scripts/02-install-kubernetes-binaries.sh --parallel
+
+# 后续 systemd/节点配置仍按完整部署流程分发
+bash scripts/15-distribute-node-configs.sh
 bash scripts/16-batch-exec.sh all scripts/06-install-systemd.sh --parallel
 ~~~
 
-两种执行方式：
+`02-install-runtime.sh` 只负责容器运行时；etcd、Kubernetes、CNI 和 crictl 已拆到 `02-install-kubernetes-binaries.sh`。两阶段通过独立资源清单传输，不会把整个 `offline/`、`generated/`、`pki/` 或 `kubeconfigs/` 目录传到节点。运行时阶段不依赖先执行 `15-distribute-node-configs.sh`，但需要先在部署机准备离线资源并运行 `14-render-node-configs.sh`。
 
-1. **方式 1（推荐，默认）**：本地通过 SSH 连接远程节点，直接执行节点上已分发的 `/opt/kubernetes-binary-ha/scripts/<脚本>`。要求先成功执行 `scripts/15-distribute-node-configs.sh`，确保远端项目目录和脚本存在。命令示例即上方三条。
-2. **方式 2（显式指定 `--copy`）**：先将部署机本地指定脚本 SCP 到每台远端节点的临时目录，再安装到远端项目目录并执行。适用于只更新了某个脚本、不想重新分发整个项目的情况：
+脚本参数必须使用 `scripts/xxx.sh` 完整相对路径；支持 `all`、`masters`、`workers` 和 `--parallel`。
 
-~~~bash
-cd /path/to/kubernetes-binary-ha
-bash scripts/16-batch-exec.sh all scripts/02-install-runtime.sh --parallel --copy
-~~~
-
-脚本参数必须使用 `scripts/xxx.sh` 完整相对路径；旧的仅传文件名写法不再使用。两种方式都支持 `all`、`masters`、`workers` 和 `--parallel`。
 ### 6.3 后续集群组件
 
 1. 确认 Harbor 已健康且离线镜像已导入，再依次执行 scripts/19-install-calico.sh、scripts/20-install-coredns.sh 和 scripts/25-install-node-local-dns.sh；Helm Chart 和 NodeLocal DNSCache 镜像均来自离线包/Harbor。
