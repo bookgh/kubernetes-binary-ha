@@ -90,7 +90,7 @@ sudo bash scripts/00-install.sh download
 
 ~~~bash
 export SSH_USER="root"
-export SSH_PASSWORD="首次分发公钥时使用的登录密码"
+export SSH_PASSWORD=""  # 留空时由 ssh-copy-id 交互式询问远程密码
 export SSH_PORT="22"
 ~~~
 
