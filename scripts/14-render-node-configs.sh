@@ -49,7 +49,7 @@ if [[ "${RUNTIME_TYPE:-containerd}" == containerd ]]; then
     sed -i "/^\\[plugins.'io.containerd.cri.v1.runtime'.containerd.runtimes.runc.options\\]/a SystemdCgroup = true" "$COMMON/etc/containerd/config.toml"
   fi
   if grep -qE "^[[:space:]]*sandbox[[:space:]]*=" "$COMMON/etc/containerd/config.toml"; then
-    sed -i -E "s#^([[:space:]]*sandbox[[:space:]]*=[[:space:]]*).*$#\\1'${PAUSE_IMAGE}'#" "$COMMON/etc/containerd/config.toml"
+    sed -i "s#sandbox = .*#sandbox = '${PAUSE_IMAGE}'#" "$COMMON/etc/containerd/config.toml"
   else
     die "containerd 2.x 默认配置中未找到 pinned_images.sandbox 字段"
   fi
