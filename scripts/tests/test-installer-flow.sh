@@ -32,6 +32,11 @@ contains "$INSTALL" 'RPM-HOST-ROOTS.txt'
 contains "$INSTALL" 'prepare_system'
 contains "$INSTALL" 'kubelet-<节点名>.conf'
 contains "$INSTALL" 'file#"$ROOT"/'
+contains "$ROOT/scripts/16-batch-exec.sh" 'SCRIPT_ARG="$2"'
+contains "$ROOT/scripts/16-batch-exec.sh" 'scripts/02-install-runtime.sh'
+contains "$ROOT/scripts/16-batch-exec.sh" 'ssh_remote "$ip" "cd'
+contains "$ROOT/scripts/16-batch-exec.sh" 'scp -P "$SSH_PORT"'
+contains "$ROOT/scripts/16-batch-exec.sh" '--copy'
 contains "$INSTALL" 'local_healthy "$id"'
 contains "$INSTALL" 'stage_fingerprint'
 contains "$INSTALL" 'IMAGE_ARCHIVE_SHA256=$image_sha'
@@ -88,4 +93,4 @@ if grep -Fq '"expiry": "8760h"' "$CERT_CONFIG"; then
   echo "FAIL: all certificate profiles must use 100-year validity" >&2
   exit 1
 fi
-echo "Installer flow, NodeLocal DNS, Harbor image-pull and cross-node network tests passed."
+echo "Installer flow, batch execution modes, NodeLocal DNS, Harbor image-pull and cross-node network tests passed."
