@@ -52,7 +52,7 @@ if [[ "$SCRIPT_REL" == "scripts/02-install-runtime.sh" ]]; then
   [[ -s "$ROOT/offline/SHA256SUMS" ]] || die "部署机缺少 offline/SHA256SUMS；请先运行离线资源准备步骤"
   [[ -s "$ROOT/systemd/containerd.service" || -s "$ROOT/systemd/docker.service" ]] || die "部署机缺少 systemd 运行时服务文件"
 fi
-REMOTE_TMP="/tmp/kubernetes-binary-ha-$(basename "$SCRIPT_REL" .sh)-$"
+REMOTE_TMP="/tmp/kubernetes-binary-ha-$(basename "$SCRIPT_REL" .sh)-$$"
 
 run_node() {
   local node="$1" ip="$2" remote_cmd
