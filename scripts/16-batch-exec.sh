@@ -92,12 +92,20 @@ case "$SCRIPT_REL" in
       [[ -s "$ROOT/offline/src/$artifact" ]] || die "缺少离线资源 offline/src/$artifact"
     done
     ;;
+  scripts/08-start-control-plane.sh)
+    [[ "$GROUP" == masters ]] || die "08-start-control-plane.sh 必须使用 masters 节点组"
+    [[ -s "$ROOT/offline/src/etcd.tar.gz" ]] || die "缺少本地 etcdctl 验证工具归档 offline/src/etcd.tar.gz"
+    for file in pki/etcd-ca.crt pki/apiserver-etcd-client.crt pki/apiserver-etcd-client.key; do
+      [[ -s "$ROOT/$file" ]] || die "缺少 etcd 验证凭据：$file"
+    done
+    [[ -f "$ROOT/scripts/21-verify-etcd.sh" ]] || die "缺少 scripts/21-verify-etcd.sh"
+    ;;
 esac
 
 REMOTE_TMP="/tmp/kubernetes-binary-ha-$(basename "$SCRIPT_REL" .sh)-$$"
 
 run_node() {
-  local node="$1" ip="$2" remote_cmd
+  local node="$1" ip="$2" phase="${3:-}" remote_cmd
   log "创建远程临时目录并复制脚本、lib.sh 和 cluster.env -> $node ($ip)"
   # 非 root SSH 用户需要能够写入临时目录，执行阶段仍通过 ssh_remote 提权。
   ssh_remote "$ip" "mkdir -p '$REMOTE_TMP/scripts' '$REMOTE_TMP/config' && chown -R '$SSH_USER' '$REMOTE_TMP'"
@@ -160,6 +168,10 @@ run_node() {
       for unit in "$stage"/systemd/*.service; do unit_name="$(basename "$unit")"; remote_cmd+=" && install -D -m 0644 '$REMOTE_TMP/systemd/$unit_name' '/etc/systemd/system/$unit_name'"; done
       ssh_remote "$ip" "$remote_cmd"
       ;;
+    scripts/08-start-control-plane.sh)
+      # 此阶段远程只依赖脚本、lib.sh 和 cluster.env，不传输其他资源目录。
+      log "08 阶段仅传输脚本及节点清单配置 -> $node ($ip)"
+      ;;
     scripts/02-install-kubernetes-binaries.sh)
       local stage="$BATCH_STAGE/$node"
       mkdir -p "$stage/offline/bin" "$stage/offline/src"
@@ -184,9 +196,50 @@ run_node() {
   esac
 
   # 通过临时目录中的脚本执行；无论成功或失败都清理临时目录，并保留脚本退出码。
-  remote_cmd="set +e; bash '$REMOTE_TMP/$SCRIPT_REL'; rc=\$?; rm -rf '$REMOTE_TMP'; exit \$rc"
+  if [[ "$SCRIPT_REL" == "scripts/08-start-control-plane.sh" ]]; then
+    [[ "$phase" == etcd-only || "$phase" == control-plane-only ]] || die "08 阶段缺少有效启动阶段参数"
+    remote_cmd="set +e; bash '$REMOTE_TMP/$SCRIPT_REL' '$phase'; rc=\$?; rm -rf '$REMOTE_TMP'; exit \$rc"
+  else
+    remote_cmd="set +e; bash '$REMOTE_TMP/$SCRIPT_REL'; rc=\$?; rm -rf '$REMOTE_TMP'; exit \$rc"
+  fi
   ssh_remote "$ip" "$remote_cmd"
 }
+
+if [[ "$SCRIPT_REL" == "scripts/08-start-control-plane.sh" ]]; then
+  # 第一阶段：逐台发起远程调用，各节点上的 etcd 实际在后台启动。
+  for i in "${!NODES[@]}"; do
+    node="${NODES[$i]}"; ip="${IPS[$i]}"
+    log "触发 etcd 后台启动 -> $node ($ip)"
+    run_node "$node" "$ip" etcd-only
+  done
+
+  # 第二阶段：部署机验证全部 endpoint、成员列表和唯一 Leader。
+  verify_log="$BATCH_STAGE/verify-etcd.log"
+  verified=0
+  for attempt in {1..60}; do
+    if bash "$ROOT/scripts/21-verify-etcd.sh" >"$verify_log" 2>&1; then
+      cat "$verify_log"
+      verified=1
+      break
+    fi
+    log "等待 etcd 全部成员健康及 quorum（$attempt/60）"
+    sleep 5
+  done
+  if [[ "$verified" -ne 1 ]]; then
+    cat "$verify_log" >&2
+    die "等待 etcd 集群健康超时；控制平面尚未启动。请检查各 Master 的 etcd 日志。"
+  fi
+
+  # 第三阶段：仅在 etcd 集群健康且唯一 Leader 确认后启动控制平面。
+  for i in "${!NODES[@]}"; do
+    node="${NODES[$i]}"; ip="${IPS[$i]}"
+    log "启动控制平面组件 -> $node ($ip)"
+    run_node "$node" "$ip" control-plane-only
+    ok "$node 控制平面组件启动完成"
+  done
+  ok "全部 Master 的 etcd 集群验证通过，控制平面组件已启动。"
+  exit 0
+fi
 
 if [[ -n "$PARALLEL" ]]; then
   PIDS=()
