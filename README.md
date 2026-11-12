@@ -136,9 +136,9 @@ sudo bash scripts/15-distribute-node-configs.sh
 # 在 Rocky Linux 9 amd64 暂存机准备离线资源
 sudo bash scripts/01-prepare-offline.sh
 # 暂存机与部署机分离时，先将 offline/ 目录复制到部署机项目根目录
-sudo dnf install -y --disablerepo="*" offline/rpms/*.rpm
-sudo bash scripts/17-install-cli-tools.sh
-# 部署机需具备 rsync、ssh、scp 客户端
+sudo bash scripts/00-install.sh download
+# 配置并验证全部集群节点及独立 Harbor 节点的 SSH 公钥登录
+sudo bash scripts/05-configure-ssh.sh
 
 # 在部署机本地生成 PKI、kubeconfig 和各节点配置
 sudo bash scripts/03-generate-pki.sh
