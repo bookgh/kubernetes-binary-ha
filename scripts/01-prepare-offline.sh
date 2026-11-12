@@ -140,7 +140,7 @@ else
   die "切换离线资源目录失败；已尝试恢复旧版本"
 fi
 # 标记独立于 SHA256SUMS，先写临时文件再原子落盘；失败时下次会重新下载校验。
-MARKER_TMP="$ROOT/offline/.PREPARED.tmp.$"
+MARKER_TMP="$ROOT/offline/.PREPARED.tmp.$$"
 {
   printf 'TAG=%s\n' "$TAG"
   printf 'CACHE_KEY=%s\n' "$CACHE_KEY"
