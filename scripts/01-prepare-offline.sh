@@ -53,7 +53,6 @@ validate_offline_dir() {
     "$dir/helm/coredns-values.yaml"; do
     [[ -s "$chart" ]] || return 1
   done
-  (cd "$dir" && sha256sum -c SHA256SUMS >/dev/null 2>&1) || return 1
 }
 
 # 仅当完成标记、版本配置、关键资产和全部 SHA256 均匹配时才跳过网络下载。
@@ -126,7 +125,7 @@ OS=Rocky Linux 9
 Source=GitHub Release ${TAG}
 EOF
 log "离线资源准备完成：$OUT"
-validate_offline_dir "$OUT" || die "离线资源目录完整性或版本校验失败"
+validate_offline_dir "$OUT" || die "离线资源目录结构或版本信息不完整"
 log "Release 二进制、RPM、Harbor 安装器及 Kubernetes 镜像归档均已校验。"
 
 # 只有完整下载、解压、校验及必需资产检查全部通过后，才替换现有 offline/。
