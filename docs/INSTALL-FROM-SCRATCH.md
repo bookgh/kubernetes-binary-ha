@@ -208,7 +208,7 @@ Harbor 部署在 `HARBOR_NODE_IP` 指定节点，默认使用 `http://harbor.<�
 运行时预处理阶段已经配置 registry trust：containerd 使用 `/etc/containerd/certs.d/<HARBOR_HOST>/hosts.toml`，Docker 使用 `insecure-registries`。由于当前 Harbor URL 为 HTTP，此配置不是 TLS CA 信任。完成 Harbor 健康检查和镜像推送后，才允许继续 etcd 阶段。
 
 ~~~bash
-sudo bash scripts/16-batch-exec.sh masters 07-bootstrap-etcd.sh --parallel
+bash scripts/16-batch-exec.sh masters scripts/07-bootstrap-etcd.sh --parallel
 ~~~
 
 在启动控制平面前，必须先执行部署机上的 etcd 专项检查：
@@ -224,14 +224,14 @@ sudo bash scripts/21-verify-etcd.sh
 先启动全部 Master：
 
 ~~~bash
-sudo bash scripts/16-batch-exec.sh masters 08-start-control-plane.sh --parallel
+bash scripts/16-batch-exec.sh masters scripts/08-start-control-plane.sh --parallel
 ~~~
 
 通过 SSH 在每台 Master 本机检查 `https://127.0.0.1:6443/readyz`。统一安装入口会等待全部 Master 的 API `/readyz` 成功，再允许进入 Worker 阶段。手工分步执行时也必须遵守该门槛，再启动 Worker：
 
 ~~~bash
-sudo bash scripts/16-batch-exec.sh workers 13-install-nginx-proxy.sh --parallel
-sudo bash scripts/16-batch-exec.sh workers 09-start-worker.sh --parallel
+bash scripts/16-batch-exec.sh workers scripts/13-install-nginx-proxy.sh --parallel
+bash scripts/16-batch-exec.sh workers scripts/09-start-worker.sh --parallel
 ~~~
 
 Worker NGINX 是 TLS passthrough，监听本机 127.0.0.1:6443，向全部 Master 的 TCP/6443 转发。管理员入口 API_DNS 仍然是单 Master DNS，不等同于外部 HA LB。
