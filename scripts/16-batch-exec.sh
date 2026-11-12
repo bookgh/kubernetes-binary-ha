@@ -57,6 +57,12 @@ if [[ "$SCRIPT_REL" == "scripts/02-install-runtime.sh" ]]; then
   [[ -s "$ROOT/generated/common/etc/crictl.yaml" ]] || die "缺少运行时配置，请先运行 scripts/14-render-node-configs.sh"
   [[ -s "$ROOT/config/release-versions.env" ]] || die "缺少 config/release-versions.env"
   source "$ROOT/config/release-versions.env"
+  for binary in kube-apiserver kube-controller-manager kube-scheduler kubelet kube-proxy kubectl runc; do
+    [[ -s "$ROOT/offline/bin/$binary" ]] || die "缺少离线二进制：offline/bin/$binary"
+  done
+  for artifact in etcd.tar.gz cni-plugins.tgz crictl.tar.gz; do
+    [[ -s "$ROOT/offline/src/$artifact" ]] || die "缺少离线资源：offline/src/$artifact"
+  done
   case "$RUNTIME_TYPE" in
     containerd)
       [[ -s "$ROOT/offline/src/containerd.tar.gz" && -s "$ROOT/offline/bin/runc" ]] || die "缺少 containerd/runc 二进制资源"
