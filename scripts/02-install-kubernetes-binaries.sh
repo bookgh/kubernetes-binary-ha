@@ -43,7 +43,7 @@ ETCD_VERSION_NORMALIZED="${ETCD_VERSION#v}"
 ETCD_TMP="$(mktemp -d)"
 trap 'rm -rf "$ETCD_TMP"' EXIT
 tar -xzf "$OFF/src/etcd.tar.gz" -C "$ETCD_TMP"
-ETCD_DIR="$ETCD_TMP/etcd-${ETCD_VERSION_NORMALIZED}-linux-amd64"
+ETCD_DIR="$ETCD_TMP/etcd-v${ETCD_VERSION_NORMALIZED}-linux-amd64"
 [[ -x "$ETCD_DIR/etcd" && -x "$ETCD_DIR/etcdctl" && -x "$ETCD_DIR/etcdutl" ]] ||
   die "etcd ${ETCD_VERSION_NORMALIZED} 离线归档缺少 etcd/etcdctl/etcdutl"
 install -m 0755 "$ETCD_DIR/etcd" "$ETCD_DIR/etcdctl" "$ETCD_DIR/etcdutl" /usr/local/bin/
