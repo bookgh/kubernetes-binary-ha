@@ -51,7 +51,8 @@ REMOTE_TMP="/tmp/kubernetes-binary-ha-$(basename "$SCRIPT_REL" .sh)-$$"
 run_node() {
   local node="$1" ip="$2" remote_cmd
   log "创建远程临时目录并复制脚本、lib.sh 和 cluster.env -> $node ($ip)"
-  ssh_remote "$ip" "mkdir -p '$REMOTE_TMP/scripts' '$REMOTE_TMP/config'"
+  # 非 root SSH 用户需要能够写入临时目录，执行阶段仍通过 ssh_remote 提权。
+  ssh_remote "$ip" "mkdir -p '$REMOTE_TMP/scripts' '$REMOTE_TMP/config' && chown -R '$SSH_USER' '$REMOTE_TMP'"
   scp -P "$SSH_PORT" -o BatchMode=yes \
     "$LOCAL_SCRIPT" "$LOCAL_LIB" "$SSH_USER@$ip:$REMOTE_TMP/scripts/"
   scp -P "$SSH_PORT" -o BatchMode=yes \
