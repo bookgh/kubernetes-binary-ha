@@ -73,6 +73,20 @@ case "$SCRIPT_REL" in
       *) die "RUNTIME_TYPE 仅支持 containerd 或 docker" ;;
     esac
     ;;
+  scripts/06-install-systemd.sh)
+    for node in "\${NODES[@]}"; do
+      for file in etc/kubernetes/cluster.env etc/kubernetes/runtime.env var/lib/kubelet/config.yaml var/lib/kube-proxy/config.yaml; do
+        [[ -s "$ROOT/generated/$node/$file" ]] || die "缺少 generated 节点配置：$node/$file；请先运行 scripts/14-render-node-configs.sh"
+      done
+    done
+    for file in etc/modules-load.d/10-kubernetes.conf etc/sysctl.d/95-kubernetes.conf; do
+      [[ -s "$ROOT/generated/common/$file" ]] || die "缺少 generated/common/$file；请先运行 scripts/14-render-node-configs.sh"
+    done
+    for unit in nginx-k8s-api.service kubelet.service kube-proxy.service; do [[ -s "$ROOT/systemd/$unit" ]] || die "缺少 systemd/$unit"; done
+    if [[ "$GROUP" == all || "$GROUP" == masters ]]; then
+      for unit in etcd.service kube-apiserver.service kube-controller-manager.service kube-scheduler.service; do [[ -s "$ROOT/systemd/$unit" ]] || die "缺少 systemd/$unit"; done
+    fi
+    ;;
   scripts/02-install-kubernetes-binaries.sh)
     require_cmd sha256sum
     [[ -s "$ROOT/offline/SHA256SUMS" ]] || die "部署机缺少 offline/SHA256SUMS；请先准备离线资源"
@@ -132,6 +146,25 @@ run_node() {
       else
         remote_cmd+=" && install -D -m 0644 '$REMOTE_TMP/runtime-config/daemon.json' /etc/docker/daemon.json"
       fi
+      ssh_remote "$ip" "$remote_cmd"
+      ;;
+    scripts/06-install-systemd.sh)
+      local stage="$BATCH_STAGE/$node"
+      mkdir -p "$stage/generated/etc/kubernetes" "$stage/generated/var/lib/kubelet" "$stage/generated/var/lib/kube-proxy" "$stage/generated/etc/modules-load.d" "$stage/generated/etc/sysctl.d" "$stage/systemd"
+      for file in etc/kubernetes/cluster.env etc/kubernetes/runtime.env var/lib/kubelet/config.yaml var/lib/kube-proxy/config.yaml; do
+        install -m 0600 "$ROOT/generated/$node/$file" "$stage/generated/$file"
+      done
+      for file in etc/modules-load.d/10-kubernetes.conf etc/sysctl.d/95-kubernetes.conf; do
+        install -m 0644 "$ROOT/generated/common/$file" "$stage/generated/$file"
+      done
+      for unit in nginx-k8s-api.service kubelet.service kube-proxy.service; do install -m 0644 "$ROOT/systemd/$unit" "$stage/systemd/$unit"; done
+      if [[ "$node" == master-* ]]; then
+        for unit in etcd.service kube-apiserver.service kube-controller-manager.service kube-scheduler.service; do install -m 0644 "$ROOT/systemd/$unit" "$stage/systemd/$unit"; done
+      fi
+      log "仅复制节点 cluster/runtime 配置、kubelet/kube-proxy 配置、内核参数和所需 systemd unit -> $node ($ip)"
+      scp -r -P "$SSH_PORT" -o BatchMode=yes "$stage/generated" "$stage/systemd" "$SSH_USER@$ip:$REMOTE_TMP/"
+      remote_cmd="install -D -m 0600 '$REMOTE_TMP/generated/etc/kubernetes/cluster.env' /etc/kubernetes/cluster.env && install -D -m 0600 '$REMOTE_TMP/generated/etc/kubernetes/runtime.env' /etc/kubernetes/runtime.env && install -D -m 0644 '$REMOTE_TMP/generated/var/lib/kubelet/config.yaml' /var/lib/kubelet/config.yaml && install -D -m 0644 '$REMOTE_TMP/generated/var/lib/kube-proxy/config.yaml' /var/lib/kube-proxy/config.yaml && install -D -m 0644 '$REMOTE_TMP/generated/etc/modules-load.d/10-kubernetes.conf' /etc/modules-load.d/10-kubernetes.conf && install -D -m 0644 '$REMOTE_TMP/generated/etc/sysctl.d/95-kubernetes.conf' /etc/sysctl.d/95-kubernetes.conf"
+      for unit in "$stage"/systemd/*.service; do unit_name="$(basename "$unit")"; remote_cmd+=" && install -D -m 0644 '$REMOTE_TMP/systemd/$unit_name' '/etc/systemd/system/$unit_name'"; done
       ssh_remote "$ip" "$remote_cmd"
       ;;
     scripts/02-install-kubernetes-binaries.sh)
