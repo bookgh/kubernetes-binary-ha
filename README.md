@@ -153,25 +153,26 @@ sudo bash scripts/15-distribute-node-configs.sh
 
 ### 6.2 远程节点批量执行
 
-部署机需按 `SSH_USER`、`SSH_PASSWORD`、`SSH_PORT` 配置 SSH 公钥登录；非 root 账号需免密 sudo。使用统一批量执行入口，支持 `all`、`masters`、`workers` 节点组；`--parallel` 表示并发执行，任一节点失败会返回失败状态：
+部署机需按 `SSH_USER`、`SSH_PASSWORD`、`SSH_PORT` 配置 SSH 公钥登录；非 root 账号需免密 sudo。先在部署机切换到仓库源码根目录（确保本地 `scripts/` 目录存在），再使用完整相对路径调用批量执行器。默认推荐**方式 1**：SSH 直接执行远端已分发到 `/opt/kubernetes-binary-ha/scripts/` 的脚本，不再重复 SCP：
 
-```bash
-# 全部节点系统预检、运行时安装和 systemd 安装
-sudo bash scripts/16-batch-exec.sh all 00-preflight.sh --parallel
-sudo bash scripts/16-batch-exec.sh all 02-install-runtime.sh --parallel
-sudo bash scripts/16-batch-exec.sh all 06-install-systemd.sh --parallel
-# 06 阶段会按选择加载 IPVS 或 nftables 内核模块，并应用生成的 sysctl 配置
+~~~bash
+cd /path/to/kubernetes-binary-ha
+bash scripts/16-batch-exec.sh all scripts/00-preflight.sh --parallel
+bash scripts/16-batch-exec.sh all scripts/02-install-runtime.sh --parallel
+bash scripts/16-batch-exec.sh all scripts/06-install-systemd.sh --parallel
+~~~
 
-# 先并发启动全部 etcd Master，再启动全部 Master 控制平面
-sudo bash scripts/16-batch-exec.sh masters 07-bootstrap-etcd.sh --parallel
-sudo bash scripts/16-batch-exec.sh masters 08-start-control-plane.sh --parallel
-# 先确认每个 Master API /readyz 均正常，再启动 Worker
+两种执行方式：
 
-# Worker 先安装 NGINX API 代理，再启动 kubelet/kube-proxy
-sudo bash scripts/16-batch-exec.sh workers 13-install-nginx-proxy.sh --parallel
-sudo bash scripts/16-batch-exec.sh workers 09-start-worker.sh --parallel
-```
+1. **方式 1（推荐，默认）**：本地通过 SSH 连接远程节点，直接执行节点上已分发的 `/opt/kubernetes-binary-ha/scripts/<脚本>`。要求先成功执行 `scripts/15-distribute-node-configs.sh`，确保远端项目目录和脚本存在。命令示例即上方三条。
+2. **方式 2（显式指定 `--copy`）**：先将部署机本地指定脚本 SCP 到每台远端节点的临时目录，再安装到远端项目目录并执行。适用于只更新了某个脚本、不想重新分发整个项目的情况：
 
+~~~bash
+cd /path/to/kubernetes-binary-ha
+bash scripts/16-batch-exec.sh all scripts/02-install-runtime.sh --parallel --copy
+~~~
+
+脚本参数必须使用 `scripts/xxx.sh` 完整相对路径；旧的仅传文件名写法不再使用。两种方式都支持 `all`、`masters`、`workers` 和 `--parallel`。
 ### 6.3 后续集群组件
 
 1. 确认 Harbor 已健康且离线镜像已导入，再依次执行 scripts/19-install-calico.sh、scripts/20-install-coredns.sh 和 scripts/25-install-node-local-dns.sh；Helm Chart 和 NodeLocal DNSCache 镜像均来自离线包/Harbor。
