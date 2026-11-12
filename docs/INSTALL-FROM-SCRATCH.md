@@ -117,7 +117,7 @@ sudo ssh -p 22 -o BatchMode=yes root@192.168.10.41 true
 将示例 IP、账号和端口替换为实际配置。若验证失败，检查账号密码、sshd 端口、防火墙、远端 `~/.ssh/authorized_keys` 权限以及部署机私钥权限；修复后重新执行脚本即可。SSH 私钥和密码不得复制到集群节点或提交到仓库。
 
 统一安装方式无需手工单独执行该脚本：`sudo bash scripts/00-install.sh prepare` 会自动执行 SSH 公钥配置；也可单独运行 `sudo bash scripts/00-install.sh ssh`。
-## 6. 本地生成 CFSSL PKI、kubeconfig 和节点配置
+## 5. 本地生成 CFSSL PKI、kubeconfig 和节点配置
 
 先生成证书：
 
