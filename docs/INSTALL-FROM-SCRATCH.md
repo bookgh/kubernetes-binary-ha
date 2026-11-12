@@ -158,11 +158,28 @@ ssh root@worker-01 'ls -l /etc/kubernetes/pki /etc/kubernetes'
 
 ## 7. 批量预检、安装运行时和 systemd
 
+先在部署机切换到仓库源码根目录：
+
 ~~~bash
-sudo bash scripts/16-batch-exec.sh all 00-preflight.sh --parallel
-sudo bash scripts/16-batch-exec.sh all 02-install-runtime.sh --parallel
-sudo bash scripts/16-batch-exec.sh all 06-install-systemd.sh --parallel
+cd /path/to/kubernetes-binary-ha
 ~~~
+
+默认推荐方式 1：通过 SSH 直接执行远端已经由第 6 节分发的脚本。参数必须传完整相对路径：
+
+~~~bash
+bash scripts/16-batch-exec.sh all scripts/00-preflight.sh --parallel
+bash scripts/16-batch-exec.sh all scripts/02-install-runtime.sh --parallel
+bash scripts/16-batch-exec.sh all scripts/06-install-systemd.sh --parallel
+~~~
+
+- **方式 1（默认，推荐）**：本地 SSH 到远端，直接执行远端 `/opt/kubernetes-binary-ha/scripts/` 中的脚本。前提是已经成功执行 `scripts/15-distribute-node-configs.sh`，远端脚本存在且版本正确。
+- **方式 2（按需使用 `--copy`）**：先 SCP 部署机本地脚本到远端临时目录，再安装到远端项目目录并执行。适用于只更新单个脚本、不想重新分发整个项目的场景：
+
+~~~bash
+bash scripts/16-batch-exec.sh all scripts/02-install-runtime.sh --parallel --copy
+~~~
+
+两种方式均支持 `all`、`masters`、`workers` 节点组和 `--parallel`。不要再只传 `02-install-runtime.sh` 这样的 basename。
 
 检查各节点：
 
