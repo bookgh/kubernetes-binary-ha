@@ -186,7 +186,10 @@ ensure_host_rpms() {
     --repofrompath="k8s-ha-offline,file://$ROOT/offline/rpms" \
     --enablerepo=k8s-ha-offline --setopt=install_weak_deps=False \
     < "$ROOT/offline/rpms/RPM-HOST-ROOTS.txt"
-  for cmd in ssh scp rsync jq openssl curl tar sha256sum; do require_cmd "$cmd"; done
+  while IFS= read -r package; do
+    [[ -z "$package" ]] || rpm -q "$package" >/dev/null 2>&1 || die "部署机必需 RPM 未安装：$package（请检查离线仓库和依赖）"
+  done < "$ROOT/offline/rpms/RPM-HOST-ROOTS.txt"
+  for cmd in ssh scp rsync jq openssl curl tar gzip sha256sum; do require_cmd "$cmd"; done
   printf '%s\n' "$fp" > "$marker"; chmod 0600 "$marker"
 }
 validate_image_config() {
