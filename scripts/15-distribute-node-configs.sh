@@ -26,14 +26,14 @@ trap 'rm -rf "$NODE_OFFLINE" "$PROJECT_STAGE"' EXIT
 missing_kubeconfigs=0
 for kubeconfig in "$KCFG/admin.conf" "$KCFG/controller-manager.conf" "$KCFG/scheduler.conf" "$KCFG/kube-proxy.conf"; do
   if [[ ! -s "$kubeconfig" ]]; then
-    printf '  - %s\\n' "${kubeconfig#"$ROOT"/}" >&2
+    printf '  - %s\n' "${kubeconfig#"$ROOT"/}" >&2
     missing_kubeconfigs=1
   fi
 done
 for node in "${ALL_NAMES[@]}"; do
   kubeconfig="$KCFG/kubelet-$node.conf"
   if [[ ! -s "$kubeconfig" ]]; then
-    printf '  - %s\\n' "${kubeconfig#"$ROOT"/}" >&2
+    printf '  - %s\n' "${kubeconfig#"$ROOT"/}" >&2
     missing_kubeconfigs=1
   fi
 done
