@@ -74,7 +74,7 @@ case "$SCRIPT_REL" in
     esac
     ;;
   scripts/06-install-systemd.sh)
-    for node in "\${NODES[@]}"; do
+    for node in "${NODES[@]}"; do
       for file in etc/kubernetes/cluster.env etc/kubernetes/runtime.env var/lib/kubelet/config.yaml var/lib/kube-proxy/config.yaml; do
         [[ -s "$ROOT/generated/$node/$file" ]] || die "缺少 generated 节点配置：$node/$file；请先运行 scripts/14-render-node-configs.sh"
       done
